@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore, useWalletStore } from '@/store'
 import { Button, Card, Badge } from '@/components/ui'
+import { BrandLogo } from '@/components/ui/BrandLogo'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { resolveUserRole } from '@/lib/adminConfig'
 import { toUserFriendlyError } from '@/lib/supabaseApi'
@@ -184,31 +185,26 @@ export function AuthPage() {
   }
 
   return (
-    <div className="min-h-[calc(100dvh-3.5rem)] flex items-center justify-center px-4 py-8">
+    <div className="min-h-[calc(100dvh-4rem)] flex items-center justify-center px-4 py-12 bg-[#FAFAFA]">
       <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Brand Header */}
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-arena-blue to-arena-violet flex items-center justify-center mx-auto mb-4 shadow-glow-blue">
-            <Zap size={32} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Pitch Arena</h1>
-          <p className="text-white/60 text-sm mt-1">Back the ideas that move you</p>
+        <div className="flex flex-col items-center text-center space-y-2">
+          <BrandLogo size={36} showText={false} />
+          <h1 className="text-2xl font-black text-zinc-950 tracking-tight">The Big Pitch</h1>
+          <p className="text-zinc-500 text-xs">Venture Stage & Audience Capital Arena</p>
         </div>
 
         {/* Main Authentication Card */}
-        <Card className="p-6 sm:p-7 space-y-5 border-white/[0.12] shadow-2xl relative overflow-hidden">
-          {/* Subtle top ambient glow */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-arena-blue via-arena-violet to-cyan-400" />
-
+        <div className="bg-white p-7 sm:p-8 space-y-5 border border-zinc-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.05)] rounded-2xl relative">
           {/* Mode Switcher Tabs */}
-          <div className="flex p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+          <div className="flex p-1 rounded-xl bg-zinc-100 border border-zinc-200/60">
             <button
               type="button"
               onClick={() => { setMode('signin'); setErrorMessage(null) }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
                 mode === 'signin'
-                  ? 'bg-gradient-to-r from-arena-blue to-arena-violet text-white shadow-md'
-                  : 'text-white/50 hover:text-white'
+                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
+                  : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
               Sign In
@@ -218,8 +214,8 @@ export function AuthPage() {
               onClick={() => { setMode('signup'); setErrorMessage(null) }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
                 mode === 'signup'
-                  ? 'bg-gradient-to-r from-arena-blue to-arena-violet text-white shadow-md'
-                  : 'text-white/50 hover:text-white'
+                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
+                  : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
               Create Account
@@ -228,9 +224,9 @@ export function AuthPage() {
 
           {/* Error Message Alert */}
           {errorMessage && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs animate-shake">
-              <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-rose-400" />
-              <p className="flex-1 leading-relaxed">{errorMessage}</p>
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs animate-shake">
+              <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-rose-600" />
+              <p className="flex-1 leading-relaxed font-medium">{errorMessage}</p>
             </div>
           )}
 
@@ -238,8 +234,8 @@ export function AuthPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
               <div className="space-y-1.5 animate-fade-in">
-                <label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
-                  <User size={13} className="text-arena-blue-3" />
+                <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                  <User size={13} className="text-zinc-500" />
                   Full Name
                 </label>
                 <div className="relative">
@@ -256,8 +252,8 @@ export function AuthPage() {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
-                <Mail size={13} className="text-arena-blue-3" />
+              <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                <Mail size={13} className="text-zinc-500" />
                 Email Address
               </label>
               <div className="relative">
@@ -275,12 +271,12 @@ export function AuthPage() {
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
-                  <Lock size={13} className="text-arena-violet-3" />
+                <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                  <Lock size={13} className="text-zinc-500" />
                   Password
                 </label>
                 {mode === 'signin' && (
-                  <span className="text-[11px] text-white/40 hover:text-white/70 cursor-pointer">
+                  <span className="text-[11px] text-zinc-400 hover:text-zinc-700 cursor-pointer">
                     Forgot?
                   </span>
                 )}
@@ -293,12 +289,12 @@ export function AuthPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="arena-input pl-3 pr-10 w-full text-sm"
+                  className="arena-input pl-3 pr-10 w-full text-sm font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -309,18 +305,18 @@ export function AuthPage() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full justify-center text-sm py-2.5 font-semibold bg-gradient-to-r from-arena-blue to-arena-violet hover:brightness-110 shadow-glow-blue"
+              className="w-full justify-center text-sm py-2.5 font-semibold bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
               loading={submitting}
               icon={<ArrowRight size={15} />}
             >
-              {mode === 'signin' ? 'Sign In to Arena' : 'Join Pitch Arena'}
+              {mode === 'signin' ? 'Sign In' : 'Create Account'}
             </Button>
           </form>
 
           {/* Divider */}
           <div className="relative flex items-center justify-center">
-            <div className="border-t border-white/[0.08] w-full" />
-            <span className="bg-arena-navy-2 px-3 text-[11px] text-white/40 uppercase tracking-wider font-semibold">
+            <div className="border-t border-zinc-200 w-full" />
+            <span className="bg-white px-3 text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
               or
             </span>
           </div>
@@ -330,7 +326,7 @@ export function AuthPage() {
             type="button"
             variant="secondary"
             onClick={handleGoogleSignIn}
-            className="w-full justify-center gap-3 border-white/[0.12] hover:bg-white/[0.06] text-xs font-semibold py-2.5"
+            className="w-full justify-center gap-3 border-zinc-200 hover:bg-zinc-50 text-zinc-800 text-xs font-semibold py-2.5 shadow-sm"
             icon={
               <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
                 <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
@@ -344,25 +340,24 @@ export function AuthPage() {
           </Button>
 
           {/* Security Note */}
-          <div className="flex items-center gap-2 justify-center pt-1">
-            <Shield size={12} className="text-white/30" />
-            <p className="text-white/30 text-xs">Real Supabase Auth · Server-verified authorization</p>
+          <div className="flex items-center gap-1.5 justify-center pt-1 text-zinc-400 text-xs">
+            <Shield size={12} />
+            <span>Secure Supabase Authentication</span>
           </div>
-        </Card>
+        </div>
 
         {/* Benefits List */}
         <div className="grid grid-cols-2 gap-2.5 pt-1">
-          {BENEFITS.map(({ icon: Icon, text, color }) => (
-            <div key={text} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <Icon size={14} className={`flex-shrink-0 ${color}`} />
-              <p className="text-white/60 text-xs">{text}</p>
+          {BENEFITS.map(({ icon: Icon, text }) => (
+            <div key={text} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-zinc-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <Icon size={14} className="flex-shrink-0 text-zinc-900" />
+              <p className="text-zinc-600 text-xs font-medium">{text}</p>
             </div>
           ))}
         </div>
 
-        <p className="text-white/20 text-xs text-center px-4 leading-relaxed">
-          Pitch Arena — Gamified Live Pitch Competition Platform.
-          Role assignment is strictly managed via Supabase server-side allowlists.
+        <p className="text-zinc-400 text-xs text-center px-4 leading-relaxed">
+          The Big Pitch — Live Pitch Competition Platform.
         </p>
       </div>
     </div>

@@ -1,34 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   CSS Custom Properties — Pitch Arena Design System
+   Pitch Arena — Clean, Minimalist Enterprise Design System
+   Pure white, deep crisp black, refined typography, zero clutter
    ============================================================ */
 :root {
-  --arena-navy:       #0A0E1A;
-  --arena-navy-2:     #0F1424;
-  --arena-navy-3:     #141929;
-  --arena-blue:       #2563EB;
-  --arena-blue-2:     #3B82F6;
-  --arena-blue-3:     #60A5FA;
-  --arena-violet:     #7C3AED;
-  --arena-violet-2:   #8B5CF6;
-  --arena-violet-3:   #A78BFA;
-  --arena-cyan:       #06B6D4;
-  --arena-emerald:    #10B981;
-  --arena-amber:      #F59E0B;
-  --arena-rose:       #F43F5E;
-  --arena-glass:      rgba(255,255,255,0.04);
-  --arena-glass-2:    rgba(255,255,255,0.08);
-  --arena-border:     rgba(255,255,255,0.08);
+  --arena-bg:         #FFFFFF;
+  --arena-canvas:     #FAFAFA;
+  --arena-surface:    #FFFFFF;
+  --arena-border:     #E4E4E7;
+  --arena-dark:       #09090B;
+  --arena-text:       #18181B;
+  --arena-muted:      #71717A;
+  --arena-emerald:    #059669;
+  --arena-blue:       #18181B;
+  --arena-amber:      #D97706;
+  --arena-rose:       #E11D48;
 }
 
-/* ============================================================
-   Base Reset & Global Styles
-   ============================================================ */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -39,91 +32,82 @@ html {
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: var(--arena-navy);
-  color: #E2E8F0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #FAFAFA;
+  color: #18181B;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
 }
 
-/* Scrollbar */
+/* Subtle scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--arena-navy-2); }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+::-webkit-scrollbar-track { background: #F4F4F5; }
+::-webkit-scrollbar-thumb { background: #D4D4D8; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #A1A1AA; }
 
 /* ============================================================
    Component Utilities
    ============================================================ */
 @layer components {
 
-  /* Glass card */
+  /* Modern Card */
   .glass-card {
-    @apply bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl;
+    @apply bg-white border border-zinc-200/80 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] rounded-2xl;
   }
 
   .glass-card-hover {
-    @apply glass-card transition-all duration-300 hover:bg-white/[0.07] hover:border-white/[0.15] hover:shadow-card-hover;
+    @apply glass-card transition-all duration-200 hover:border-zinc-400 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)];
   }
 
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-arena-blue-2 to-arena-violet-2 bg-clip-text text-transparent;
-  }
-
-  .gradient-text-cyan {
-    @apply bg-gradient-to-r from-arena-cyan to-arena-blue-2 bg-clip-text text-transparent;
-  }
-
-  /* Buttons */
+  /* High-contrast buttons */
   .btn-primary {
-    @apply px-6 py-2.5 rounded-xl font-semibold text-sm text-white
-           bg-gradient-to-r from-arena-blue to-arena-violet
-           hover:from-arena-blue-2 hover:to-arena-violet-2
-           active:scale-[0.98] transition-all duration-200 shadow-glow-blue
-           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+    @apply px-5 py-2.5 rounded-xl font-semibold text-sm text-white
+           bg-zinc-900 hover:bg-zinc-800
+           active:scale-[0.98] transition-all duration-150 shadow-sm
+           border border-zinc-900
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
   }
 
   .btn-secondary {
-    @apply px-6 py-2.5 rounded-xl font-semibold text-sm text-white/90
-           bg-white/[0.08] border border-white/[0.12]
-           hover:bg-white/[0.12] hover:border-white/20
-           active:scale-[0.98] transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-5 py-2.5 rounded-xl font-semibold text-sm text-zinc-900
+           bg-white border border-zinc-200
+           hover:bg-zinc-50 hover:border-zinc-300
+           active:scale-[0.98] transition-all duration-150 shadow-sm
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-ghost {
-    @apply px-4 py-2 rounded-lg font-medium text-sm text-white/70
-           hover:bg-white/[0.06] hover:text-white transition-all duration-150;
+    @apply px-4 py-2 rounded-lg font-medium text-sm text-zinc-600
+           hover:bg-zinc-100 hover:text-zinc-900 transition-all duration-150;
   }
 
   .btn-danger {
-    @apply px-6 py-2.5 rounded-xl font-semibold text-sm text-white
-           bg-gradient-to-r from-rose-600 to-rose-500
-           hover:from-rose-500 hover:to-rose-400
-           active:scale-[0.98] transition-all duration-200;
+    @apply px-5 py-2.5 rounded-xl font-semibold text-sm text-white
+           bg-rose-600 hover:bg-rose-700
+           active:scale-[0.98] transition-all duration-150 shadow-sm
+           border border-rose-600;
   }
 
   /* Input fields */
   .arena-input {
-    @apply w-full px-4 py-2.5 rounded-xl bg-white/[0.06] border border-white/[0.1]
-           text-white placeholder-white/30 text-sm
-           focus:outline-none focus:border-arena-blue-2 focus:bg-white/[0.08]
-           transition-all duration-200;
+    @apply w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200
+           text-zinc-900 placeholder-zinc-400 text-sm shadow-sm
+           focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900
+           transition-all duration-150;
   }
 
   /* Status badges */
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
   }
 
-  .badge-blue   { @apply badge bg-arena-blue/20 text-arena-blue-3 border border-arena-blue/30; }
-  .badge-violet { @apply badge bg-arena-violet/20 text-arena-violet-3 border border-arena-violet/30; }
-  .badge-emerald{ @apply badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30; }
-  .badge-amber  { @apply badge bg-amber-500/20 text-amber-400 border border-amber-500/30; }
-  .badge-rose   { @apply badge bg-rose-500/20 text-rose-400 border border-rose-500/30; }
-  .badge-cyan   { @apply badge bg-cyan-500/20 text-cyan-400 border border-cyan-500/30; }
+  .badge-blue   { @apply badge bg-zinc-100 text-zinc-800 border border-zinc-200; }
+  .badge-violet { @apply badge bg-zinc-900 text-white border border-zinc-900; }
+  .badge-emerald{ @apply badge bg-emerald-50 text-emerald-700 border border-emerald-200; }
+  .badge-amber  { @apply badge bg-amber-50 text-amber-800 border border-amber-200; }
+  .badge-rose   { @apply badge bg-rose-50 text-rose-700 border border-rose-200; }
+  .badge-cyan   { @apply badge bg-sky-50 text-sky-700 border border-sky-200; }
 
   /* Stat card */
   .stat-card {
@@ -131,108 +115,46 @@ body {
   }
 
   .stat-value {
-    @apply text-2xl font-bold text-white;
+    @apply text-2xl font-bold text-zinc-900 font-mono tracking-tight;
   }
 
   .stat-label {
-    @apply text-sm text-white/50;
+    @apply text-xs font-medium uppercase tracking-wider text-zinc-500;
   }
 
-  /* Score rank */
-  .rank-medal-1 { @apply text-amber-400; }
-  .rank-medal-2 { @apply text-slate-300; }
-  .rank-medal-3 { @apply text-amber-700; }
-
-  /* Countdown timer */
+  /* Countdown digit */
   .countdown-digit {
-    @apply font-mono font-bold text-4xl text-white tabular-nums;
+    @apply font-mono font-bold text-4xl text-zinc-900 tabular-nums;
   }
 
   /* Shimmer skeleton */
   .skeleton {
-    @apply bg-gradient-to-r from-white/[0.04] via-white/[0.08] to-white/[0.04]
+    @apply bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100
            animate-shimmer bg-[length:1000px_100%] rounded-lg;
-  }
-
-  /* Scrollable horizontal */
-  .scroll-x {
-    @apply overflow-x-auto scrollbar-none;
   }
 
   /* Nav link */
   .nav-link {
     @apply flex flex-col items-center gap-1 py-2 px-3 rounded-xl
-           text-white/50 hover:text-white transition-colors duration-200 text-xs font-medium;
+           text-zinc-500 hover:text-zinc-900 transition-colors duration-150 text-xs font-medium;
   }
 
   .nav-link-active {
-    @apply nav-link text-arena-blue-2 bg-arena-blue/10;
-  }
-
-  /* Live indicator */
-  .live-dot {
-    @apply w-2 h-2 rounded-full bg-rose-500 animate-pulse;
+    @apply nav-link text-zinc-900 bg-zinc-100 font-semibold;
   }
 
   /* Points display */
   .points-display {
-    @apply font-mono font-bold text-arena-blue-3;
-  }
-
-  /* Transaction row */
-  .tx-row {
-    @apply flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0;
+    @apply font-mono font-bold text-zinc-900;
   }
 }
 
-/* ============================================================
-   Animations
-   ============================================================ */
+/* Animations */
 @keyframes shimmer {
   0%   { background-position: -1000px 0; }
   100% { background-position:  1000px 0; }
 }
 
-@keyframes rankFlash {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
-}
-
-@keyframes floatUp {
-  from { transform: translateY(0); opacity: 1; }
-  to   { transform: translateY(-60px); opacity: 0; }
-}
-
-.animate-float-up {
-  animation: floatUp 1.5s ease-out forwards;
-}
-
-/* Scoreboard-specific */
-.scoreboard-row-enter {
-  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Timer urgent pulse */
-.timer-urgent {
-  animation: pulse 1s ease-in-out infinite;
-  color: var(--arena-rose);
-}
-
-/* Glow ring */
-.glow-ring-blue {
-  box-shadow: 0 0 0 2px var(--arena-blue), 0 0 20px rgba(37,99,235,0.4);
-}
-
-.glow-ring-violet {
-  box-shadow: 0 0 0 2px var(--arena-violet), 0 0 20px rgba(124,58,237,0.4);
-}
-
-/* Mobile bottom padding for nav */
-.pb-nav { padding-bottom: 5rem; }
-
-/* Scrollbar none */
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
-
-/* Safe area */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

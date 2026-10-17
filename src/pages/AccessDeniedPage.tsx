@@ -1,5 +1,6 @@
 // ============================================================
 // Access Denied Page — 403 Forbidden for unauthorized admin access
+// Clean minimalist white & black aesthetic.
 // ============================================================
 
 import { Link, useNavigate } from 'react-router-dom'
@@ -28,38 +29,38 @@ export function AccessDeniedPage({ userEmail }: AccessDeniedPageProps) {
     <div className="min-h-[75vh] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-6 animate-fade-in text-center">
         {/* Shield Icon Graphic */}
-        <div className="relative mx-auto w-20 h-20 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center shadow-lg shadow-rose-500/10">
-          <ShieldAlert size={40} className="text-rose-400 animate-pulse" />
-          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-arena-navy-2 border border-rose-500/40 flex items-center justify-center">
-            <Lock size={14} className="text-rose-400" />
+        <div className="relative mx-auto w-16 h-16 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center shadow-sm">
+          <ShieldAlert size={32} className="text-zinc-950" />
+          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-zinc-950 text-white flex items-center justify-center">
+            <Lock size={12} />
           </div>
         </div>
 
         {/* Header */}
         <div className="space-y-2">
-          <Badge variant="rose" dot className="px-3 py-1 text-xs">
+          <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-zinc-100 text-zinc-800 border border-zinc-200 inline-block">
             HTTP 403 · Access Denied
-          </Badge>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight">
             Admin Access Required
           </h1>
-          <p className="text-white/60 text-sm max-w-sm mx-auto leading-relaxed">
+          <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">
             The Admin Control Room is restricted to authorized event administrators. Your current account is not listed on the administrator allowlist.
           </p>
         </div>
 
         {/* Account Details Card */}
-        <Card className="p-4 border-white/[0.08] bg-white/[0.02] text-left">
-          <div className="flex items-center justify-between text-xs text-white/50 mb-1.5">
+        <div className="p-4 rounded-2xl border border-zinc-200/90 bg-white shadow-sm text-left">
+          <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
             <span>Signed in as:</span>
-            <span className="text-rose-400 font-medium">Unauthorized for /admin</span>
+            <span className="text-zinc-900 font-semibold font-mono">Unauthorized for /admin</span>
           </div>
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            <div className="w-2 h-2 rounded-full bg-rose-400" />
-            <span className="text-white font-mono text-xs truncate flex-1">{currentEmail}</span>
-            <Badge variant="cyan" className="text-[10px]">Audience Role</Badge>
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-50 border border-zinc-200">
+            <div className="w-2 h-2 rounded-full bg-zinc-400" />
+            <span className="text-zinc-900 font-mono text-xs truncate flex-1 font-medium">{currentEmail}</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-zinc-700 border border-zinc-200">Audience Role</span>
           </div>
-        </Card>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -75,14 +76,14 @@ export function AccessDeniedPage({ userEmail }: AccessDeniedPageProps) {
           <Button
             variant="primary"
             onClick={handleSignOutAndSwitch}
-            className="w-full sm:w-auto justify-center bg-gradient-to-r from-arena-blue to-arena-violet"
+            className="w-full sm:w-auto justify-center bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
             icon={<LogOut size={15} />}
           >
             Switch to Admin Account
           </Button>
         </div>
 
-        <p className="text-white/30 text-xs">
+        <p className="text-zinc-400 text-xs">
           Need administrator permissions? Contact the event organizers to have your email authorized.
         </p>
       </div>

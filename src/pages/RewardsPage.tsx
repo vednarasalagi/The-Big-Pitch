@@ -1,30 +1,21 @@
 // ============================================================
 // Rewards Page — Badges, gamification, QR claim codes
+// Minimalist, high contrast, clean white and black theme
 // ============================================================
 
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Gift, Trophy, Star, Zap, CheckCircle2, QrCode, Clock, Lock, Users, TrendingUp } from 'lucide-react'
+import { Gift, Trophy, Star, CheckCircle2, QrCode, Lock, Users, Award } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, Badge, EmptyState, SectionHeader } from '@/components/ui'
 import { formatPoints } from '@/lib/utils'
-import { motion } from 'framer-motion'
 import type { Reward } from '@/types'
 import { getTopInvestors, claimRewardInDb, type TopInvestor } from '@/lib/supabaseApi'
-
-const BADGE_CONFIG: Record<string, { icon: string; color: string; gradient: string }> = {
-  early_backer:  { icon: '⚡', color: 'text-amber-400',   gradient: 'from-amber-500/30 to-yellow-500/30' },
-  top_investor:  { icon: '🏆', color: 'text-yellow-300',  gradient: 'from-yellow-500/30 to-amber-500/30' },
-  idea_hunter:   { icon: '🎯', color: 'text-arena-violet-3', gradient: 'from-arena-violet/30 to-purple-500/30' },
-  most_unique:   { icon: '💎', color: 'text-cyan-400',    gradient: 'from-cyan-500/30 to-blue-500/30' },
-  backed_winner: { icon: '🚀', color: 'text-emerald-400', gradient: 'from-emerald-500/30 to-green-500/30' },
-}
 
 function RewardCard({ reward }: { reward: Reward }) {
   const [showQR, setShowQR] = useState(false)
   const [claimed, setClaimed] = useState(reward.claimed)
-  const cfg = BADGE_CONFIG[reward.badgeType] ?? BADGE_CONFIG.early_backer
 
   const handleClaim = async () => {
     setClaimed(true)
@@ -33,43 +24,47 @@ function RewardCard({ reward }: { reward: Reward }) {
   }
 
   return (
-    <Card className={`overflow-hidden ${claimed ? 'opacity-75' : ''}`}>
-      <div className={`p-5 bg-gradient-to-br ${cfg.gradient}`}>
+    <Card className={`overflow-hidden border-zinc-200 bg-white shadow-sm ${claimed ? 'opacity-80' : ''}`}>
+      <div className="p-5 border-b border-zinc-100 bg-zinc-50/50">
         <div className="flex items-start gap-4">
-          <div className="text-4xl flex-shrink-0">{cfg.icon}</div>
+          <div className="w-10 h-10 rounded-xl bg-zinc-950 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+            <Award size={20} />
+          </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h3 className="text-white font-bold text-base">{reward.badgeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</h3>
+              <h3 className="text-zinc-950 font-bold text-base">
+                {reward.badgeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </h3>
               {claimed && <Badge variant="emerald" dot>Claimed</Badge>}
             </div>
-            <p className="text-white/70 text-sm">{reward.description}</p>
+            <p className="text-zinc-500 text-xs leading-relaxed">{reward.description}</p>
           </div>
         </div>
       </div>
       <div className="p-4 space-y-3">
         {!claimed ? (
-          <Button onClick={handleClaim} className="w-full justify-center" icon={<QrCode size={14} />}>
-            Claim Reward
+          <Button onClick={handleClaim} className="w-full justify-center bg-zinc-950 text-white" icon={<QrCode size={14} />}>
+            Generate Verification Code
           </Button>
         ) : showQR ? (
-          <div className="text-center space-y-3">
-            <p className="text-emerald-400 text-sm font-semibold flex items-center justify-center gap-2">
-              <CheckCircle2 size={14} /> Show this QR to claim your prize
+          <div className="text-center space-y-3 py-2">
+            <p className="text-zinc-950 text-sm font-bold flex items-center justify-center gap-1.5">
+              <CheckCircle2 size={16} className="text-emerald-600" /> Present code at organizer desk
             </p>
-            <div className="p-4 bg-white rounded-2xl inline-block mx-auto">
+            <div className="p-3 bg-white border border-zinc-200 rounded-2xl inline-block mx-auto shadow-sm">
               <QRCodeSVG
                 value={`pitch-arena://claim/${reward.claimCode ?? reward.id}`}
                 size={140}
                 level="M"
               />
             </div>
-            <p className="text-white/40 text-xs font-mono">{reward.claimCode ?? reward.id}</p>
-            <p className="text-white/30 text-xs">One-time use · Server validated</p>
+            <p className="text-zinc-500 text-xs font-mono">{reward.claimCode ?? reward.id}</p>
+            <p className="text-zinc-400 text-[11px]">Single-use verification token</p>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-emerald-400 text-sm">
+          <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold">
             <CheckCircle2 size={14} />
-            <span>Already claimed</span>
+            <span>Redeemed successfully</span>
           </div>
         )}
       </div>
@@ -99,48 +94,48 @@ function TopInvestorLeaderboard() {
   const userInTop = topInvestors.some(i => i.userId === user?.id)
 
   return (
-    <Card className="p-5">
-      <SectionHeader title="Top Investors" subtitle="Ranked by live points invested" className="mb-4" />
+    <Card className="p-6 border-zinc-200 bg-white shadow-sm space-y-4">
+      <SectionHeader title="Top Audience Backers" subtitle="Ranked by total points deployed into startups" />
       {loading ? (
-        <div className="py-6 text-center text-white/40 text-xs">
-          <div className="w-6 h-6 border-2 border-arena-blue border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          Loading leaderboard...
+        <div className="py-8 text-center text-zinc-400 text-xs">
+          <div className="w-6 h-6 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          Loading rankings...
         </div>
       ) : topInvestors.length === 0 ? (
-        <div className="py-8 text-center text-white/40 text-xs space-y-1">
-          <p className="text-white/60 font-semibold text-sm">No investments recorded yet</p>
-          <p>Back a pitch team during live rounds to appear on the leaderboard!</p>
+        <div className="py-8 text-center text-zinc-400 text-xs space-y-1">
+          <p className="text-zinc-900 font-semibold text-sm">No audience investments recorded yet</p>
+          <p>Back active pitch rounds to earn a spot on the leaderboard!</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {topInvestors.map((investor, i) => {
             const isYou = investor.userId === user?.id
             return (
               <div
                 key={investor.userId}
-                className={`flex items-center gap-3 py-2 px-3 rounded-xl transition-colors ${
-                  isYou ? 'bg-arena-blue/10 border border-arena-blue/30 text-arena-blue-3' : 'hover:bg-white/[0.03]'
+                className={`flex items-center gap-3 py-2.5 px-3.5 rounded-xl transition-colors ${
+                  isYou ? 'bg-zinc-100 border border-zinc-300 font-semibold text-zinc-950' : 'hover:bg-zinc-50 text-zinc-700'
                 }`}
               >
-                <span className="w-6 text-center font-bold text-sm">
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                <span className="w-6 text-center font-bold font-mono text-xs text-zinc-500">
+                  #{i + 1}
                 </span>
-                <div className="flex-1">
-                  <p className={`font-semibold text-sm ${isYou ? 'text-arena-blue-3' : 'text-white'}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-xs text-zinc-950 truncate">
                     {investor.name} {isYou && '(You)'}
                   </p>
                 </div>
-                <span className={`font-bold text-sm ${isYou ? 'text-arena-blue-3' : 'text-white/80'}`}>
-                  {formatPoints(investor.points)}
+                <span className="font-bold font-mono text-xs text-zinc-950">
+                  {formatPoints(investor.points)} pts
                 </span>
               </div>
             )
           })}
 
           {!userInTop && userInvested > 0 && (
-            <div className="mt-3 pt-3 border-t border-white/[0.08] flex items-center justify-between px-3 text-xs">
-              <span className="text-white/50">Your Rank</span>
-              <span className="text-arena-blue-3 font-semibold">{formatPoints(userInvested)} invested</span>
+            <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between px-3 text-xs">
+              <span className="text-zinc-500 font-medium">Your Total Deployed</span>
+              <span className="text-zinc-950 font-bold font-mono">{formatPoints(userInvested)} pts</span>
             </div>
           )}
         </div>
@@ -156,12 +151,12 @@ export function RewardsPage() {
 
   if (!user) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 py-12 text-zinc-900">
         <EmptyState
-          icon={<Gift />}
-          title="Sign in to view rewards"
-          description="Earn badges and prizes by investing in great pitches!"
-          action={<Link to="/auth"><Button icon={<Zap size={14} />}>Sign In</Button></Link>}
+          icon={<Gift size={40} className="text-zinc-400" />}
+          title="Sign in to view badges & rewards"
+          description="Earn merit badges and access sponsor perks by backing top student startups."
+          action={<Link to="/auth"><Button className="bg-zinc-950 text-white">Sign In to Continue</Button></Link>}
         />
       </div>
     )
@@ -170,29 +165,35 @@ export function RewardsPage() {
   const rewardRules = event?.config.rewardRules ?? []
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
+    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6 animate-fade-in text-zinc-900">
       <SectionHeader
-        title="Rewards & Badges"
-        subtitle="Earn prizes for your investment activity"
+        title="Badges & Rewards"
+        subtitle="Recognition and sponsor awards for active audience investors"
       />
 
       {/* My Rewards */}
       {rewards.length > 0 ? (
         <div className="space-y-3">
-          <h2 className="text-white font-bold text-sm px-1 flex items-center gap-2">
-            <Star size={14} className="text-amber-400" />
+          <h2 className="text-zinc-950 font-bold text-sm px-1 flex items-center gap-2">
+            <Award size={15} className="text-zinc-900" />
             My Earned Badges ({rewards.length})
           </h2>
           {rewards.map(r => <RewardCard key={r.id} reward={r} />)}
         </div>
       ) : (
-        <Card className="p-6 text-center">
-          <div className="text-4xl mb-3">🎯</div>
-          <h3 className="text-white font-semibold text-base mb-2">No rewards yet</h3>
-          <p className="text-white/50 text-sm">Start investing in pitches to earn badges and prizes!</p>
-          <Link to="/live" className="block mt-4">
-            <Button icon={<Zap size={14} />} variant="secondary" className="mx-auto">Go Invest Now</Button>
-          </Link>
+        <Card className="p-8 text-center border-zinc-200 bg-white shadow-sm space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-800 flex items-center justify-center mx-auto mb-3">
+            <Award size={22} />
+          </div>
+          <h3 className="text-zinc-950 font-bold text-base">No badges unlocked yet</h3>
+          <p className="text-zinc-500 text-xs max-w-sm mx-auto">
+            Participate in live pitching rounds and deploy points to unlock badges and claim awards.
+          </p>
+          <div className="pt-2">
+            <Link to="/live">
+              <Button variant="secondary" size="sm">Go to Live Arena</Button>
+            </Link>
+          </div>
         </Card>
       )}
 
@@ -201,19 +202,17 @@ export function RewardsPage() {
 
       {/* Reward Rules */}
       <div className="space-y-3">
-        <SectionHeader title="How to Earn Rewards" subtitle="Eligibility rules for this event" />
+        <SectionHeader title="Reward Eligibility Rules" subtitle="Criteria for unlocking badges at this event" />
         <div className="space-y-2">
           {rewardRules.map(rule => (
-            <Card key={rule.id} className="p-4 flex items-start gap-3">
-              <div className="text-2xl flex-shrink-0">
-                {rule.type === 'top_investor' ? '🏆' :
-                 rule.type === 'early_backer' ? '⚡' :
-                 rule.type === 'most_unique' ? '💎' : '🚀'}
+            <Card key={rule.id} className="p-4 border-zinc-200 bg-white shadow-sm flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-900 flex-shrink-0 font-bold">
+                <Award size={17} />
               </div>
-              <div className="flex-1">
-                <p className="text-white font-semibold text-sm">{rule.label}</p>
-                <p className="text-white/50 text-xs mt-0.5">{rule.description}</p>
-                <p className="text-arena-violet-3 text-xs mt-2 font-medium">{rule.prizeDescription}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-zinc-950 font-bold text-sm">{rule.label}</p>
+                <p className="text-zinc-500 text-xs mt-0.5">{rule.description}</p>
+                <p className="text-zinc-700 text-xs mt-1.5 font-semibold">{rule.prizeDescription}</p>
               </div>
             </Card>
           ))}
@@ -221,19 +220,10 @@ export function RewardsPage() {
       </div>
 
       {/* Disclaimer */}
-      <Card className="p-4 border-arena-violet/20 bg-arena-violet/5">
-        <div className="flex items-start gap-3">
-          <Lock size={14} className="text-arena-violet-3 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-arena-violet-3 font-semibold text-sm">Reward Policy</p>
-            <p className="text-white/50 text-xs mt-1 leading-relaxed">
-              Final eligibility is calculated after the event closes. Rewards are not promised until then.
-              QR codes are one-time use and validated server-side to prevent duplicate redemptions.
-              Organizer decisions on eligibility are final.
-            </p>
-          </div>
-        </div>
-      </Card>
+      <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 text-zinc-500 text-xs leading-relaxed">
+        <p className="font-bold text-zinc-900 mb-0.5">Award Fulfillment Notice</p>
+        Final eligibility is calculated after all pitching rounds conclude. Redemptions are validated by event administrators.
+      </div>
     </div>
   )
 }

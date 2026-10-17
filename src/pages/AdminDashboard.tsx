@@ -1,5 +1,6 @@
 // ============================================================
 // Admin Dashboard — Executive Control Room for Event Administrators
+// Clean, minimalist white & black aesthetic.
 // Includes full event management, live control, team telemetry,
 // audit logs, and secure Admin Email Allowlist management.
 // ============================================================
@@ -13,7 +14,8 @@ import {
   AlertTriangle, CheckCircle2, Download, Eye, Edit3,
   Plus, RefreshCw, Wifi, Bell, ShieldCheck, UserPlus,
   Trash2, Mail, ExternalLink, Search, Filter, Lock,
-  Tv, ArrowUp, ArrowDown, Sparkles, X, Check, Award
+  Tv, ArrowUp, ArrowDown, Sparkles, X, Check, Award,
+  Sliders, Database, Terminal, Trophy, Zap
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore, useAdminStore } from '@/store'
 import {
@@ -76,7 +78,6 @@ function OverviewTab() {
         <StatCard
           label="Total Invested"
           value={formatPoints(totalInvested)}
-          color="blue"
           icon={<TrendingUp size={18} />}
           trend="up"
           trendValue="+14% this hour"
@@ -84,7 +85,6 @@ function OverviewTab() {
         <StatCard
           label="Active Backers"
           value={totalBackers}
-          color="violet"
           icon={<Users size={18} />}
           trend="up"
           trendValue="High engagement"
@@ -92,98 +92,95 @@ function OverviewTab() {
         <StatCard
           label="Competing Teams"
           value={teams.length}
-          color="emerald"
           icon={<Activity size={18} />}
-          subtext="5 rounds scheduled"
+          subtext="Pitch lineup active"
         />
         <StatCard
-          label="Connected Live"
+          label="Audience Connected"
           value={142}
-          color="cyan"
           icon={<Wifi size={18} />}
-          subtext="Audience active"
+          subtext="Live telemetry on"
         />
       </div>
 
       {/* Active round status banner */}
       {activeRound && (
-        <Card className="p-5 border-emerald-500/30 bg-emerald-500/5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
-              <LiveIndicator />
-              <h3 className="text-white font-bold text-base">Active Pitch Round</h3>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-zinc-950 font-black text-base tracking-tight">Active Pitch Round</h3>
             </div>
             <StatusBadge status={activeRound.status} />
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
             <div>
-              <p className="text-white text-2xl font-black">{activeRound.team?.name}</p>
-              <p className="text-white/60 text-xs mt-0.5">{activeRound.team?.pitchTitle}</p>
+              <p className="text-zinc-950 text-2xl font-black">{activeRound.team?.name}</p>
+              <p className="text-zinc-500 text-xs mt-0.5">{activeRound.team?.pitchTitle}</p>
               <div className="flex items-center gap-4 mt-2.5">
-                <span className="text-emerald-400 text-sm font-bold">{formatPoints(activeRound.totalInvested)} invested</span>
-                <span className="text-white/40 text-xs">{activeRound.uniqueInvestors} investors</span>
+                <span className="text-zinc-950 font-mono text-sm font-bold">{formatPoints(activeRound.totalInvested)} points backed</span>
+                <span className="text-zinc-400 text-xs font-mono">{activeRound.uniqueInvestors} investors</span>
               </div>
             </div>
             <Link
               to="/live"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold text-xs hover:bg-emerald-500/30 transition-colors w-fit"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-950 text-white font-semibold text-xs hover:bg-zinc-800 transition-colors w-fit shadow-sm"
             >
               <Eye size={14} />
               Open Live Stream
             </Link>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Two columns: Team rankings preview + Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Team Leaderboard Preview */}
-        <Card className="p-4 space-y-3">
+        <div className="bg-white border border-zinc-200/90 rounded-2xl p-5 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <SectionHeader title="Team Rankings" subtitle="Real-time leaderboard" />
-            <Link to="/scoreboard" className="text-xs text-arena-blue-3 hover:underline">View All →</Link>
+            <Link to="/scoreboard" className="text-xs font-bold text-zinc-900 hover:underline">View All →</Link>
           </div>
           <div className="space-y-2">
             {teams.slice(0, 4).map((t, i) => (
-              <div key={t.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 border border-zinc-100">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-white/40 w-4">#{i + 1}</span>
+                  <span className="text-xs font-mono font-bold text-zinc-400 w-5">#{i + 1}</span>
                   <div>
-                    <p className="text-white font-semibold text-xs">{t.name}</p>
-                    <p className="text-white/40 text-[11px]">{t.category}</p>
+                    <p className="text-zinc-950 font-bold text-xs">{t.name}</p>
+                    <p className="text-zinc-500 text-[11px]">{t.category}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-arena-blue-3">{formatPoints(t.totalInvestment)}</p>
-                  <p className="text-[10px] text-white/40">{t.uniqueBackers} backers</p>
+                  <p className="text-xs font-black font-mono text-zinc-950">{formatPoints(t.totalInvestment)}</p>
+                  <p className="text-[10px] text-zinc-400">{t.uniqueBackers} backers</p>
                 </div>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
 
         {/* Recent Audit Log */}
-        <Card className="p-4 space-y-3">
-          <SectionHeader title="Recent Security Activity" subtitle="Real-time event actions" />
+        <div className="bg-white border border-zinc-200/90 rounded-2xl p-5 space-y-4 shadow-sm">
+          <SectionHeader title="Recent Activity" subtitle="Real-time administrative events" />
           <div className="space-y-2">
             {recentLogs.length === 0 ? (
-              <p className="text-white/40 text-xs py-3 text-center">No security actions recorded yet.</p>
+              <p className="text-zinc-400 text-xs py-6 text-center">No security actions recorded yet.</p>
             ) : (
               recentLogs.map((log: any) => (
-                <div key={log.id} className="flex items-start gap-3 p-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                  <div className="w-7 h-7 rounded-lg bg-arena-violet/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Activity size={12} className="text-arena-violet-3" />
+                <div key={log.id} className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <div className="w-7 h-7 rounded-lg bg-zinc-200 text-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Activity size={12} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white/80 text-xs font-medium truncate">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
-                    <p className="text-white/30 text-[10px]">{formatRelativeTime(log.created_at || log.createdAt)}</p>
+                    <p className="text-zinc-900 text-xs font-medium truncate">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
+                    <p className="text-zinc-400 text-[10px] font-mono">{formatRelativeTime(log.created_at || log.createdAt)}</p>
                   </div>
                 </div>
               ))
             )}
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   )
@@ -203,7 +200,7 @@ function TeamModal({
   const [name, setName] = useState(team?.name || '')
   const [pitchTitle, setPitchTitle] = useState(team?.pitchTitle || '')
   const [description, setDescription] = useState(team?.description || '')
-  const [category, setCategory] = useState(team?.category || 'AI & ML')
+  const [category, setCategory] = useState(team?.category || 'AI & Machine Learning')
   const [presenters, setPresenters] = useState(team?.presenters?.join(', ') || '')
   const [pitchOrder, setPitchOrder] = useState(team?.pitchOrder ?? (teams.length + 1))
   const [loading, setLoading] = useState(false)
@@ -273,26 +270,26 @@ function TeamModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="glass-card w-full max-w-lg p-6 space-y-4 border-white/[0.15] shadow-2xl relative max-h-[90vh] overflow-y-auto"
+        exit={{ opacity: 0, scale: 0.98 }}
+        className="bg-white w-full max-w-lg p-6 sm:p-8 space-y-5 rounded-3xl border border-zinc-200 shadow-2xl relative max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-white/50 hover:text-white"
+          className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors"
         >
           <X size={16} />
         </button>
 
         <div>
-          <h3 className="text-white font-black text-xl">
+          <h3 className="text-zinc-950 font-black text-xl tracking-tight">
             {team ? `Edit Startup: ${team.name}` : 'Pre-list New Pitching Startup'}
           </h3>
-          <p className="text-white/50 text-xs mt-1">
+          <p className="text-zinc-500 text-xs mt-1">
             Pre-listed details (startup idea, team name, and pitchers) will appear immediately on the audience home screen and stage boards.
           </p>
         </div>
@@ -300,24 +297,24 @@ function TeamModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-white/70 text-xs font-semibold block mb-1">Team / Startup Name *</label>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Team / Startup Name *</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g. EcoCharge"
-                className="arena-input w-full text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all placeholder:text-zinc-400"
               />
             </div>
             <div>
-              <label className="text-white/70 text-xs font-semibold block mb-1">Category *</label>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Category *</label>
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="arena-input w-full text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all"
               >
-                <option value="AI & ML">AI & Machine Learning</option>
+                <option value="AI & Machine Learning">AI & Machine Learning</option>
                 <option value="CleanTech">CleanTech & Energy</option>
                 <option value="FinTech">FinTech & Payments</option>
                 <option value="HealthTech">HealthTech & Bio</option>
@@ -330,56 +327,56 @@ function TeamModal({
           </div>
 
           <div>
-            <label className="text-white/70 text-xs font-semibold block mb-1">Startup Idea / Pitch Title *</label>
+            <label className="text-zinc-700 text-xs font-bold block mb-1.5">Startup Idea / Pitch Title *</label>
             <input
               type="text"
               required
               value={pitchTitle}
               onChange={e => setPitchTitle(e.target.value)}
               placeholder="e.g. Wireless Solar EV Road Surface Charging"
-              className="arena-input w-full text-xs"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all placeholder:text-zinc-400"
             />
           </div>
 
           <div>
-            <label className="text-white/70 text-xs font-semibold block mb-1">Idea Description (Problem & Solution)</label>
+            <label className="text-zinc-700 text-xs font-bold block mb-1.5">Idea Description (Problem & Solution)</label>
             <textarea
               rows={3}
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Describe what problem the startup solves, their unique solution, and target market..."
-              className="arena-input w-full text-xs resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all resize-none placeholder:text-zinc-400"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <label className="text-white/70 text-xs font-semibold block mb-1">Pitchers / Presenters (comma separated)</label>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Pitchers / Presenters (comma separated)</label>
               <input
                 type="text"
                 value={presenters}
                 onChange={e => setPresenters(e.target.value)}
                 placeholder="e.g. Aarav Patel, Sneha Rao"
-                className="arena-input w-full text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all placeholder:text-zinc-400"
               />
             </div>
             <div>
-              <label className="text-white/70 text-xs font-semibold block mb-1">Pitch Queue #</label>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Pitch Queue #</label>
               <input
                 type="number"
                 min={1}
                 value={pitchOrder}
                 onChange={e => setPitchOrder(parseInt(e.target.value) || 1)}
-                className="arena-input w-full text-xs"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all font-mono"
               />
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-3">
             <Button variant="secondary" onClick={onClose} className="flex-1 justify-center">
               Cancel
             </Button>
-            <Button type="submit" loading={loading} className="flex-1 justify-center bg-gradient-to-r from-arena-blue to-arena-violet">
+            <Button type="submit" loading={loading} className="flex-1 justify-center bg-zinc-950 hover:bg-zinc-800 text-white font-bold">
               {team ? 'Save Changes' : 'Pre-list Team'}
             </Button>
           </div>
@@ -408,7 +405,7 @@ function ControlTab() {
       if (newRound) {
         setActiveRound(newRound)
         setTeams(teams.map(t => (t.id === teamToStart.id ? { ...t, status: 'active' } : t)))
-        toast.success(`🚀 Pitch round started for ${teamToStart.name}!`)
+        toast.success(`Pitch round started for ${teamToStart.name}!`)
       } else {
         toast.error('Unable to start pitch round. Please try again.')
       }
@@ -427,7 +424,7 @@ function ControlTab() {
       await stopPitchForTeam(activeRound.teamId, activeRound.id)
       setTeams(teams.map(t => (t.id === activeRound.teamId ? { ...t, status: 'completed' } : t)))
       setActiveRound(null)
-      toast.info(`Pitch round completed for ${activeRound.team?.name || 'team'}.`)
+      toast.info(`Pitch round concluded for ${activeRound.team?.name || 'team'}.`)
     } catch (err: any) {
       toast.error(toUserFriendlyError(err, 'Failed to stop pitch round.'))
     } finally {
@@ -445,7 +442,7 @@ function ControlTab() {
     if (supabase) {
       await supabase.from(TABLES.PITCH_ROUNDS).update({ status: newStatus }).eq('id', activeRound.id)
     }
-    toast.info(isPaused ? 'Round resumed!' : 'Round paused. Investments temporarily disabled.')
+    toast.info(isPaused ? 'Round resumed!' : 'Round paused. Investments temporarily held.')
   }
 
   // Set designated next team
@@ -471,44 +468,44 @@ function ControlTab() {
     <div className="space-y-6 animate-fade-in">
       <SectionHeader
         title="Live Competition Controller"
-        subtitle="Start or stop pitches for any team whenever you want, adjust timers, and set the next pitching team."
+        subtitle="Start or stop pitches for any team on demand, adjust timers, and set the next pitching team."
       />
 
       {/* 1. Active Pitch Management Card */}
-      <Card className="p-6 space-y-5 border-white/[0.12] relative overflow-hidden">
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Radio size={16} className={activeRound ? 'text-emerald-400 animate-pulse' : 'text-white/40'} />
-            <h3 className="text-white font-bold text-base">Stage Pitch Status</h3>
+            <Radio size={16} className={activeRound ? 'text-zinc-950 animate-pulse' : 'text-zinc-400'} />
+            <h3 className="text-zinc-950 font-black text-base">Stage Pitch Status</h3>
           </div>
-          {activeRound ? <StatusBadge status={activeRound.status} /> : <Badge variant="cyan">Stage Standby</Badge>}
+          {activeRound ? <StatusBadge status={activeRound.status} /> : <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-700 border border-zinc-200">Stage Standby</span>}
         </div>
 
         {activeRound && activeTeam ? (
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/30 via-arena-navy-2 to-arena-blue/15 border border-emerald-500/30 space-y-4">
+          <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                  <p className="text-emerald-400 font-bold text-xs uppercase tracking-wider">Live On Stage</p>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-zinc-950 font-bold text-xs uppercase tracking-wider">Live On Stage</p>
                 </div>
-                <h4 className="text-2xl font-black text-white mt-1">{activeTeam.name}</h4>
-                <p className="text-arena-blue-3 font-semibold text-sm">{activeTeam.pitchTitle}</p>
+                <h4 className="text-2xl font-black text-zinc-950 mt-1">{activeTeam.name}</h4>
+                <p className="text-zinc-700 font-semibold text-sm">{activeTeam.pitchTitle}</p>
                 {activeTeam.presenters && activeTeam.presenters.length > 0 && (
-                  <p className="text-white/50 text-xs mt-1">Pitchers: {activeTeam.presenters.join(', ')}</p>
+                  <p className="text-zinc-500 text-xs mt-1">Pitchers: {activeTeam.presenters.join(', ')}</p>
                 )}
               </div>
 
               <div className="text-left sm:text-right">
-                <p className="text-3xl font-black text-emerald-400">{formatPoints(activeRound.totalInvested)}</p>
-                <p className="text-white/40 text-xs">{activeRound.uniqueInvestors} audience backers</p>
+                <p className="text-3xl font-black text-zinc-950 font-mono">{formatPoints(activeRound.totalInvested)}</p>
+                <p className="text-zinc-500 text-xs">{activeRound.uniqueInvestors} audience backers</p>
               </div>
             </div>
 
             {/* Action Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/[0.08]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-200">
               <Button
-                variant={activeRound.status === 'investment_paused' ? 'primary' : 'secondary'}
+                variant="secondary"
                 size="sm"
                 className="justify-center"
                 icon={activeRound.status === 'investment_paused' ? <Play size={13} /> : <Pause size={13} />}
@@ -529,7 +526,7 @@ function ControlTab() {
               <Button
                 variant="danger"
                 size="sm"
-                className="justify-center col-span-2 bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                className="justify-center col-span-2 bg-zinc-950 hover:bg-zinc-800 text-white font-bold"
                 icon={<Square size={13} />}
                 loading={loading === 'stop'}
                 onClick={handleStopPitch}
@@ -539,38 +536,38 @@ function ControlTab() {
             </div>
           </div>
         ) : (
-          <div className="p-8 text-center space-y-3 border border-dashed border-white/[0.1] rounded-2xl">
-            <Radio size={32} className="text-white/20 mx-auto" />
+          <div className="p-8 text-center space-y-3 border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
+            <Radio size={32} className="text-zinc-300 mx-auto" />
             <div>
-              <p className="text-white font-bold text-base">Stage Standby</p>
-              <p className="text-white/40 text-xs mt-1">
+              <p className="text-zinc-950 font-bold text-base">Stage Standby</p>
+              <p className="text-zinc-500 text-xs mt-1">
                 No startup is currently pitching. Select any team below to start their live pitch.
               </p>
             </div>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* 2. Choose & Start Pitch for ANY Team Card */}
-      <Card className="p-6 space-y-4">
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-white font-bold text-base flex items-center gap-2">
-              <Play size={16} className="text-arena-blue-3" />
+            <h3 className="text-zinc-950 font-black text-base flex items-center gap-2">
+              <Play size={16} className="text-zinc-950" />
               Launch Pitch for Any Listed Team
             </h3>
-            <p className="text-white/40 text-xs mt-0.5">
+            <p className="text-zinc-500 text-xs mt-0.5">
               Admin can start the pitch for any team at any time, or designate the next upcoming team.
             </p>
           </div>
         </div>
 
         {/* Start Pitch Selector */}
-        <div className="flex flex-col sm:flex-row gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+        <div className="flex flex-col sm:flex-row gap-3 p-4 rounded-2xl bg-zinc-50 border border-zinc-200">
           <select
             value={selectedTeamToPitch}
             onChange={e => setSelectedTeamToPitch(e.target.value)}
-            className="arena-input flex-1 text-xs"
+            className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
           >
             <option value="">Select team to start pitch...</option>
             {teams.map(t => (
@@ -588,19 +585,19 @@ function ControlTab() {
               if (team) handleStartPitch(team)
             }}
             icon={<Play size={14} />}
-            className="justify-center bg-gradient-to-r from-arena-blue to-arena-violet whitespace-nowrap"
+            className="justify-center bg-zinc-950 hover:bg-zinc-800 text-white whitespace-nowrap shadow-sm"
           >
             Start Pitch Now
           </Button>
         </div>
 
         {/* Set Up Next Selector */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-          <span className="text-white/70 text-xs font-semibold whitespace-nowrap">Designate as Up Next:</span>
+        <div className="flex flex-col sm:flex-row items-center gap-3 p-4 rounded-2xl bg-zinc-50 border border-zinc-200">
+          <span className="text-zinc-700 text-xs font-bold whitespace-nowrap">Designate as Up Next:</span>
           <select
             value={selectedNextTeam}
             onChange={e => setSelectedNextTeam(e.target.value)}
-            className="arena-input flex-1 text-xs"
+            className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
           >
             <option value="">Select next team...</option>
             {teams.map(t => (
@@ -622,11 +619,11 @@ function ControlTab() {
             Set as Up Next
           </Button>
         </div>
-      </Card>
+      </div>
 
       {/* 3. Quick Pitch Launcher List for all Teams */}
-      <Card className="p-5 space-y-3">
-        <h4 className="text-white font-bold text-sm">All Pre-listed Teams ({teams.length})</h4>
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+        <h4 className="text-zinc-950 font-bold text-sm">All Pre-listed Teams ({teams.length})</h4>
         <div className="space-y-2">
           {teams.map(team => {
             const isThisTeamLive = activeRound?.status === 'investment_open' && activeRound?.teamId === team.id
@@ -636,19 +633,19 @@ function ControlTab() {
                 key={team.id}
                 className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   isThisTeamLive
-                    ? 'bg-emerald-500/15 border-emerald-500/40 shadow-glow-green'
-                    : 'bg-white/[0.02] border-white/[0.06]'
+                    ? 'bg-zinc-950 text-white border-zinc-950 shadow-sm'
+                    : 'bg-zinc-50 border-zinc-200'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-white/40 font-mono text-xs w-6">#{team.pitchOrder}</span>
+                  <span className={`font-mono text-xs w-6 font-bold ${isThisTeamLive ? 'text-zinc-400' : 'text-zinc-400'}`}>#{team.pitchOrder}</span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-white font-bold text-sm truncate">{team.name}</p>
+                      <p className={`font-bold text-sm truncate ${isThisTeamLive ? 'text-white' : 'text-zinc-950'}`}>{team.name}</p>
                       <StatusBadge status={team.status} />
-                      <Badge variant="cyan" className="text-[10px]">{team.category}</Badge>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${isThisTeamLive ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-white text-zinc-600 border-zinc-200'}`}>{team.category}</span>
                     </div>
-                    <p className="text-white/50 text-xs truncate max-w-md">{team.pitchTitle}</p>
+                    <p className={`text-xs truncate max-w-md ${isThisTeamLive ? 'text-zinc-400' : 'text-zinc-500'}`}>{team.pitchTitle}</p>
                   </div>
                 </div>
 
@@ -660,7 +657,7 @@ function ControlTab() {
                       loading={loading === 'stop'}
                       onClick={handleStopPitch}
                       icon={<Square size={12} />}
-                      className="text-xs"
+                      className="text-xs bg-white text-zinc-950 hover:bg-zinc-100"
                     >
                       Stop Pitch
                     </Button>
@@ -670,14 +667,18 @@ function ControlTab() {
                       loading={loading === `start-${team.id}`}
                       onClick={() => handleStartPitch(team)}
                       icon={<Play size={12} />}
-                      className="text-xs bg-gradient-to-r from-arena-blue to-arena-violet"
+                      className="text-xs bg-zinc-950 text-white hover:bg-zinc-800"
                     >
                       Start Pitch
                     </Button>
                   )}
                   <Link to={`/cast?teamId=${team.id}`} target="_blank">
                     <button
-                      className="p-1.5 rounded-lg hover:bg-white/[0.08] text-white/40 hover:text-white transition-colors"
+                      className={`p-1.5 rounded-lg border transition-colors ${
+                        isThisTeamLive
+                          ? 'border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                          : 'border-zinc-200 text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100'
+                      }`}
                       title="Cast Team Results to Big Screen"
                     >
                       <Tv size={14} />
@@ -688,7 +689,7 @@ function ControlTab() {
             )
           })}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
@@ -837,7 +838,7 @@ function TeamsTab() {
             size="sm"
             icon={<Plus size={13} />}
             onClick={() => setModalTeam('new')}
-            className="bg-gradient-to-r from-arena-blue to-arena-violet"
+            className="bg-zinc-950 hover:bg-zinc-800 text-white font-bold shadow-sm"
           >
             Pre-list New Team
           </Button>
@@ -847,13 +848,13 @@ function TeamsTab() {
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col sm:flex-row gap-2.5">
         <div className="relative flex-1">
-          <Search size={14} className="text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search size={14} className="text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search teams by name, startup idea, or pitcher..."
-            className="arena-input pl-9 w-full text-xs"
+            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none placeholder:text-zinc-400"
           />
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -861,10 +862,10 @@ function TeamsTab() {
             <button
               key={cat}
               onClick={() => setFilterCat(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${
                 filterCat === cat
-                  ? 'bg-arena-blue/20 border border-arena-blue/40 text-arena-blue-3'
-                  : 'bg-white/[0.04] text-white/50 hover:text-white'
+                  ? 'bg-zinc-950 text-white border-zinc-950 shadow-sm'
+                  : 'bg-white text-zinc-600 border-zinc-200 hover:text-zinc-950 hover:bg-zinc-50'
               }`}
             >
               {cat === 'all' ? 'All Categories' : cat}
@@ -879,56 +880,56 @@ function TeamsTab() {
           const isThisTeamLive = activeRound?.status === 'investment_open' && activeRound?.teamId === team.id
 
           return (
-            <Card
+            <div
               key={team.id}
-              className={`p-4 transition-all ${
-                isThisTeamLive ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-white/[0.06]'
+              className={`p-5 rounded-2xl border transition-all ${
+                isThisTeamLive ? 'border-zinc-950 bg-zinc-50 shadow-sm' : 'border-zinc-200/90 bg-white shadow-sm'
               }`}
             >
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="flex items-start gap-3.5 min-w-0 flex-1">
                   {/* Order & Reorder Controls */}
                   <div className="flex flex-col items-center gap-1 flex-shrink-0">
                     <button
                       disabled={idx === 0}
                       onClick={() => handleMoveOrder(idx, 'up')}
-                      className="p-1 rounded hover:bg-white/[0.08] text-white/30 hover:text-white disabled:opacity-20"
+                      className="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-900 disabled:opacity-20"
                       title="Move Up"
                     >
                       <ArrowUp size={12} />
                     </button>
-                    <span className="text-white font-mono text-xs font-bold">#{team.pitchOrder}</span>
+                    <span className="text-zinc-950 font-mono text-xs font-black">#{team.pitchOrder}</span>
                     <button
                       disabled={idx === teams.length - 1}
                       onClick={() => handleMoveOrder(idx, 'down')}
-                      className="p-1 rounded hover:bg-white/[0.08] text-white/30 hover:text-white disabled:opacity-20"
+                      className="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-900 disabled:opacity-20"
                       title="Move Down"
                     >
                       <ArrowDown size={12} />
                     </button>
                   </div>
 
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-arena-blue/30 to-arena-violet/30 flex items-center justify-center text-base font-bold text-white flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-950 text-white flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm">
                     {team.name[0]}
                   </div>
 
                   <div className="min-w-0 space-y-1 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-white font-bold text-sm truncate">{team.name}</p>
-                      <Badge variant="cyan" className="text-[10px]">{team.category}</Badge>
+                      <p className="text-zinc-950 font-black text-sm tracking-tight truncate">{team.name}</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200">{team.category}</span>
                       <StatusBadge status={team.status} />
                     </div>
 
-                    <p className="text-arena-blue-3 font-semibold text-xs leading-snug">{team.pitchTitle}</p>
+                    <p className="text-zinc-700 font-semibold text-xs leading-snug">{team.pitchTitle}</p>
 
                     {team.description && (
-                      <p className="text-white/40 text-[11px] line-clamp-2 leading-relaxed">{team.description}</p>
+                      <p className="text-zinc-500 text-[11px] line-clamp-2 leading-relaxed">{team.description}</p>
                     )}
 
                     {team.presenters && team.presenters.length > 0 && (
-                      <div className="flex items-center gap-1 text-white/40 text-[11px]">
-                        <Users size={11} className="text-arena-violet-3" />
-                        <span className="text-white/60 font-medium">Pitchers:</span>
+                      <div className="flex items-center gap-1 text-zinc-500 text-[11px]">
+                        <Users size={12} className="text-zinc-400" />
+                        <span className="text-zinc-700 font-semibold">Pitchers:</span>
                         <span>{team.presenters.join(', ')}</span>
                       </div>
                     )}
@@ -936,10 +937,10 @@ function TeamsTab() {
                 </div>
 
                 {/* Right Action Toolbar */}
-                <div className="flex items-center justify-between lg:justify-end gap-3 pl-10 lg:pl-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/[0.06]">
+                <div className="flex items-center justify-between lg:justify-end gap-3 pl-12 lg:pl-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-zinc-100">
                   <div className="text-left lg:text-right pr-2">
-                    <p className="text-arena-blue-3 font-bold text-xs">{formatPoints(team.totalInvestment)}</p>
-                    <p className="text-white/40 text-[10px]">{team.uniqueBackers} backers</p>
+                    <p className="text-zinc-950 font-mono font-bold text-xs">{formatPoints(team.totalInvestment)}</p>
+                    <p className="text-zinc-400 text-[10px]">{team.uniqueBackers} backers</p>
                   </div>
 
                   {/* Start Pitch button */}
@@ -948,7 +949,7 @@ function TeamsTab() {
                       size="sm"
                       onClick={() => handleStartPitchDirect(team)}
                       icon={<Play size={12} />}
-                      className="text-xs bg-gradient-to-r from-arena-blue to-arena-violet whitespace-nowrap"
+                      className="text-xs bg-zinc-950 text-white hover:bg-zinc-800 whitespace-nowrap shadow-sm"
                     >
                       Start Pitch
                     </Button>
@@ -957,7 +958,7 @@ function TeamsTab() {
                   {/* Stage Cast Button */}
                   <Link to={`/cast?teamId=${team.id}`} target="_blank">
                     <button
-                      className="p-2 rounded-xl hover:bg-white/[0.08] text-white/40 hover:text-white transition-colors"
+                      className="p-2 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-600 hover:text-zinc-950 transition-colors"
                       title="Cast Team Results to Stage Screen"
                     >
                       <Tv size={14} />
@@ -966,7 +967,7 @@ function TeamsTab() {
 
                   {/* Edit Button */}
                   <button
-                    className="p-2 rounded-xl hover:bg-white/[0.08] text-white/40 hover:text-white transition-colors"
+                    className="p-2 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-600 hover:text-zinc-950 transition-colors"
                     onClick={() => setModalTeam(team)}
                     title="Edit Team Details"
                   >
@@ -975,7 +976,7 @@ function TeamsTab() {
 
                   {/* Delete Button */}
                   <button
-                    className="p-2 rounded-xl hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors"
+                    className="p-2 rounded-xl border border-zinc-200 hover:border-rose-200 hover:bg-rose-50 text-zinc-400 hover:text-rose-600 transition-colors"
                     onClick={() => handleDeleteTeam(team.id, team.name)}
                     title="Remove Team"
                   >
@@ -983,19 +984,19 @@ function TeamsTab() {
                   </button>
                 </div>
               </div>
-            </Card>
+            </div>
           )
         })}
 
         {filteredTeams.length === 0 && (
-          <div className="glass-card p-8 text-center border-dashed border-white/10 rounded-2xl">
-            <Users size={32} className="mx-auto text-white/20 mb-3" />
-            <p className="text-white font-semibold">No Pitching Teams Found</p>
-            <p className="text-white/40 text-xs mt-1 max-w-sm mx-auto">
+          <div className="p-8 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
+            <Users size={32} className="mx-auto text-zinc-300 mb-3" />
+            <p className="text-zinc-950 font-bold">No Pitching Teams Found</p>
+            <p className="text-zinc-500 text-xs mt-1 max-w-sm mx-auto">
               Pre-list startups with their startup idea, pitch details, and pitcher information to feature them on the home screen.
             </p>
             <div className="mt-4 flex items-center justify-center gap-3">
-              <Button onClick={() => setModalTeam('new')} icon={<Plus size={14} />}>
+              <Button onClick={() => setModalTeam('new')} icon={<Plus size={14} />} className="bg-zinc-950 text-white">
                 Pre-list Startup
               </Button>
               {teams.length === 0 && (
@@ -1050,43 +1051,43 @@ function CastAdminTab() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Card 1: Common Arena Board */}
-        <Card className="p-6 space-y-4 border-arena-blue/30 bg-arena-blue/5">
+        <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-arena-blue/20 flex items-center justify-center text-arena-blue-3">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-950">
               <Tv size={22} />
             </div>
             <div>
-              <h3 className="text-white font-bold text-base">Common Stage Board</h3>
-              <p className="text-white/50 text-xs mt-0.5">Full stage display with live pitch & realtime standings</p>
+              <h3 className="text-zinc-950 font-black text-base">Common Stage Board</h3>
+              <p className="text-zinc-500 text-xs mt-0.5">Full stage display with live pitch & realtime standings</p>
             </div>
           </div>
 
-          <p className="text-white/60 text-xs leading-relaxed">
+          <p className="text-zinc-600 text-xs leading-relaxed">
             Optimized for HDMI stage projectors and auditorium screens. Shows current pitching startup in huge typography, live countdown timer, and live leaderboard rankings.
           </p>
 
           <Button
             onClick={() => handleOpenCast()}
             icon={<ExternalLink size={14} />}
-            className="w-full justify-center bg-gradient-to-r from-arena-blue to-arena-violet"
+            className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
           >
             Open Stage Projector Window
           </Button>
-        </Card>
+        </div>
 
         {/* Card 2: Per-Team Result Dashboards */}
-        <Card className="p-6 space-y-4 border-arena-violet/30 bg-arena-violet/5">
+        <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-arena-violet/20 flex items-center justify-center text-arena-violet-3">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-950">
               <Award size={22} />
             </div>
             <div>
-              <h3 className="text-white font-bold text-base">Individual Startup Result Card</h3>
-              <p className="text-white/50 text-xs mt-0.5">Project a specific startup's result on the big screen</p>
+              <h3 className="text-zinc-950 font-black text-base">Individual Startup Result Card</h3>
+              <p className="text-zinc-500 text-xs mt-0.5">Project a specific startup's result on the big screen</p>
             </div>
           </div>
 
-          <p className="text-white/60 text-xs leading-relaxed">
+          <p className="text-zinc-600 text-xs leading-relaxed">
             Project a startup's final score, tournament rank, startup idea, and pitcher credits on the big screen during presentations or award ceremonies.
           </p>
 
@@ -1094,7 +1095,7 @@ function CastAdminTab() {
             <select
               value={selectedTeamId}
               onChange={e => setSelectedTeamId(e.target.value)}
-              className="arena-input w-full text-xs"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
             >
               <option value="">Select startup to cast...</option>
               {teams.map(t => (
@@ -1108,37 +1109,37 @@ function CastAdminTab() {
               disabled={!selectedTeamId}
               onClick={() => handleOpenCast(selectedTeamId)}
               icon={<Tv size={14} />}
-              className="w-full justify-center"
+              className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 disabled:opacity-40 shadow-sm"
             >
               Cast Selected Startup Results
             </Button>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Quick Cast Grid for every team */}
-      <Card className="p-5 space-y-3">
-        <h4 className="text-white font-bold text-sm flex items-center gap-2">
-          <Sparkles size={15} className="text-amber-400" />
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+        <h4 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+          <Sparkles size={15} className="text-zinc-950" />
           Quick Team Screen Launch
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {teams.map(team => (
             <div
               key={team.id}
-              className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] flex items-center justify-between gap-3"
+              className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 hover:border-zinc-300 flex items-center justify-between gap-3"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-white/40 font-mono">#{team.pitchOrder}</span>
-                  <p className="text-white font-bold text-xs truncate">{team.name}</p>
+                  <span className="text-[10px] text-zinc-400 font-mono">#{team.pitchOrder}</span>
+                  <p className="text-zinc-950 font-bold text-xs truncate">{team.name}</p>
                 </div>
-                <p className="text-white/40 text-[10px] truncate max-w-[150px]">{team.pitchTitle}</p>
+                <p className="text-zinc-500 text-[10px] truncate max-w-[150px]">{team.pitchTitle}</p>
               </div>
 
               <button
                 onClick={() => handleOpenCast(team.id)}
-                className="px-2.5 py-1 rounded-lg bg-arena-blue/15 hover:bg-arena-blue/30 border border-arena-blue/30 text-arena-blue-3 text-[11px] font-semibold flex items-center gap-1 transition-colors flex-shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors flex-shrink-0 shadow-sm"
               >
                 <Tv size={11} />
                 <span>Cast</span>
@@ -1146,7 +1147,7 @@ function CastAdminTab() {
             </div>
           ))}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1220,33 +1221,33 @@ function AllowlistTab() {
       />
 
       {/* Security Architecture Card */}
-      <Card className="p-4 border-arena-violet/30 bg-arena-violet/5 space-y-2">
-        <div className="flex items-center gap-2 text-arena-violet-3 text-xs font-semibold">
+      <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-2">
+        <div className="flex items-center gap-2 text-zinc-950 text-xs font-bold">
           <ShieldCheck size={16} />
           <span>Server-Enforced Role Resolution</span>
         </div>
-        <p className="text-white/60 text-xs leading-relaxed">
-          The Super Admin has permanent master access configured via <code className="text-arena-violet-3 bg-white/5 px-1 py-0.5 rounded">VITE_SUPER_ADMIN_EMAIL</code>.
-          Any email added below will automatically be granted the <strong className="text-white">Admin</strong> role upon sign-in and stored in Supabase.
+        <p className="text-zinc-600 text-xs leading-relaxed">
+          The Super Admin has permanent master access configured via <code className="text-zinc-900 bg-zinc-200/80 px-1 py-0.5 rounded font-mono">VITE_SUPER_ADMIN_EMAIL</code>.
+          Any email added below will automatically be granted the <strong className="text-zinc-950">Admin</strong> role upon sign-in and stored in Supabase.
         </p>
-      </Card>
+      </div>
 
       {/* Add New Admin Form */}
-      <Card className="p-5 space-y-4">
-        <h3 className="text-white font-bold text-sm flex items-center gap-2">
-          <UserPlus size={15} className="text-arena-blue-3" />
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+        <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+          <UserPlus size={15} className="text-zinc-950" />
           Authorize New Administrator
         </h3>
         <form onSubmit={handleAddEmail} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Mail size={14} className="text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Mail size={14} className="text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="email"
               required
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="e.g. colleague@college.edu"
-              className="arena-input pl-9 w-full text-xs"
+              className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
             />
           </div>
           <Button
@@ -1254,20 +1255,20 @@ function AllowlistTab() {
             size="sm"
             loading={loading}
             icon={<Plus size={14} />}
-            className="justify-center whitespace-nowrap bg-gradient-to-r from-arena-blue to-arena-violet"
+            className="justify-center whitespace-nowrap bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
           >
             Add Admin Email
           </Button>
         </form>
-      </Card>
+      </div>
 
       {/* Current Allowlist List */}
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-          <span className="text-xs font-semibold text-white/70">
+      <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+          <span className="text-xs font-bold text-zinc-800">
             Authorized Email Addresses ({allowlist.length})
           </span>
-          <span className="text-[11px] text-white/40 font-mono">Status: Active</span>
+          <span className="text-[11px] text-zinc-400 font-mono">Status: Active</span>
         </div>
 
         <div className="space-y-2">
@@ -1278,25 +1279,25 @@ function AllowlistTab() {
             return (
               <div
                 key={adminEmail}
-                className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition-colors"
+                className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    isThisSuperAdmin ? 'bg-amber-500/20 text-amber-400' : 'bg-arena-violet/15 text-arena-violet-3'
+                    isThisSuperAdmin ? 'bg-zinc-950 text-white' : 'bg-zinc-200 text-zinc-800'
                   }`}>
                     {isThisSuperAdmin ? <ShieldCheck size={15} /> : <Shield size={14} />}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-white font-mono text-xs font-medium">{adminEmail}</p>
+                      <p className="text-zinc-950 font-mono text-xs font-semibold">{adminEmail}</p>
                       {isThisSuperAdmin && (
-                        <Badge variant="amber" className="text-[9px] px-1.5 py-0">Super Admin (Protected)</Badge>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-950 text-white font-mono">Super Admin (Protected)</span>
                       )}
                       {isCurrentUser && (
-                        <Badge variant="violet" className="text-[9px] px-1.5 py-0">You (Current)</Badge>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-200 text-zinc-800 font-mono">You (Current)</span>
                       )}
                     </div>
-                    <p className="text-white/40 text-[10px]">
+                    <p className="text-zinc-500 text-[10px]">
                       {isThisSuperAdmin
                         ? 'Master administrator defined in environment config'
                         : 'Delegated event administrator · Managed via Supabase'}
@@ -1307,7 +1308,7 @@ function AllowlistTab() {
                 {!isCurrentUser && !isThisSuperAdmin && (
                   <button
                     onClick={() => handleRemoveEmail(adminEmail)}
-                    className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Revoke admin authorization"
                   >
                     <Trash2 size={14} />
@@ -1317,7 +1318,7 @@ function AllowlistTab() {
             )
           })}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1326,18 +1327,18 @@ function AllowlistTab() {
 function PaymentsTab() {
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Financial & Transaction History" subtitle="Live tracking of paid point purchases and volume" />
+      <SectionHeader title="Financial & Transaction History" subtitle="Live tracking of point purchases and payment telemetry" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Revenue" value="₹240" color="emerald" icon={<TrendingUp size={16} />} />
-        <StatCard label="Paid Orders" value="12" color="blue" icon={<CreditCard size={16} />} />
-        <StatCard label="Points Issued" value="2,400" color="violet" icon={<Gift size={16} />} />
-        <StatCard label="Failed Orders" value="0" color="cyan" icon={<CheckCircle2 size={16} />} />
+        <StatCard label="Total Revenue" value="₹240" icon={<TrendingUp size={16} />} />
+        <StatCard label="Paid Orders" value="12" icon={<CreditCard size={16} />} />
+        <StatCard label="Points Issued" value="2,400" icon={<Gift size={16} />} />
+        <StatCard label="Failed Orders" value="0" icon={<CheckCircle2 size={16} />} />
       </div>
-      <Card className="p-4">
-        <p className="text-white/50 text-xs text-center py-6">
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm">
+        <p className="text-zinc-500 text-xs text-center py-6">
           Razorpay Webhook & Payment sync active. Transaction records are secured in public.payment_transactions.
         </p>
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1352,19 +1353,19 @@ function RewardsAdminTab() {
       <SectionHeader title="Reward & Badge Rules" subtitle="Automated gamification rules for audience investors" />
       <div className="space-y-2.5">
         {rules.map(rule => (
-          <Card key={rule.id} className="p-4 flex items-center justify-between gap-4">
+          <div key={rule.id} className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="text-2xl flex-shrink-0">
-                {rule.type === 'top_investor' ? '🏆' : rule.type === 'early_backer' ? '⚡' : '💎'}
+              <div className="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-950 flex-shrink-0">
+                {rule.type === 'top_investor' ? <Trophy size={18} /> : rule.type === 'early_backer' ? <Zap size={18} /> : <Award size={18} />}
               </div>
               <div>
-                <p className="text-white font-semibold text-sm">{rule.label}</p>
-                <p className="text-white/50 text-xs">{rule.description}</p>
-                <p className="text-arena-violet-3 text-xs mt-0.5">{rule.prizeDescription}</p>
+                <p className="text-zinc-950 font-bold text-sm">{rule.label}</p>
+                <p className="text-zinc-500 text-xs">{rule.description}</p>
+                <p className="text-zinc-700 font-semibold text-xs mt-0.5">{rule.prizeDescription}</p>
               </div>
             </div>
-            <Badge variant="emerald" dot>Active</Badge>
-          </Card>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">Active</span>
+          </div>
         ))}
       </div>
       <Button
@@ -1399,7 +1400,7 @@ function SettingsTab() {
   return (
     <div className="space-y-5 animate-fade-in">
       <SectionHeader title="Competition Rules & Thresholds" subtitle="Configuration parameters update dynamically" />
-      <Card className="p-5 space-y-4">
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
         {[
           { label: 'Free Points Allocation', key: 'freePointsAllocation', suffix: 'pts' },
           { label: 'Points per ₹1', key: 'pointsPerRupee', suffix: 'pts/₹' },
@@ -1408,23 +1409,23 @@ function SettingsTab() {
           { label: 'Max Investment Amount', key: 'maxInvestmentAmount', suffix: 'pts' },
         ].map(({ label, key, suffix }) => (
           <div key={key} className="space-y-1">
-            <label className="text-white/70 text-xs font-medium">{label}</label>
+            <label className="text-zinc-700 text-xs font-bold">{label}</label>
             <div className="relative">
               <input
                 type="number"
                 value={(config as any)[key]}
                 onChange={e => setConfig({ ...config, [key]: parseInt(e.target.value) || 0 })}
-                className="arena-input pr-12 text-sm"
+                className="w-full px-3.5 py-2.5 pr-12 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none font-mono"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 text-xs">{suffix}</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono">{suffix}</span>
             </div>
           </div>
         ))}
 
-        <Button onClick={handleSave} className="w-full justify-center mt-2" icon={saved ? <CheckCircle2 size={14} /> : undefined}>
+        <Button onClick={handleSave} className="w-full justify-center mt-3 bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm" icon={saved ? <CheckCircle2 size={14} /> : undefined}>
           {saved ? 'Saved Successfully!' : 'Save Configuration'}
         </Button>
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1449,28 +1450,28 @@ function LogsTab() {
           Export Log
         </Button>
       </div>
-      <Card className="divide-y divide-white/[0.06]">
+      <div className="bg-white border border-zinc-200/90 rounded-2xl divide-y divide-zinc-100 shadow-sm overflow-hidden">
         {logs.length === 0 ? (
-          <div className="p-8 text-center text-white/40 text-xs">
+          <div className="p-8 text-center text-zinc-400 text-xs">
             {loading ? 'Loading audit records...' : 'No audit events recorded yet.'}
           </div>
         ) : (
           logs.map(log => (
-            <div key={log.id} className="p-3.5 flex items-start gap-3">
-              <div className="w-7 h-7 rounded-lg bg-arena-violet/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Shield size={13} className="text-arena-violet-3" />
+            <div key={log.id} className="p-4 flex items-start gap-3">
+              <div className="w-7 h-7 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Shield size={13} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-white text-xs font-semibold">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
-                  <Badge variant="blue" className="text-[9px]">Admin Action</Badge>
+                  <p className="text-zinc-950 text-xs font-bold">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-zinc-100 text-zinc-700 border border-zinc-200">Admin Action</span>
                 </div>
-                <p className="text-white/40 text-[11px] mt-0.5">{formatRelativeTime(log.created_at || log.createdAt)}</p>
+                <p className="text-zinc-400 text-[11px] font-mono mt-0.5">{formatRelativeTime(log.created_at || log.createdAt)}</p>
               </div>
             </div>
           ))
         )}
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1494,19 +1495,21 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-fade-in text-zinc-900">
       {/* Header Banner */}
-      <div className="glass-card border-arena-violet/30 bg-gradient-to-r from-arena-violet/10 via-arena-navy-2 to-arena-blue/10 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-zinc-200/90 shadow-sm p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-arena-blue to-arena-violet flex items-center justify-center shadow-glow-violet flex-shrink-0">
-            <Shield size={22} className="text-white" />
+          <div className="w-11 h-11 rounded-xl bg-zinc-950 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+            <Shield size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-white font-black text-xl tracking-tight">Admin Control Room</h1>
-              <Badge variant="violet" dot className="text-[10px]">Verified Admin</Badge>
+              <h1 className="text-zinc-950 font-black text-xl tracking-tight">Admin Control Room</h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
+                Verified Admin
+              </span>
             </div>
-            <p className="text-white/50 text-xs mt-0.5 font-mono">
+            <p className="text-zinc-500 text-xs mt-0.5 font-mono">
               Signed in: {user?.email}
             </p>
           </div>
@@ -1515,31 +1518,32 @@ export function AdminDashboard() {
         <div className="flex items-center gap-2.5">
           <Link
             to="/"
-            className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-1.5 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
           >
             <ExternalLink size={13} />
             Public Arena
           </Link>
-          <LiveIndicator label="COMPETITION LIVE" />
+          <LiveIndicator label="STAGE LIVE" />
         </div>
       </div>
 
       {/* Modern Navigation Tabs */}
       <div className="scroll-x pb-1 -mx-2 px-2">
-        <div className="flex gap-2 min-w-max p-1 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+        <div className="flex gap-1.5 min-w-max p-1.5 rounded-2xl bg-zinc-100/80 border border-zinc-200/80">
           {ADMIN_TABS.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => setSelectedTab(id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${selectedTab === id
-                ? 'bg-gradient-to-r from-arena-blue/80 to-arena-violet/80 text-white shadow-md'
-                : 'text-white/50 hover:text-white hover:bg-white/[0.04]'
-                }`}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                selectedTab === id
+                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/90 font-bold'
+                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-white/50'
+              }`}
             >
-              <Icon size={14} />
+              <Icon size={14} strokeWidth={selectedTab === id ? 2 : 1.75} />
               {label}
               {id === 'allowlist' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-arena-violet-3" />
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
               )}
             </button>
           ))}

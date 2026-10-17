@@ -1,17 +1,18 @@
 // ============================================================
 // Live Pitch Page — Real-time pitch + investment interface
+// Minimalist, high contrast, clean white and black theme
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Zap, Users, TrendingUp, Clock, CheckCircle2,
-  AlertCircle, Timer, Flame, ChevronRight,
+  Radio, Users, Clock, CheckCircle2,
+  AlertCircle, Timer, Flame, ArrowUpRight
 } from 'lucide-react'
-import { useAuthStore, useEventStore, useWalletStore, useNotificationStore } from '@/store'
+import { useAuthStore, useEventStore, useWalletStore } from '@/store'
 import {
   Card, Button, StatusBadge, Countdown, LiveIndicator,
-  Avatar, Badge, ProgressBar, EmptyState,
+  Badge, ProgressBar, EmptyState,
 } from '@/components/ui'
 import { formatPoints, generateId } from '@/lib/utils'
 import { submitInvestment } from '@/lib/supabaseApi'
@@ -96,50 +97,55 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
       addActivity({
         id: generateId(),
         type: 'investment',
-        message: `Someone invested ${amount} pts in ${team?.name ?? 'the team'}`,
+        message: `Investor deployed ${amount} pts into ${team?.name ?? 'the startup'}`,
         timestamp: new Date().toISOString(),
       })
 
-      toast.success(`🎉 Invested ${amount} points!`)
+      toast.success(`Invested ${amount} points successfully!`)
       setJustInvested(true)
       setSelected(null)
       setCustom('')
       setTimeout(() => setJustInvested(false), 3000)
     } catch {
-      toast.error('Investment failed. Please try again.')
+      toast.error('Investment could not be completed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Card className="p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-white font-bold text-base">💸 Invest Points</h3>
-        {wallet && (
+    <Card className="p-6 space-y-4 border-zinc-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
+        <div>
+          <h3 className="text-zinc-950 font-bold text-sm">Deploy Allocation Points</h3>
+          <p className="text-zinc-500 text-xs">Back this live startup during their active round</p>
+        </div>
+        {user && (
           <div className="text-right">
-            <p className="text-xs text-white/40">Available</p>
-            <p className="text-arena-blue-3 font-bold text-sm">{formatPoints(available)}</p>
+            <p className="text-[11px] text-zinc-400 font-medium uppercase tracking-wider">Available</p>
+            <p className="text-zinc-950 font-bold font-mono text-sm">{formatPoints(available)} pts</p>
           </div>
         )}
       </div>
 
       {!user ? (
-        <div className="text-center py-4">
-          <p className="text-white/50 text-sm mb-3">Sign in to invest your points</p>
+        <div className="text-center py-5 space-y-3">
+          <p className="text-zinc-500 text-sm">Sign in to deploy your allocation points</p>
           <Link to="/auth">
-            <Button icon={<Zap size={14} />}>Sign In with Google</Button>
+            <Button size="md" className="bg-zinc-950 text-white">Sign In to Invest</Button>
           </Link>
         </div>
       ) : justInvested ? (
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="text-center py-6"
+          className="text-center py-6 space-y-1"
         >
-          <div className="text-5xl mb-2">🎉</div>
-          <p className="text-emerald-400 font-bold text-lg">Investment Confirmed!</p>
-          <p className="text-white/50 text-sm">+{amount} pts invested</p>
+          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto mb-2">
+            <CheckCircle2 size={20} />
+          </div>
+          <p className="text-zinc-950 font-bold text-base">Investment Confirmed</p>
+          <p className="text-zinc-500 text-xs font-mono">+{amount} points deployed</p>
         </motion.div>
       ) : (
         <>
@@ -151,15 +157,15 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
                 onClick={() => handleQuickSelect(pts)}
                 disabled={pts > available}
                 className={`
-                  py-2.5 rounded-xl text-sm font-bold transition-all duration-150
+                  py-2.5 rounded-xl text-xs font-bold font-mono transition-all duration-150
                   ${selected === pts
-                    ? 'bg-gradient-to-r from-arena-blue to-arena-violet text-white shadow-glow-blue scale-105'
+                    ? 'bg-zinc-950 text-white shadow-sm border border-zinc-950 scale-[1.02]'
                     : pts > available
-                    ? 'bg-white/[0.03] text-white/20 cursor-not-allowed'
-                    : 'bg-white/[0.06] text-white hover:bg-white/[0.10] border border-white/[0.08]'}
+                    ? 'bg-zinc-50 text-zinc-300 border border-zinc-200/60 cursor-not-allowed'
+                    : 'bg-white text-zinc-800 hover:bg-zinc-50 border border-zinc-200 shadow-sm'}
                 `}
               >
-                {pts}
+                {pts} pts
               </button>
             ))}
           </div>
@@ -173,25 +179,24 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
               placeholder="Custom amount..."
               min={1}
               max={available}
-              className="arena-input pr-16"
+              className="arena-input pr-14 text-sm font-mono"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 text-xs">pts</span>
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-medium">pts</span>
           </div>
 
           {/* Confirm/Invest button */}
           {confirming ? (
             <div className="space-y-2">
-              <div className="glass-card border-arena-amber/30 bg-arena-amber/5 p-3 text-center">
-                <p className="text-amber-400 text-sm font-semibold">Confirm Investment</p>
-                <p className="text-white text-2xl font-black mt-1">{amount} points</p>
-                <p className="text-white/40 text-xs mt-0.5">This cannot be undone once the round closes</p>
+              <div className="p-3.5 rounded-xl border border-zinc-200 bg-zinc-50 text-center">
+                <p className="text-zinc-600 text-xs font-semibold">Confirm Investment</p>
+                <p className="text-zinc-950 text-2xl font-black font-mono mt-0.5">{amount} points</p>
+                <p className="text-zinc-400 text-[11px] mt-0.5">Points are committed for this round</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => setConfirming(false)} className="flex-1 justify-center">
                   Cancel
                 </Button>
-                <Button onClick={handleInvest} loading={loading} className="flex-1 justify-center">
-                  <CheckCircle2 size={14} />
+                <Button onClick={handleInvest} loading={loading} className="flex-1 justify-center bg-zinc-950 text-white">
                   Confirm
                 </Button>
               </div>
@@ -201,17 +206,16 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
               onClick={handleInvest}
               disabled={!canInvest}
               loading={loading}
-              className="w-full justify-center"
-              icon={<TrendingUp size={14} />}
+              className="w-full justify-center bg-zinc-950 text-white py-2.5"
             >
-              {amount > 0 ? `Invest ${amount} Points` : 'Select an amount'}
+              {amount > 0 ? `Invest ${amount} Points` : 'Select Points to Invest'}
             </Button>
           )}
 
           {available === 0 && (
-            <div className="flex items-center gap-2 p-3 glass-card border-rose-500/20 bg-rose-500/5 rounded-xl">
-              <AlertCircle size={14} className="text-rose-400 flex-shrink-0" />
-              <p className="text-rose-300 text-xs">No points available. <Link to="/wallet" className="underline">Buy more points</Link></p>
+            <div className="flex items-center gap-2 p-3 rounded-xl border border-zinc-200 bg-zinc-50">
+              <AlertCircle size={14} className="text-zinc-600 flex-shrink-0" />
+              <p className="text-zinc-600 text-xs">No points remaining. <Link to="/wallet" className="underline font-semibold text-zinc-900">Get more points</Link></p>
             </div>
           )}
         </>
@@ -221,7 +225,7 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
 }
 
 export function LivePitchPage() {
-  const { event, activeRound, livePitch, updateLivePitch } = useEventStore()
+  const { event, activeRound, livePitch, updateLivePitch, teams } = useEventStore()
   const team = activeRound?.team
   const [timeLeft, setTimeLeft] = useState(livePitch.timeRemainingSeconds)
 
@@ -243,33 +247,34 @@ export function LivePitchPage() {
 
   if (!activeRound || !team) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-8 animate-fade-in text-zinc-900">
         <EmptyState
-          icon={<Timer />}
-          title="No Active Pitch"
-          description="Stay tuned! The next pitch will be announced soon. Check the scoreboard to see current standings."
+          icon={<Timer size={40} className="text-zinc-400" />}
+          title="No Active Pitch on Stage"
+          description="The next startup pitch will be called shortly by the event administrator. You can review current tournament standings below."
           action={
             <Link to="/scoreboard">
-              <Button variant="secondary" icon={<TrendingUp size={14} />}>View Scoreboard</Button>
+              <Button variant="secondary">View Leaderboard</Button>
             </Link>
           }
         />
+
         {/* Show upcoming teams */}
-        <div className="mt-8 space-y-2">
-          <h2 className="text-white font-bold text-base px-1">Up Next</h2>
-          {useEventStore.getState().teams
+        <div className="space-y-3">
+          <h2 className="text-zinc-950 font-bold text-sm px-1">Upcoming in Pitch Queue</h2>
+          {teams
             .filter(t => t.status === 'upcoming')
             .map(t => (
-              <Card key={t.id} className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-arena-blue/20 flex items-center justify-center text-lg font-bold text-white">
-                  {t.pitchOrder}
+              <div key={t.id} className="p-4 rounded-2xl bg-white border border-zinc-200/90 shadow-sm flex items-center gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-sm font-bold font-mono text-zinc-900 flex-shrink-0">
+                  #{t.pitchOrder}
                 </div>
-                <div className="flex-1">
-                  <p className="text-white font-semibold text-sm">{t.name}</p>
-                  <p className="text-white/40 text-xs">{t.pitchTitle}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-zinc-950 font-bold text-sm truncate">{t.name}</p>
+                  <p className="text-zinc-500 text-xs truncate">{t.pitchTitle}</p>
                 </div>
                 <StatusBadge status={t.status} />
-              </Card>
+              </div>
             ))}
         </div>
       </div>
@@ -281,84 +286,81 @@ export function LivePitchPage() {
   const isUrgent = timeLeft <= 30
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4 animate-fade-in">
+    <div className="max-w-2xl mx-auto px-4 py-8 space-y-5 animate-fade-in text-zinc-900">
       {/* Status banner */}
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center gap-3"
-        >
+        <div className="p-4 rounded-2xl bg-white border border-emerald-500/80 shadow-sm flex items-center gap-3">
           <LiveIndicator label="INVESTING OPEN" />
-          <p className="text-white/80 text-sm flex-1">
-            🚀 <strong className="text-white">{team.name}</strong> is on stage! Listen to their pitch and invest your points.
+          <p className="text-zinc-700 text-xs sm:text-sm flex-1 leading-snug">
+            <strong className="text-zinc-950">{team.name}</strong> is currently on stage! Review their vision below and submit your investment.
           </p>
-        </motion.div>
+        </div>
       )}
       {isPaused && (
-        <div className="glass-card border-amber-500/30 bg-amber-500/5 p-3 text-center">
-          <p className="text-amber-400 font-semibold text-sm">⏸️ Investing Temporarily Paused</p>
+        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-center">
+          <p className="text-amber-900 font-semibold text-xs">⏸️ Investment Round Temporarily Paused by Admin</p>
         </div>
       )}
 
       {/* Team Profile */}
-      <Card className="overflow-hidden">
-        {/* Header gradient */}
-        <div className="h-2 w-full bg-gradient-to-r from-arena-blue to-arena-violet" />
-        <div className="p-5">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-arena-blue/40 to-arena-violet/40 flex items-center justify-center text-3xl font-black text-white flex-shrink-0">
-              {team.name[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <h1 className="text-xl font-black text-white">{team.name}</h1>
-                <Badge variant="blue">{team.category}</Badge>
-              </div>
-              <p className="text-arena-blue-3 font-semibold text-sm">{team.pitchTitle}</p>
-              <p className="text-white/50 text-xs mt-1">
-                {team.presenters.join(' · ')}
-              </p>
-            </div>
+      <Card className="overflow-hidden border-zinc-200/90 bg-white shadow-sm p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-950 text-white flex items-center justify-center text-2xl font-black flex-shrink-0">
+            {team.name[0]}
           </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h1 className="text-2xl font-black text-zinc-950 tracking-tight">{team.name}</h1>
+              <Badge variant="blue">{team.category}</Badge>
+            </div>
+            <p className="text-zinc-900 font-bold text-sm">{team.pitchTitle}</p>
+            {team.presenters && team.presenters.length > 0 && (
+              <p className="text-zinc-500 text-xs mt-1">
+                Pitchers: {team.presenters.join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
 
-          <p className="text-white/70 text-sm leading-relaxed mb-4">{team.description}</p>
+        {team.description && (
+          <p className="text-zinc-600 text-sm leading-relaxed whitespace-pre-line pt-1 border-t border-zinc-100">
+            {team.description}
+          </p>
+        )}
 
-          {/* Live stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="glass-card p-3 text-center">
-              <p className="text-lg font-bold text-arena-blue-3">{formatPoints(team.totalInvestment)}</p>
-              <p className="text-white/40 text-xs">Invested</p>
-            </div>
-            <div className="glass-card p-3 text-center">
-              <p className="text-lg font-bold text-arena-violet-3">{team.uniqueBackers}</p>
-              <p className="text-white/40 text-xs">Backers</p>
-            </div>
-            <div className="glass-card p-3 text-center">
-              <p className="text-lg font-bold text-emerald-400">#{
-                useEventStore.getState().teams
-                  .sort((a, b) => b.totalInvestment - a.totalInvestment)
-                  .findIndex(t => t.id === team.id) + 1
-              }</p>
-              <p className="text-white/40 text-xs">Rank</p>
-            </div>
+        {/* Live stats */}
+        <div className="grid grid-cols-3 gap-3 pt-2">
+          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
+            <p className="text-lg font-bold font-mono text-zinc-950">{formatPoints(team.totalInvestment)}</p>
+            <p className="text-zinc-500 text-[11px] uppercase tracking-wider font-medium">Points</p>
+          </div>
+          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
+            <p className="text-lg font-bold font-mono text-zinc-950">{team.uniqueBackers}</p>
+            <p className="text-zinc-500 text-[11px] uppercase tracking-wider font-medium">Backers</p>
+          </div>
+          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
+            <p className="text-lg font-bold font-mono text-zinc-950">#{
+              teams
+                .slice()
+                .sort((a, b) => b.totalInvestment - a.totalInvestment)
+                .findIndex(t => t.id === team.id) + 1
+            }</p>
+            <p className="text-zinc-500 text-[11px] uppercase tracking-wider font-medium">Rank</p>
           </div>
         </div>
       </Card>
 
       {/* Countdown */}
       {isOpen && (
-        <Card className={`p-5 text-center ${isUrgent ? 'border-rose-500/40 bg-rose-500/5' : ''}`}>
-          <div className="flex items-center justify-center gap-3 mb-1">
-            <Clock size={16} className={isUrgent ? 'text-rose-400' : 'text-white/50'} />
-            <p className="text-white/60 text-sm font-medium">Investment Window Closes</p>
-            {isUrgent && <Flame size={16} className="text-rose-400 animate-pulse" />}
+        <Card className={`p-6 text-center border-zinc-200/90 bg-white shadow-sm ${isUrgent ? 'border-rose-400 bg-rose-50/20' : ''}`}>
+          <div className="flex items-center justify-center gap-2 mb-1 text-zinc-500 text-xs font-semibold uppercase tracking-wider">
+            <Clock size={14} className={isUrgent ? 'text-rose-600' : 'text-zinc-400'} />
+            <span>Investment Window Remaining</span>
           </div>
           <Countdown seconds={timeLeft} size="xl" className="my-2" />
           <ProgressBar
             value={timeLeft}
             max={activeRound.investmentWindowSeconds}
-            color={isUrgent ? 'rose' : 'blue'}
             className="max-w-xs mx-auto"
           />
         </Card>
@@ -370,38 +372,30 @@ export function LivePitchPage() {
       )}
 
       {/* Activity Feed */}
-      <Card className="p-4">
-        <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-          <Flame size={14} className="text-arena-amber" />
-          Live Activity
+      <Card className="p-5 border-zinc-200/90 bg-white shadow-sm space-y-3">
+        <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+          <Radio size={14} className="text-zinc-700" />
+          Live Pitch Activity
         </h3>
         <div className="space-y-2">
           <AnimatePresence>
             {livePitch.recentActivity.slice(0, 6).map(item => (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-2 text-sm text-white/60 py-1 border-b border-white/[0.05] last:border-0"
+                className="flex items-center gap-2 text-xs text-zinc-600 py-1.5 border-b border-zinc-100 last:border-0"
               >
-                <span className="text-xs">
-                  {item.type === 'investment' ? '💸' : item.type === 'new_backer' ? '🎯' : '📣'}
-                </span>
-                <span className="flex-1">{item.message}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                <span className="flex-1 font-medium">{item.message}</span>
               </motion.div>
             ))}
           </AnimatePresence>
           {livePitch.recentActivity.length === 0 && (
-            <p className="text-white/30 text-xs text-center py-2">No activity yet</p>
+            <p className="text-zinc-400 text-xs text-center py-2">No investments recorded yet for this round</p>
           )}
         </div>
       </Card>
-
-      {/* Connected viewers */}
-      <div className="flex items-center justify-center gap-2 text-white/30 text-xs py-2">
-        <Users size={12} />
-        <span>{livePitch.connectedViewers} people watching</span>
-      </div>
     </div>
   )
 }
