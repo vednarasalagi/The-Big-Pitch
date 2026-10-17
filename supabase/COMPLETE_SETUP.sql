@@ -689,3 +689,17 @@ BEGIN
   ON CONFLICT (user_id, event_id) DO UPDATE SET
     free_points = GREATEST(wallets.free_points, 500);
 END $$;
+
+-- ============================================================
+-- 12. MASTER SUPER ADMIN ALLOWLIST
+-- ============================================================
+INSERT INTO public.admin_allowlist (email, role, notes, added_by)
+VALUES ('vednarasalagi@gmail.com', 'admin', 'Primary Super Admin', 'system')
+ON CONFLICT (email) DO UPDATE SET
+  role = 'admin',
+  notes = 'Primary Super Admin';
+
+-- If user profile already exists, elevate role to admin
+UPDATE public.profiles
+SET role = 'admin', updated_at = NOW()
+WHERE LOWER(email) = 'vednarasalagi@gmail.com';
