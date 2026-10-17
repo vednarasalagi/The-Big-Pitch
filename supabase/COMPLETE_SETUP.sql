@@ -630,5 +630,5 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Auto-confirm the Razorpay verification test account so it can sign in without email confirmation
 UPDATE auth.users 
-SET email_confirmed_at = NOW(), confirmed_at = NOW()
+SET email_confirmed_at = NOW()
 WHERE email = 'razorpay.reviewer@thebigpitch.com';
