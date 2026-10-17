@@ -628,7 +628,64 @@ SELECT
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
 
--- Auto-confirm the Razorpay verification test account so it can sign in without email confirmation
-UPDATE auth.users 
-SET email_confirmed_at = NOW()
-WHERE email = 'razorpay.reviewer@thebigpitch.com';
+-- ============================================================
+-- 11. CREATE REAL TEST ACCOUNT: test@gmail.com / test1234
+-- ============================================================
+DO $$
+DECLARE
+  v_user_id UUID := gen_random_uuid();
+  v_existing_id UUID;
+BEGIN
+  -- Check if test@gmail.com already exists in auth.users
+  SELECT id INTO v_existing_id FROM auth.users WHERE LOWER(email) = 'test@gmail.com';
+
+  IF v_existing_id IS NULL THEN
+    INSERT INTO auth.users (
+      instance_id,
+      id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      v_user_id,
+      'authenticated',
+      'authenticated',
+      'test@gmail.com',
+      crypt('test1234', gen_salt('bf')),
+      NOW(),
+      '{"provider":"email","providers":["email"]}',
+      '{"full_name":"Test User"}',
+      NOW(),
+      NOW()
+    );
+  ELSE
+    UPDATE auth.users
+    SET
+      encrypted_password = crypt('test1234', gen_salt('bf')),
+      email_confirmed_at = NOW(),
+      updated_at = NOW()
+    WHERE id = v_existing_id;
+    v_user_id := v_existing_id;
+  END IF;
+
+  -- Ensure profile exists in public.profiles table
+  INSERT INTO public.profiles (id, email, display_name, role, is_verified)
+  VALUES (v_user_id, 'test@gmail.com', 'Test User', 'audience', TRUE)
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    display_name = EXCLUDED.display_name,
+    updated_at = NOW();
+
+  -- Ensure wallet exists with 500 initial audience investment points
+  INSERT INTO public.wallets (user_id, event_id, free_points, free_points_granted)
+  VALUES (v_user_id, '11111111-0000-0000-0000-000000000001', 500, TRUE)
+  ON CONFLICT (user_id, event_id) DO UPDATE SET
+    free_points = GREATEST(wallets.free_points, 500);
+END $$;
