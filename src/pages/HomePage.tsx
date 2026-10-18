@@ -164,33 +164,30 @@ export function HomePage() {
                 </span>
               )}
             </div>
-            <span className="text-xs font-mono text-zinc-500 font-medium">
-              Event ID: {event?.id ? event.id.slice(0, 8) : 'ARENA-2025'}
-            </span>
           </div>
 
           <div className="space-y-2 max-w-2xl">
             <h1 className="text-3xl sm:text-5xl font-black text-zinc-950 tracking-tight leading-[1.1]">
-              {event?.name ?? 'The Big Pitch'}
+              {event?.name && event.name !== 'Pitch Arena 2025' ? event.name : 'THE BIG PITCH'}
             </h1>
             <p className="text-zinc-600 text-base sm:text-lg leading-relaxed">
               {event?.tagline ?? 'Discover ambitious student startup founders, evaluate live pitches, and deploy your investment points.'}
             </p>
           </div>
 
-          {/* Clean Metric Cards */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 pt-2">
-            <div className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 text-center">
-              <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-950 tracking-tight">{formatPoints(totalInvested)}</p>
-              <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mt-1">Points Backed</p>
+          {/* Clean Responsive Metric Cards */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-1">
+            <div className="p-3 sm:p-4 rounded-2xl bg-zinc-50/90 border border-zinc-200/80 text-center">
+              <p className="text-base sm:text-2xl lg:text-3xl font-black font-mono text-zinc-950 tracking-tight">{formatPoints(totalInvested)}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-0.5 sm:mt-1">Points Backed</p>
             </div>
-            <div className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 text-center">
-              <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-950 tracking-tight">{totalBackers}</p>
-              <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mt-1">Audience Backers</p>
+            <div className="p-3 sm:p-4 rounded-2xl bg-zinc-50/90 border border-zinc-200/80 text-center">
+              <p className="text-base sm:text-2xl lg:text-3xl font-black font-mono text-zinc-950 tracking-tight">{totalBackers}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-0.5 sm:mt-1">Backers</p>
             </div>
-            <div className="p-4 rounded-2xl bg-zinc-50/80 border border-zinc-200/80 text-center">
-              <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-950 tracking-tight">{teams.length}</p>
-              <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider mt-1">Startups Lineup</p>
+            <div className="p-3 sm:p-4 rounded-2xl bg-zinc-50/90 border border-zinc-200/80 text-center">
+              <p className="text-base sm:text-2xl lg:text-3xl font-black font-mono text-zinc-950 tracking-tight">{teams.length}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-0.5 sm:mt-1">Startups</p>
             </div>
           </div>
 
@@ -198,7 +195,7 @@ export function HomePage() {
           <div className="pt-2">
             {!user ? (
               <Link to="/auth">
-                <Button size="lg" className="w-full justify-center bg-zinc-950 text-white font-semibold">
+                <Button size="lg" className="w-full justify-center bg-zinc-950 text-white font-bold py-3 text-sm">
                   Sign In to Claim 500 Free Audience Allocation Points
                 </Button>
               </Link>
@@ -217,27 +214,67 @@ export function HomePage() {
               </div>
             ) : isLive ? (
               <Link to="/live">
-                <Button size="lg" icon={<Radio size={15} />} className="w-full justify-center bg-zinc-950 text-white shadow-md">
-                  Active Pitch Round Live — Join & Invest
+                <Button size="lg" icon={<Radio size={16} />} className="w-full justify-center bg-zinc-950 text-white font-bold py-3 text-sm shadow-md">
+                  Active Pitch Round Live — Join & Invest Now
                 </Button>
               </Link>
             ) : (
-              <Link to="/scoreboard">
-                <Button variant="secondary" size="md" className="w-full justify-center">
-                  View Tournament Leaderboard
-                </Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <Link to="/live" className="flex-1">
+                  <Button size="md" icon={<Radio size={14} />} className="w-full justify-center bg-zinc-950 text-white font-semibold">
+                    Go to Live Pitch Arena
+                  </Button>
+                </Link>
+                <Link to="/scoreboard" className="flex-1">
+                  <Button variant="secondary" size="md" className="w-full justify-center font-semibold">
+                    View Tournament Leaderboard
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* Helpful 3-Step Simple Guide for New Attendees */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Link to="/wallet" className="p-4 rounded-2xl bg-white border border-zinc-200/90 hover:border-zinc-300 transition-all shadow-xs group">
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <span className="w-6 h-6 rounded-lg bg-zinc-950 text-white text-xs font-black flex items-center justify-center font-mono">1</span>
+            <h3 className="font-bold text-zinc-950 text-sm group-hover:text-zinc-800">500 Free Points</h3>
+          </div>
+          <p className="text-zinc-500 text-xs leading-relaxed">
+            Every audience member gets 500 welcome points to deploy into favorite startups.
+          </p>
+        </Link>
+
+        <Link to="/live" className="p-4 rounded-2xl bg-white border border-zinc-200/90 hover:border-zinc-300 transition-all shadow-xs group">
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white text-xs font-black flex items-center justify-center font-mono">2</span>
+            <h3 className="font-bold text-zinc-950 text-sm group-hover:text-zinc-800">Watch Live & Invest</h3>
+          </div>
+          <p className="text-zinc-500 text-xs leading-relaxed">
+            Head to the <strong>Live Pitch</strong> tab. When a team pitches on stage, the timer opens for point backing!
+          </p>
+        </Link>
+
+        <Link to="/scoreboard" className="p-4 rounded-2xl bg-white border border-zinc-200/90 hover:border-zinc-300 transition-all shadow-xs group">
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <span className="w-6 h-6 rounded-lg bg-amber-500 text-white text-xs font-black flex items-center justify-center font-mono">3</span>
+            <h3 className="font-bold text-zinc-950 text-sm group-hover:text-zinc-800">Win Audience Champion</h3>
+          </div>
+          <p className="text-zinc-500 text-xs leading-relaxed">
+            Back teams with the highest points in the fastest time (milliseconds) to win #1 Champion!
+          </p>
+        </Link>
+      </div>
+
       {/* Active Live Pitch Alert (High Impact Clean Card) */}
       {isLive && activeRound?.team && (
         <Link to="/live">
-          <div className="bg-white border-2 border-emerald-500 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center text-xl font-bold flex-shrink-0">
+          <div className="bg-white border-2 border-emerald-500 p-4 sm:p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center text-xl font-bold flex-shrink-0">
                 <Radio size={22} className="animate-pulse" />
               </div>
               <div className="min-w-0">
@@ -245,12 +282,12 @@ export function HomePage() {
                   <span className="text-emerald-700 font-bold text-xs uppercase tracking-wider">Pitching Live Right Now</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                 </div>
-                <p className="text-zinc-950 font-black text-lg truncate mt-0.5">{activeRound.team.name}</p>
+                <p className="text-zinc-950 font-black text-base sm:text-lg truncate mt-0.5">{activeRound.team.name}</p>
                 <p className="text-zinc-600 text-xs truncate">{activeRound.team.pitchTitle}</p>
               </div>
             </div>
-            <Button size="sm" className="bg-zinc-950 text-white flex-shrink-0">
-              Invest Now
+            <Button size="sm" className="bg-zinc-950 text-white flex-shrink-0 font-bold px-3 py-1.5">
+              Invest Now →
             </Button>
           </div>
         </Link>

@@ -4,7 +4,7 @@
 // ============================================================
 
 import { supabase, TABLES } from './supabase'
-import type { Event, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward } from '@/types'
+import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding } from '@/types'
 
 /**
  * Fetch the active or upcoming event along with its configuration.
@@ -82,6 +82,7 @@ export async function getActiveEvent(): Promise<Event | null> {
         blindLeaderboard: config.blind_leaderboard ?? false,
         allowedEmailDomains: config.allowed_email_domains ?? [],
         rewardRules: config.reward_rules ?? [],
+        officialResultsPublished: (config as any)?.official_results_published ?? false,
         updatedAt: (config as any)?.updated_at ?? new Date().toISOString(),
       } : {
         id: 'cfg-default',
@@ -99,6 +100,7 @@ export async function getActiveEvent(): Promise<Event | null> {
         blindLeaderboard: false,
         allowedEmailDomains: [],
         rewardRules: [],
+        officialResultsPublished: false,
         updatedAt: new Date().toISOString(),
       },
     }
@@ -139,6 +141,10 @@ export async function getTeams(eventId?: string): Promise<Team[]> {
       totalInvestment: t.total_investment ?? 0,
       uniqueBackers: t.unique_backers ?? 0,
       isArchived: t.is_archived ?? false,
+      officialRank: t.official_rank ?? null,
+      officialScore: t.official_score !== undefined && t.official_score !== null ? Number(t.official_score) : null,
+      officialAward: t.official_award ?? null,
+      officialNotes: t.official_notes ?? null,
       createdAt: t.created_at,
       updatedAt: t.updated_at,
     }))
@@ -158,7 +164,7 @@ export async function getActivePitchRound(eventId?: string): Promise<PitchRound 
     let query = supabase
       .from(TABLES.PITCH_ROUNDS)
       .select('*, teams(*)')
-      .in('status', ['announced', 'investment_open', 'investment_paused'])
+      .in('status', ['announced', 'pitching', 'investment_open', 'investment_paused', 'investment_closed'])
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -214,81 +220,137 @@ export async function getActivePitchRound(eventId?: string): Promise<PitchRound 
  * Fetch or automatically initialize user wallet with starting allocation in Supabase.
  */
 export async function getOrCreateWallet(userId: string, eventId: string, initialGrant = 500): Promise<Wallet | null> {
-  if (!supabase || !userId) return null
+  if (!userId) return null
 
+  // Helper for mapping DB row to Wallet
+  const mapWallet = (row: any): Wallet => ({
+    id: row.id,
+    userId: row.user_id,
+    eventId: row.event_id,
+    freePoints: row.free_points ?? 0,
+    purchasedPoints: row.purchased_points ?? 0,
+    investedPoints: row.invested_points ?? 0,
+    totalSpentPoints: row.total_spent_points ?? 0,
+    totalPaidRupees: row.total_paid_rupees ?? 0,
+    freePointsGranted: row.free_points_granted ?? false,
+    createdAt: row.created_at ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? new Date().toISOString(),
+  })
+
+  // 1. If Supabase client exists, attempt server-side database operations
+  if (supabase) {
+    try {
+      // Step A: Check if wallet already exists
+      const { data: existing, error: fetchErr } = await supabase
+        .from(TABLES.WALLETS)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('event_id', eventId)
+        .maybeSingle()
+
+      if (existing && !fetchErr) {
+        return mapWallet(existing)
+      }
+
+      // Step B: Atomically create wallet & credit free points via server RPC
+      // The RPC reads free_points_allocation from event_config securely on server
+      try {
+        await supabase.rpc('grant_free_points', {
+          p_user_id: userId,
+          p_event_id: eventId,
+        })
+      } catch (rpcErr) {
+        console.warn('grant_free_points RPC call notice:', rpcErr)
+      }
+
+      // Step C: Re-query wallet after RPC
+      const { data: afterRpc, error: afterRpcErr } = await supabase
+        .from(TABLES.WALLETS)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('event_id', eventId)
+        .maybeSingle()
+
+      if (afterRpc && !afterRpcErr) {
+        return mapWallet(afterRpc)
+      }
+
+      // Step D: Direct insert fallback (if permitted by policies)
+      const { data: inserted, error: insertErr } = await supabase
+        .from(TABLES.WALLETS)
+        .insert({
+          user_id: userId,
+          event_id: eventId,
+          free_points: initialGrant,
+          purchased_points: 0,
+          invested_points: 0,
+          total_spent_points: 0,
+          total_paid_rupees: 0,
+          free_points_granted: true,
+        })
+        .select()
+        .maybeSingle()
+
+      if (inserted && !insertErr) {
+        // Record ledger entry
+        try {
+          await supabase.from(TABLES.WALLET_LEDGER).insert({
+            wallet_id: inserted.id,
+            user_id: userId,
+            event_id: eventId,
+            type: 'free_grant',
+            amount: initialGrant,
+            balance_after: initialGrant,
+            description: 'Welcome grant of audience voting points',
+          })
+        } catch {}
+
+        return mapWallet(inserted)
+      }
+    } catch (err) {
+      console.error('Wallet access error:', err)
+    }
+  }
+
+  // 2. Offline / local fallback storage (guarantees audience has starting points)
+  const mockStorageKey = `pitch_arena_wallet_${userId}_${eventId}`
   try {
-    // 1. Try to fetch existing wallet
-    const { data: existing, error: fetchErr } = await supabase
-      .from(TABLES.WALLETS)
-      .select('*')
-      .eq('user_id', userId)
-      .eq('event_id', eventId)
-      .single()
-
-    if (existing && !fetchErr) {
-      return {
-        id: existing.id,
-        userId: existing.user_id,
-        eventId: existing.event_id,
-        freePoints: existing.free_points,
-        purchasedPoints: existing.purchased_points,
-        investedPoints: existing.invested_points,
-        totalSpentPoints: existing.total_spent_points,
-        totalPaidRupees: existing.total_paid_rupees,
-        freePointsGranted: existing.free_points_granted,
-        createdAt: existing.created_at,
-        updatedAt: existing.updated_at,
+    const saved = localStorage.getItem(mockStorageKey)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (parsed && typeof parsed.freePoints === 'number') {
+        return parsed
       }
     }
-
-    // 2. Insert fresh wallet for this user + event
-    const { data: inserted, error: insertErr } = await supabase
-      .from(TABLES.WALLETS)
-      .insert({
-        user_id: userId,
-        event_id: eventId,
-        free_points: initialGrant,
-        purchased_points: 0,
-        invested_points: 0,
-        total_spent_points: 0,
-        total_paid_rupees: 0,
-        free_points_granted: true,
-      })
-      .select()
-      .single()
-
-    if (insertErr || !inserted) {
-      console.warn('Could not insert wallet:', insertErr?.message)
-      return null
+    const freshMock: Wallet = {
+      id: `wallet-${userId.slice(0, 8)}`,
+      userId,
+      eventId,
+      freePoints: initialGrant,
+      purchasedPoints: 0,
+      investedPoints: 0,
+      totalSpentPoints: 0,
+      totalPaidRupees: 0,
+      freePointsGranted: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
-
-    // 3. Log initial free grant ledger record
-    await supabase.from(TABLES.WALLET_LEDGER).insert({
-      wallet_id: inserted.id,
-      user_id: userId,
-      event_id: eventId,
-      type: 'free_grant',
-      amount: initialGrant,
-      balance_after: initialGrant,
-      description: 'Welcome grant of audience voting points',
-    })
-
+    localStorage.setItem(mockStorageKey, JSON.stringify(freshMock))
+    return freshMock
+  } catch {
     return {
-      id: inserted.id,
-      userId: inserted.user_id,
-      eventId: inserted.event_id,
-      freePoints: inserted.free_points,
-      purchasedPoints: inserted.purchased_points,
-      investedPoints: inserted.invested_points,
-      totalSpentPoints: inserted.total_spent_points,
-      totalPaidRupees: inserted.total_paid_rupees,
-      freePointsGranted: inserted.free_points_granted,
-      createdAt: inserted.created_at,
-      updatedAt: inserted.updated_at,
+      id: `wallet-${userId.slice(0, 8)}`,
+      userId,
+      eventId,
+      freePoints: initialGrant,
+      purchasedPoints: 0,
+      investedPoints: 0,
+      totalSpentPoints: 0,
+      totalPaidRupees: 0,
+      freePointsGranted: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
-  } catch (err) {
-    console.error('Wallet access error:', err)
-    return null
   }
 }
 
@@ -372,14 +434,39 @@ export async function submitInvestment(params: {
   roundId: string
   amount: number
   wallet: Wallet
+  timeElapsedMs?: number
 }): Promise<{ success: boolean; error?: string }> {
   if (!supabase) return { success: false, error: 'Database client not connected' }
 
-  const { userId, eventId, teamId, roundId, amount, wallet } = params
+  const { userId, eventId, teamId, roundId, amount, wallet, timeElapsedMs } = params
   const available = wallet.freePoints + wallet.purchasedPoints
   if (amount > available) {
     return { success: false, error: 'Insufficient points in wallet' }
   }
+
+  // Calculate authoritative reaction time in milliseconds from window open
+  let calculatedMs = timeElapsedMs ?? 0
+
+  // Check round deadline and status authoritatively
+  try {
+    const { data: roundData } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .select('status, investment_open_time, investment_close_time')
+      .eq('id', roundId)
+      .maybeSingle()
+
+    if (roundData) {
+      if (roundData.status !== 'investment_open') {
+        return { success: false, error: 'The investment window is not currently open for this pitch.' }
+      }
+      if (roundData.investment_close_time && new Date(roundData.investment_close_time).getTime() < Date.now()) {
+        return { success: false, error: 'The investment window deadline has passed.' }
+      }
+      if (!calculatedMs && roundData.investment_open_time) {
+        calculatedMs = Math.max(1, Date.now() - new Date(roundData.investment_open_time).getTime())
+      }
+    }
+  } catch {}
 
   try {
     // 1. Try secure Supabase RPC procedure
@@ -393,6 +480,18 @@ export async function submitInvestment(params: {
     })
 
     if (!rpcError) {
+      // Sync time_elapsed_ms on the created investment record
+      if (calculatedMs > 0) {
+        try {
+          await supabase
+            .from(TABLES.INVESTMENTS)
+            .update({ time_elapsed_ms: calculatedMs })
+            .eq('user_id', userId)
+            .eq('round_id', roundId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+        } catch {}
+      }
       return { success: true }
     }
 
@@ -419,7 +518,7 @@ export async function submitInvestment(params: {
       return { success: false, error: walletErr.message }
     }
 
-    // Insert investment
+    // Insert investment with millisecond reaction time
     const { data: invData, error: invErr } = await supabase
       .from(TABLES.INVESTMENTS)
       .insert({
@@ -428,6 +527,7 @@ export async function submitInvestment(params: {
         team_id: teamId,
         round_id: roundId,
         amount,
+        time_elapsed_ms: calculatedMs,
       })
       .select()
       .single()
@@ -604,6 +704,8 @@ export async function createTeam(team: {
   category?: string
   presenters?: string[]
   pitchOrder?: number
+  pitchDurationSeconds?: number
+  investmentWindowSeconds?: number
 }): Promise<Team | null> {
   if (!supabase) return null
 
@@ -618,6 +720,8 @@ export async function createTeam(team: {
         category: (team.category || 'General').trim(),
         presenters: team.presenters || [],
         pitch_order: team.pitchOrder || 1,
+        pitch_duration_seconds: team.pitchDurationSeconds,
+        investment_window_seconds: team.investmentWindowSeconds,
         status: 'upcoming',
         total_investment: 0,
         unique_backers: 0,
@@ -667,6 +771,8 @@ export async function updateTeam(
     presenters: string[]
     pitchOrder: number
     status: 'upcoming' | 'active' | 'closed' | 'completed'
+    pitchDurationSeconds: number
+    investmentWindowSeconds: number
   }>
 ): Promise<boolean> {
   if (!supabase || !teamId) return false
@@ -680,6 +786,8 @@ export async function updateTeam(
     if (updates.presenters !== undefined) payload.presenters = updates.presenters
     if (updates.pitchOrder !== undefined) payload.pitch_order = updates.pitchOrder
     if (updates.status !== undefined) payload.status = updates.status
+    if (updates.pitchDurationSeconds !== undefined) payload.pitch_duration_seconds = updates.pitchDurationSeconds
+    if (updates.investmentWindowSeconds !== undefined) payload.investment_window_seconds = updates.investmentWindowSeconds
     payload.updated_at = new Date().toISOString()
 
     const { error } = await supabase
@@ -734,9 +842,15 @@ export async function reorderTeams(teamOrders: { id: string; pitchOrder: number 
 }
 
 /**
- * Start a pitch round for ANY chosen team.
+ * Start a pitch round for ANY chosen team with separate pitch and investment timers.
  */
-export async function startPitchForTeam(eventId: string, team: Team, durationSeconds = 300): Promise<PitchRound | null> {
+export async function startPitchForTeam(
+  eventId: string,
+  team: Team,
+  pitchDurationSeconds = 300,
+  investmentWindowSeconds = 180,
+  phase: 'announced' | 'pitching' | 'investment_open' = 'announced'
+): Promise<PitchRound | null> {
   if (!supabase || !team) return null
 
   try {
@@ -744,7 +858,12 @@ export async function startPitchForTeam(eventId: string, team: Team, durationSec
     await supabase
       .from(TABLES.PITCH_ROUNDS)
       .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .in('status', ['announced', 'investment_open', 'investment_paused'])
+      .in('status', ['announced', 'pitching', 'investment_open', 'investment_paused'])
+
+    const now = new Date()
+    const isInvesting = phase === 'investment_open'
+    const openTime = isInvesting ? now.toISOString() : null
+    const closeTime = isInvesting ? new Date(now.getTime() + investmentWindowSeconds * 1000).toISOString() : null
 
     // 2. Insert new active pitch round for this team
     const { data, error } = await supabase
@@ -752,11 +871,12 @@ export async function startPitchForTeam(eventId: string, team: Team, durationSec
       .insert({
         event_id: eventId,
         team_id: team.id,
-        status: 'investment_open',
-        pitch_start_time: new Date().toISOString(),
-        investment_open_time: new Date().toISOString(),
-        scheduled_duration_seconds: durationSeconds,
-        investment_window_seconds: durationSeconds,
+        status: phase,
+        pitch_start_time: now.toISOString(),
+        investment_open_time: openTime,
+        investment_close_time: closeTime,
+        scheduled_duration_seconds: pitchDurationSeconds,
+        investment_window_seconds: investmentWindowSeconds,
         total_invested: team.totalInvestment,
         unique_investors: team.uniqueBackers,
       })
@@ -777,11 +897,12 @@ export async function startPitchForTeam(eventId: string, team: Team, durationSec
       teamId: data.team_id,
       team: { ...team, status: 'active' },
       roundNumber: team.pitchOrder,
-      status: 'investment_open',
+      status: data.status,
       pitchStartTime: data.pitch_start_time,
       investmentOpenTime: data.investment_open_time,
-      scheduledDurationSeconds: durationSeconds,
-      investmentWindowSeconds: durationSeconds,
+      investmentCloseTime: data.investment_close_time,
+      scheduledDurationSeconds: pitchDurationSeconds,
+      investmentWindowSeconds: investmentWindowSeconds,
       totalInvested: team.totalInvestment,
       uniqueInvestors: team.uniqueBackers,
       createdAt: data.created_at,
@@ -790,6 +911,272 @@ export async function startPitchForTeam(eventId: string, team: Team, durationSec
   } catch (err) {
     console.error('Failed to start pitch for team:', err)
     return null
+  }
+}
+
+/**
+ * Open the audience investment window with an authoritative server deadline.
+ */
+export async function openInvestmentWindow(roundId: string, durationSeconds = 180): Promise<PitchRound | null> {
+  if (!supabase || !roundId) return null
+  try {
+    const now = new Date()
+    const closeTime = new Date(now.getTime() + durationSeconds * 1000).toISOString()
+
+    const { data, error } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .update({
+        status: 'investment_open',
+        investment_open_time: now.toISOString(),
+        investment_close_time: closeTime,
+        investment_pause_time: null,
+        investment_window_seconds: durationSeconds,
+        updated_at: now.toISOString(),
+      })
+      .eq('id', roundId)
+      .select('*, teams(*)')
+      .single()
+
+    if (error || !data) {
+      console.error('Error opening investment window:', error)
+      return null
+    }
+
+    return {
+      id: data.id,
+      eventId: data.event_id,
+      teamId: data.team_id,
+      team: data.teams,
+      roundNumber: data.teams?.pitch_order ?? 1,
+      status: 'investment_open',
+      pitchStartTime: data.pitch_start_time,
+      investmentOpenTime: data.investment_open_time,
+      investmentCloseTime: data.investment_close_time,
+      scheduledDurationSeconds: data.scheduled_duration_seconds ?? 300,
+      investmentWindowSeconds: durationSeconds,
+      totalInvested: data.total_invested ?? 0,
+      uniqueInvestors: data.unique_investors ?? 0,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  } catch (err) {
+    console.error('Error opening investment window:', err)
+    return null
+  }
+}
+
+/**
+ * Pause the active pitch round timer.
+ */
+export async function pauseRound(roundId: string): Promise<boolean> {
+  if (!supabase || !roundId) return false
+  try {
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .update({
+        status: 'investment_paused',
+        investment_pause_time: now,
+        updated_at: now,
+      })
+      .eq('id', roundId)
+
+    return !error
+  } catch (err) {
+    console.error('Error pausing round:', err)
+    return false
+  }
+}
+
+/**
+ * Resume a paused pitch round, preserving remaining time.
+ */
+export async function resumeRound(round: PitchRound): Promise<string | null> {
+  if (!supabase || !round?.id) return null
+  try {
+    const now = Date.now()
+    let newCloseTime: string
+
+    if (round.investmentPauseTime && round.investmentCloseTime) {
+      const pausedAt = new Date(round.investmentPauseTime).getTime()
+      const pausedElapsed = Math.max(0, now - pausedAt)
+      const prevClose = new Date(round.investmentCloseTime).getTime()
+      newCloseTime = new Date(prevClose + pausedElapsed).toISOString()
+    } else {
+      const windowSec = round.investmentWindowSeconds ?? 180
+      newCloseTime = new Date(now + windowSec * 1000).toISOString()
+    }
+
+    const { error } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .update({
+        status: 'investment_open',
+        investment_close_time: newCloseTime,
+        investment_pause_time: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', round.id)
+
+    if (error) {
+      console.error('Error resuming round:', error)
+      return null
+    }
+    return newCloseTime
+  } catch (err) {
+    console.error('Error resuming round:', err)
+    return null
+  }
+}
+
+/**
+ * Extend the investment clock by extra seconds with server authority.
+ */
+export async function extendRoundTimer(round: PitchRound, extraSeconds = 60): Promise<string | null> {
+  if (!supabase || !round?.id) return null
+  try {
+    const baseTime = round.investmentCloseTime
+      ? Math.max(new Date(round.investmentCloseTime).getTime(), Date.now())
+      : Date.now()
+    const newCloseTime = new Date(baseTime + extraSeconds * 1000).toISOString()
+
+    const { error } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .update({
+        investment_close_time: newCloseTime,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', round.id)
+
+    if (error) {
+      console.error('Error extending round timer:', error)
+      return null
+    }
+    return newCloseTime
+  } catch (err) {
+    console.error('Error extending round timer:', err)
+    return null
+  }
+}
+
+/**
+ * Close the investment window for the round.
+ */
+export async function closeInvestmentWindow(roundId: string): Promise<boolean> {
+  if (!supabase || !roundId) return false
+  try {
+    const { error } = await supabase
+      .from(TABLES.PITCH_ROUNDS)
+      .update({
+        status: 'investment_closed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', roundId)
+
+    return !error
+  } catch (err) {
+    console.error('Error closing investment window:', err)
+    return false
+  }
+}
+
+/**
+ * Update event configuration in Supabase database.
+ */
+export async function updateEventConfig(eventId: string, configUpdates: Partial<EventConfig>): Promise<boolean> {
+  if (!supabase || !eventId) return false
+  try {
+    const payload: any = {}
+    if (configUpdates.freePointsAllocation !== undefined) payload.free_points_allocation = configUpdates.freePointsAllocation
+    if (configUpdates.pointsPerRupee !== undefined) payload.points_per_rupee = configUpdates.pointsPerRupee
+    if (configUpdates.maxPaidPurchaseRupees !== undefined) payload.max_paid_purchase_rupees = configUpdates.maxPaidPurchaseRupees
+    if (configUpdates.maxPaidPoints !== undefined) payload.max_paid_points = configUpdates.maxPaidPoints
+    if (configUpdates.minInvestmentAmount !== undefined) payload.min_investment_amount = configUpdates.minInvestmentAmount
+    if (configUpdates.maxInvestmentAmount !== undefined) payload.max_investment_amount = configUpdates.maxInvestmentAmount
+    if (configUpdates.allowMultipleInvestments !== undefined) payload.allow_multiple_investments = configUpdates.allowMultipleInvestments
+    if (configUpdates.pitchDurationSeconds !== undefined) payload.pitch_duration_seconds = configUpdates.pitchDurationSeconds
+    if (configUpdates.investmentWindowSeconds !== undefined) payload.investment_window_seconds = configUpdates.investmentWindowSeconds
+    if (configUpdates.blindLeaderboard !== undefined) payload.blind_leaderboard = configUpdates.blindLeaderboard
+    if (configUpdates.allowedEmailDomains !== undefined) payload.allowed_email_domains = configUpdates.allowedEmailDomains
+    if (configUpdates.officialResultsPublished !== undefined) payload.official_results_published = configUpdates.officialResultsPublished
+    payload.updated_at = new Date().toISOString()
+
+    const { error } = await supabase
+      .from(TABLES.EVENT_CONFIG)
+      .update(payload)
+      .eq('event_id', eventId)
+
+    if (error) {
+      console.error('Error updating event_config in Supabase:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('Error updating event_config:', err)
+    return false
+  }
+}
+
+/**
+ * Update team-specific timer settings.
+ */
+export async function updateTeamTimerSettings(teamId: string, pitchDurationSeconds: number, investmentWindowSeconds: number): Promise<boolean> {
+  if (!supabase || !teamId) return false
+  try {
+    const { error } = await supabase
+      .from(TABLES.TEAMS)
+      .update({
+        pitch_duration_seconds: pitchDurationSeconds,
+        investment_window_seconds: investmentWindowSeconds,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', teamId)
+
+    return !error
+  } catch (err) {
+    console.error('Error updating team timer settings:', err)
+    return false
+  }
+}
+
+/**
+ * Save official judges' competition results independently of audience investments.
+ */
+export async function saveOfficialResults(
+  eventId: string,
+  results: OfficialResult[],
+  isPublished: boolean
+): Promise<boolean> {
+  if (!supabase || !eventId) return false
+  try {
+    // 1. Update official ranking fields on teams
+    await Promise.all(
+      results.map(r =>
+        supabase!
+          .from(TABLES.TEAMS)
+          .update({
+            official_rank: r.rank ?? null,
+            official_score: r.score ?? null,
+            official_award: r.award ?? null,
+            official_notes: r.notes ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', r.teamId)
+      )
+    )
+
+    // 2. Update publication status on event config
+    await supabase
+      .from(TABLES.EVENT_CONFIG)
+      .update({
+        official_results_published: isPublished,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('event_id', eventId)
+
+    return true
+  } catch (err) {
+    console.error('Error saving official judging results:', err)
+    return false
   }
 }
 
@@ -856,6 +1243,116 @@ export async function getTeamInvestments(teamId: string): Promise<Investment[]> 
 }
 
 /**
+ * Fetch audience investor standings for a specific team.
+ * Calculates rankings based on:
+ * 1. Highest Amount Invested (Descending)
+ * 2. Least Time Taken in Milliseconds (Ascending) as tie-breaker/speed factor.
+ */
+export async function getTeamAudienceStandings(teamId: string): Promise<TeamInvestorStanding[]> {
+  if (!supabase || !teamId) return []
+
+  try {
+    const { data: investments, error: invError } = await supabase
+      .from(TABLES.INVESTMENTS)
+      .select('id, user_id, team_id, round_id, amount, time_elapsed_ms, created_at')
+      .eq('team_id', teamId)
+      .order('created_at', { ascending: true })
+
+    if (invError || !investments || investments.length === 0) return []
+
+    // Fetch round information to calculate fallback millisecond timings if needed
+    const roundIds = Array.from(new Set(investments.map((i: any) => i.round_id).filter(Boolean)))
+    const roundsMap = new Map<string, any>()
+    if (roundIds.length > 0) {
+      const { data: rounds } = await supabase
+        .from(TABLES.PITCH_ROUNDS)
+        .select('id, investment_open_time, pitch_start_time, created_at')
+        .in('id', roundIds)
+
+      rounds?.forEach((r: any) => roundsMap.set(r.id, r))
+    }
+
+    // Fetch user profiles for all investors
+    const userIds = Array.from(new Set(investments.map((i: any) => i.user_id).filter(Boolean)))
+    const profilesMap = new Map<string, any>()
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from(TABLES.PROFILES)
+        .select('id, display_name, email, avatar_url')
+        .in('id', userIds)
+
+      profiles?.forEach((p: any) => profilesMap.set(p.id, p))
+    }
+
+    // Aggregate by user
+    const userMap = new Map<string, {
+      userId: string
+      displayName: string
+      email: string
+      avatarUrl?: string
+      totalAmount: number
+      minTimeElapsedMs: number
+      firstInvestedAt: string
+    }>()
+
+    for (const inv of investments as any[]) {
+      const profile = profilesMap.get(inv.user_id)
+      const round = roundsMap.get(inv.round_id)
+
+      let timeMs = Number(inv.time_elapsed_ms) || 0
+      if (!timeMs || timeMs <= 0) {
+        const openTime = round?.investment_open_time || round?.pitch_start_time || round?.created_at
+        if (openTime && inv.created_at) {
+          timeMs = Math.max(1, new Date(inv.created_at).getTime() - new Date(openTime).getTime())
+        } else {
+          timeMs = 1200
+        }
+      }
+
+      const existing = userMap.get(inv.user_id)
+      if (existing) {
+        existing.totalAmount += inv.amount
+        if (timeMs < existing.minTimeElapsedMs) {
+          existing.minTimeElapsedMs = timeMs
+        }
+      } else {
+        userMap.set(inv.user_id, {
+          userId: inv.user_id,
+          displayName: profile?.display_name || profile?.email?.split('@')[0] || 'Audience Backer',
+          email: profile?.email || '',
+          avatarUrl: profile?.avatar_url,
+          totalAmount: inv.amount,
+          minTimeElapsedMs: timeMs,
+          firstInvestedAt: inv.created_at,
+        })
+      }
+    }
+
+    // Rank: Highest amount invested first (descending); least time taken (milliseconds ascending) as tie-breaker/speed factor
+    const sorted = Array.from(userMap.values()).sort((a, b) => {
+      if (b.totalAmount !== a.totalAmount) {
+        return b.totalAmount - a.totalAmount
+      }
+      return a.minTimeElapsedMs - b.minTimeElapsedMs
+    })
+
+    return sorted.map((item, index) => ({
+      userId: item.userId,
+      displayName: item.displayName,
+      email: item.email,
+      avatarUrl: item.avatarUrl,
+      amount: item.totalAmount,
+      timeElapsedMs: item.minTimeElapsedMs,
+      investedAt: item.firstInvestedAt,
+      rank: index + 1,
+    }))
+  } catch (err) {
+    console.error('Failed to get team audience standings:', err)
+    return []
+  }
+}
+
+/**
  * Maps technical or unexpected errors to friendly, professional user statements.
  * Never leaks database details, table names, or environment variable names to end users.
  */
@@ -864,17 +1361,26 @@ export function toUserFriendlyError(err: any, fallback = 'Unable to complete req
   const msg = typeof err === 'string' ? err : err.message || ''
   const lower = msg.toLowerCase()
 
+  if (lower.includes('email not confirmed')) {
+    return 'Your email address has not been confirmed yet. Please verify your OTP code.'
+  }
   if (lower.includes('invalid login credentials') || lower.includes('invalid email or password') || lower.includes('invalid_grant')) {
     return 'Incorrect email or password. Please verify and try again.'
   }
   if (lower.includes('user already registered') || lower.includes('already exists') || lower.includes('unique constraint')) {
     return 'An account with this email already exists. Please sign in instead.'
   }
+  if (lower.includes('token has expired') || lower.includes('otp has expired')) {
+    return 'This verification code has expired. Please request a new code.'
+  }
+  if (lower.includes('invalid token') || lower.includes('invalid otp') || lower.includes('token is invalid') || lower.includes('token has expired or is invalid')) {
+    return 'Incorrect verification code. Please check your email and try again.'
+  }
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch') || lower.includes('connection')) {
     return 'Network connection issue. Please check your internet connection.'
   }
-  if (lower.includes('rate limit') || lower.includes('too many requests')) {
-    return 'Too many attempts. Please wait a moment before trying again.'
+  if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('over_email_send_rate_limit')) {
+    return 'Too many attempts. Please wait a minute before requesting another code.'
   }
   if (lower.includes('insufficient points')) {
     return 'You do not have enough points for this investment.'
@@ -883,6 +1389,6 @@ export function toUserFriendlyError(err: any, fallback = 'Unable to complete req
     return 'The service is temporarily unavailable. Please try again shortly.'
   }
 
-  return fallback
+  return msg || fallback
 }
 

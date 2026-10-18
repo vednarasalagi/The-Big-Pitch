@@ -6,7 +6,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, Radio, Users, CreditCard,
   Gift, FileText, Shield, ChevronRight, Play, Pause,
@@ -30,28 +30,35 @@ import {
   deleteTeam,
   reorderTeams,
   startPitchForTeam,
+  openInvestmentWindow,
+  pauseRound,
+  resumeRound,
+  extendRoundTimer,
+  closeInvestmentWindow,
   stopPitchForTeam,
+  updateEventConfig,
+  updateTeamTimerSettings,
+  saveOfficialResults,
   toUserFriendlyError,
 } from '@/lib/supabaseApi'
-import { supabase, TABLES } from '@/lib/supabase'
 import {
   getAdminAllowlist,
   addAdminEmail,
   removeAdminEmail,
-  isAdminEmail,
   isSuperAdmin,
-  getSuperAdminEmail,
   syncAdminAllowlistFromSupabase,
 } from '@/lib/adminConfig'
 import { toast } from 'sonner'
-import { motion, AnimatePresence } from 'framer-motion'
-import type { RoundStatus, Team } from '@/types'
+import { motion } from 'framer-motion'
+import type { Team, OfficialResult } from '@/types'
 
 // ── Admin Navigation Tabs ──────────────────────────────────
 const ADMIN_TABS = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
   { id: 'control', icon: Radio, label: 'Live Control' },
+  { id: 'timer', icon: Clock, label: 'Pitch Timer & Window' },
   { id: 'teams', icon: Users, label: 'Pre-listed Teams' },
+  { id: 'judging', icon: Trophy, label: 'Official Judging' },
   { id: 'cast', icon: Tv, label: 'Stage Cast' },
   { id: 'allowlist', icon: ShieldCheck, label: 'Admin Access' },
   { id: 'payments', icon: CreditCard, label: 'Payments' },
@@ -202,7 +209,14 @@ function TeamModal({
   const [description, setDescription] = useState(team?.description || '')
   const [category, setCategory] = useState(team?.category || 'AI & Machine Learning')
   const [presenters, setPresenters] = useState(team?.presenters?.join(', ') || '')
-  const [pitchOrder, setPitchOrder] = useState(team?.pitchOrder ?? (teams.length + 1))
+  const [pitchOrder, setPitchOrder] = useState(team?.pitchOrder || (teams.length + 1))
+  const defaultPitch = event?.config.pitchDurationSeconds ?? 300
+  const defaultInvest = event?.config.investmentWindowSeconds ?? 180
+
+  const [pitchDurationMin, setPitchDurationMin] = useState(Math.floor((team?.pitchDurationSeconds ?? defaultPitch) / 60))
+  const [pitchDurationSec, setPitchDurationSec] = useState((team?.pitchDurationSeconds ?? defaultPitch) % 60)
+  const [investmentWindowMin, setInvestmentWindowMin] = useState(Math.floor((team?.investmentWindowSeconds ?? defaultInvest) / 60))
+  const [investmentWindowSec, setInvestmentWindowSec] = useState((team?.investmentWindowSeconds ?? defaultInvest) % 60)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -219,6 +233,8 @@ function TeamModal({
       .filter(Boolean)
 
     const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
+    const totalPitchSec = pitchDurationMin * 60 + pitchDurationSec
+    const totalInvestSec = investmentWindowMin * 60 + investmentWindowSec
 
     if (team) {
       // Edit
@@ -229,6 +245,8 @@ function TeamModal({
         category,
         presenters: presenterList,
         pitchOrder: Number(pitchOrder) || 1,
+        pitchDurationSeconds: totalPitchSec,
+        investmentWindowSeconds: totalInvestSec,
       })
       setLoading(false)
       if (ok) {
@@ -241,6 +259,8 @@ function TeamModal({
           category: category.trim(),
           presenters: presenterList,
           pitchOrder: Number(pitchOrder) || 1,
+          pitchDurationSeconds: totalPitchSec,
+          investmentWindowSeconds: totalInvestSec,
           updatedAt: new Date().toISOString(),
         })
         onClose()
@@ -257,6 +277,8 @@ function TeamModal({
         category,
         presenters: presenterList,
         pitchOrder: Number(pitchOrder) || (teams.length + 1),
+        pitchDurationSeconds: totalPitchSec,
+        investmentWindowSeconds: totalInvestSec,
       })
       setLoading(false)
       if (created) {
@@ -372,6 +394,65 @@ function TeamModal({
             </div>
           </div>
 
+          {/* Team-Specific Timer Durations */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200">
+            <div>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Pitch Presentation Time</label>
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={pitchDurationMin}
+                    onChange={e => setPitchDurationMin(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-mono font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">min</span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={pitchDurationSec}
+                    onChange={e => setPitchDurationSec(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-mono font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">sec</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Investment Window</label>
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={investmentWindowMin}
+                    onChange={e => setInvestmentWindowMin(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-mono font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">min</span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={investmentWindowSec}
+                    onChange={e => setInvestmentWindowSec(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-mono font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">sec</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-3">
             <Button variant="secondary" onClick={onClose} className="flex-1 justify-center">
               Cancel
@@ -392,20 +473,55 @@ function ControlTab() {
   const [loading, setLoading] = useState<string | null>(null)
   const [selectedTeamToPitch, setSelectedTeamToPitch] = useState<string>('')
   const [selectedNextTeam, setSelectedNextTeam] = useState<string>('')
+  const [countdown, setCountdown] = useState<number>(0)
 
   const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
   const activeTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
 
+  // Live timer tick for active round
+  useEffect(() => {
+    if (!activeRound) {
+      setCountdown(0)
+      return
+    }
+
+    const updateTimer = () => {
+      if (activeRound.status === 'investment_open' && activeRound.investmentCloseTime) {
+        const closeTime = new Date(activeRound.investmentCloseTime).getTime()
+        const remaining = Math.max(0, Math.floor((closeTime - Date.now()) / 1000))
+        setCountdown(remaining)
+      } else if ((activeRound.status === 'announced' || activeRound.status === 'pitching') && activeRound.pitchStartTime) {
+        const start = new Date(activeRound.pitchStartTime).getTime()
+        const duration = (activeRound.scheduledDurationSeconds ?? 300) * 1000
+        const remaining = Math.max(0, Math.floor((start + duration - Date.now()) / 1000))
+        setCountdown(remaining)
+      } else if (activeRound.status === 'investment_paused') {
+        // Paused, freeze
+      } else {
+        setCountdown(0)
+      }
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [activeRound?.status, activeRound?.investmentCloseTime, activeRound?.pitchStartTime, activeRound?.scheduledDurationSeconds])
+
   // Start pitch for ANY chosen team
-  const handleStartPitch = async (teamToStart: Team) => {
+  const handleStartPitch = async (teamToStart: Team, phase: 'announced' | 'investment_open' = 'announced') => {
     setLoading(`start-${teamToStart.id}`)
     try {
-      const duration = event?.config.pitchDurationSeconds ?? 300
-      const newRound = await startPitchForTeam(eventId, teamToStart, duration)
+      const pitchDuration = teamToStart.pitchDurationSeconds ?? event?.config.pitchDurationSeconds ?? 300
+      const investmentWindow = teamToStart.investmentWindowSeconds ?? event?.config.investmentWindowSeconds ?? 180
+      const newRound = await startPitchForTeam(eventId, teamToStart, pitchDuration, investmentWindow, phase)
       if (newRound) {
         setActiveRound(newRound)
         setTeams(teams.map(t => (t.id === teamToStart.id ? { ...t, status: 'active' } : t)))
-        toast.success(`Pitch round started for ${teamToStart.name}!`)
+        toast.success(
+          phase === 'announced'
+            ? `Pitch presentation started for ${teamToStart.name}! (${Math.floor(pitchDuration / 60)}m ${pitchDuration % 60}s)`
+            : `Investment round opened for ${teamToStart.name}! (${Math.floor(investmentWindow / 60)}m ${investmentWindow % 60}s)`
+        )
       } else {
         toast.error('Unable to start pitch round. Please try again.')
       }
@@ -413,6 +529,79 @@ function ControlTab() {
       toast.error(toUserFriendlyError(err, 'Failed to start pitch round.'))
     } finally {
       setLoading(null)
+    }
+  }
+
+  // Open audience investment window
+  const handleOpenInvestments = async () => {
+    if (!activeRound) return
+    setLoading('open-investments')
+    try {
+      const windowSec = activeRound.team?.investmentWindowSeconds ?? event?.config.investmentWindowSeconds ?? 180
+      const updated = await openInvestmentWindow(activeRound.id, windowSec)
+      if (updated) {
+        setActiveRound(updated)
+        toast.success(`Audience investment window is now OPEN! (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`)
+      }
+    } catch (err: any) {
+      toast.error(toUserFriendlyError(err, 'Failed to open investments.'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  // Close audience investment window
+  const handleCloseInvestments = async () => {
+    if (!activeRound) return
+    setLoading('close-investments')
+    try {
+      const ok = await closeInvestmentWindow(activeRound.id)
+      if (ok) {
+        setActiveRound({ ...activeRound, status: 'investment_closed' })
+        toast.info('Investment window closed. Audience can no longer invest.')
+      }
+    } catch (err: any) {
+      toast.error(toUserFriendlyError(err, 'Failed to close investment window.'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  // Pause / Resume with preserved remaining time
+  const handleTogglePause = async () => {
+    if (!activeRound) return
+    const isPaused = activeRound.status === 'investment_paused'
+    if (isPaused) {
+      const newClose = await resumeRound(activeRound)
+      if (newClose) {
+        setActiveRound({
+          ...activeRound,
+          status: 'investment_open',
+          investmentCloseTime: newClose,
+          investmentPauseTime: undefined,
+        })
+        toast.success('Round resumed! Remaining countdown continues.')
+      }
+    } else {
+      const ok = await pauseRound(activeRound.id)
+      if (ok) {
+        setActiveRound({
+          ...activeRound,
+          status: 'investment_paused',
+          investmentPauseTime: new Date().toISOString(),
+        })
+        toast.info('Round paused. Investments and timer temporarily held.')
+      }
+    }
+  }
+
+  // Add 60s to clock
+  const handleExtendClock = async () => {
+    if (!activeRound) return
+    const newClose = await extendRoundTimer(activeRound, 60)
+    if (newClose) {
+      setActiveRound({ ...activeRound, investmentCloseTime: newClose })
+      toast.success('+60s added to authoritative round timer!')
     }
   }
 
@@ -430,19 +619,6 @@ function ControlTab() {
     } finally {
       setLoading(null)
     }
-  }
-
-  // Pause / Resume
-  const handleTogglePause = async () => {
-    if (!activeRound) return
-    const isPaused = activeRound.status === 'investment_paused'
-    const newStatus = isPaused ? 'investment_open' : 'investment_paused'
-    setActiveRound({ ...activeRound, status: newStatus })
-
-    if (supabase) {
-      await supabase.from(TABLES.PITCH_ROUNDS).update({ status: newStatus }).eq('id', activeRound.id)
-    }
-    toast.info(isPaused ? 'Round resumed!' : 'Round paused. Investments temporarily held.')
   }
 
   // Set designated next team
@@ -468,7 +644,7 @@ function ControlTab() {
     <div className="space-y-6 animate-fade-in">
       <SectionHeader
         title="Live Competition Controller"
-        subtitle="Start or stop pitches for any team on demand, adjust timers, and set the next pitching team."
+        subtitle="Manage live stages, separate presentation and investment phases, and sync authoritative timers."
       />
 
       {/* 1. Active Pitch Management Card */}
@@ -487,7 +663,15 @@ function ControlTab() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-zinc-950 font-bold text-xs uppercase tracking-wider">Live On Stage</p>
+                  <p className="text-zinc-950 font-bold text-xs uppercase tracking-wider">
+                    {activeRound.status === 'announced' || activeRound.status === 'pitching'
+                      ? 'Phase 1: Pitch Presentation in Progress'
+                      : activeRound.status === 'investment_open'
+                      ? 'Phase 2: Audience Investment Window Open'
+                      : activeRound.status === 'investment_paused'
+                      ? 'Paused: Investment Window on Hold'
+                      : 'Phase 3: Investment Window Closed'}
+                  </p>
                 </div>
                 <h4 className="text-2xl font-black text-zinc-950 mt-1">{activeTeam.name}</h4>
                 <p className="text-zinc-700 font-semibold text-sm">{activeTeam.pitchTitle}</p>
@@ -496,43 +680,100 @@ function ControlTab() {
                 )}
               </div>
 
-              <div className="text-left sm:text-right">
-                <p className="text-3xl font-black text-zinc-950 font-mono">{formatPoints(activeRound.totalInvested)}</p>
-                <p className="text-zinc-500 text-xs">{activeRound.uniqueInvestors} audience backers</p>
+              <div className="flex items-center gap-6 sm:text-right">
+                <div>
+                  <p className="text-3xl font-black text-zinc-950 font-mono">
+                    {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+                  </p>
+                  <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
+                    {activeRound.status === 'investment_open' ? 'Window Remaining' : 'Pitch Time Left'}
+                  </p>
+                </div>
+
+                <div className="border-l border-zinc-200 pl-4">
+                  <p className="text-2xl font-black text-zinc-950 font-mono">{formatPoints(activeRound.totalInvested)}</p>
+                  <p className="text-zinc-500 text-xs">{activeRound.uniqueInvestors} backers</p>
+                </div>
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-200">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="justify-center"
-                icon={activeRound.status === 'investment_paused' ? <Play size={13} /> : <Pause size={13} />}
-                onClick={handleTogglePause}
-              >
-                {activeRound.status === 'investment_paused' ? 'Resume' : 'Pause'}
-              </Button>
+            {/* Phase Transition and Action Controls */}
+            <div className="space-y-2 pt-2 border-t border-zinc-200">
+              {/* If presentation phase: Show button to Open Investment Window */}
+              {(activeRound.status === 'announced' || activeRound.status === 'pitching') && (
+                <div className="p-3 rounded-xl bg-white border border-emerald-300 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-zinc-950">Pitch in progress. Ready for investments?</p>
+                    <p className="text-[11px] text-zinc-500">
+                      Configured window: {Math.floor((activeTeam.investmentWindowSeconds ?? event?.config.investmentWindowSeconds ?? 180) / 60)}m {(activeTeam.investmentWindowSeconds ?? event?.config.investmentWindowSeconds ?? 180) % 60}s
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    loading={loading === 'open-investments'}
+                    onClick={handleOpenInvestments}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold whitespace-nowrap shadow-sm"
+                    icon={<Play size={13} />}
+                  >
+                    Open Investment Window Now
+                  </Button>
+                </div>
+              )}
 
-              <Button
-                variant="secondary"
-                size="sm"
-                className="justify-center"
-                onClick={() => toast.success('+60s added to clock')}
-              >
-                +60s Clock
-              </Button>
+              {/* Action Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="justify-center"
+                  icon={activeRound.status === 'investment_paused' ? <Play size={13} /> : <Pause size={13} />}
+                  onClick={handleTogglePause}
+                >
+                  {activeRound.status === 'investment_paused' ? 'Resume Timer' : 'Pause Timer'}
+                </Button>
 
-              <Button
-                variant="danger"
-                size="sm"
-                className="justify-center col-span-2 bg-zinc-950 hover:bg-zinc-800 text-white font-bold"
-                icon={<Square size={13} />}
-                loading={loading === 'stop'}
-                onClick={handleStopPitch}
-              >
-                Stop / End Pitch
-              </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="justify-center"
+                  onClick={handleExtendClock}
+                >
+                  +60s Clock
+                </Button>
+
+                {activeRound.status === 'investment_open' ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="justify-center border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100"
+                    loading={loading === 'close-investments'}
+                    onClick={handleCloseInvestments}
+                  >
+                    Close Investments
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="justify-center"
+                    loading={loading === 'open-investments'}
+                    onClick={handleOpenInvestments}
+                  >
+                    Open Window
+                  </Button>
+                )}
+
+                <Button
+                  variant="danger"
+                  size="sm"
+                  className="justify-center bg-zinc-950 hover:bg-zinc-800 text-white font-bold"
+                  icon={<Square size={13} />}
+                  loading={loading === 'stop'}
+                  onClick={handleStopPitch}
+                >
+                  End Pitch Round
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -557,7 +798,7 @@ function ControlTab() {
               Launch Pitch for Any Listed Team
             </h3>
             <p className="text-zinc-500 text-xs mt-0.5">
-              Admin can start the pitch for any team at any time, or designate the next upcoming team.
+              Select team and choose whether to start their presentation first or open investments immediately.
             </p>
           </div>
         </div>
@@ -577,18 +818,32 @@ function ControlTab() {
             ))}
           </select>
 
-          <Button
-            disabled={!selectedTeamToPitch || loading !== null}
-            loading={loading === `start-${selectedTeamToPitch}`}
-            onClick={() => {
-              const team = teams.find(t => t.id === selectedTeamToPitch)
-              if (team) handleStartPitch(team)
-            }}
-            icon={<Play size={14} />}
-            className="justify-center bg-zinc-950 hover:bg-zinc-800 text-white whitespace-nowrap shadow-sm"
-          >
-            Start Pitch Now
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              disabled={!selectedTeamToPitch || loading !== null}
+              loading={loading === `start-${selectedTeamToPitch}`}
+              onClick={() => {
+                const team = teams.find(t => t.id === selectedTeamToPitch)
+                if (team) handleStartPitch(team, 'announced')
+              }}
+              icon={<Play size={14} />}
+              className="justify-center bg-zinc-950 hover:bg-zinc-800 text-white whitespace-nowrap shadow-sm text-xs"
+            >
+              Start Presentation
+            </Button>
+
+            <Button
+              variant="secondary"
+              disabled={!selectedTeamToPitch || loading !== null}
+              onClick={() => {
+                const team = teams.find(t => t.id === selectedTeamToPitch)
+                if (team) handleStartPitch(team, 'investment_open')
+              }}
+              className="justify-center whitespace-nowrap text-xs border-zinc-300"
+            >
+              Start Direct with Window
+            </Button>
+          </div>
         </div>
 
         {/* Set Up Next Selector */}
@@ -1158,7 +1413,6 @@ function AllowlistTab() {
   const [allowlist, setAllowlist] = useState<string[]>(() => getAdminAllowlist())
   const [newEmail, setNewEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const superAdminEmail = getSuperAdminEmail()
 
   // Sync latest allowlist from Supabase backend on mount
   useEffect(() => {
@@ -1380,26 +1634,645 @@ function RewardsAdminTab() {
   )
 }
 
-// ── 7. Settings Tab ─────────────────────────────────────────
+// ── 7. Pitch Timer & Investment Window Tab ──────────────────
+function TimerConfigTab() {
+  const { event, teams, setTeams, setEvent } = useEventStore()
+  const { eventConfig, setEventConfig } = useAdminStore()
+
+  const currentEventConfig = eventConfig ?? event?.config
+  const eventId = event?.id || 'event-pitch-arena-2025'
+
+  // Default timer states (min & sec)
+  const defaultPitchSec = currentEventConfig?.pitchDurationSeconds ?? 300
+  const defaultInvestSec = currentEventConfig?.investmentWindowSeconds ?? 180
+
+  const [pitchMin, setPitchMin] = useState(Math.floor(defaultPitchSec / 60))
+  const [pitchSec, setPitchSec] = useState(defaultPitchSec % 60)
+  const [investMin, setInvestMin] = useState(Math.floor(defaultInvestSec / 60))
+  const [investSec, setInvestSec] = useState(defaultInvestSec % 60)
+  const [savingDefaults, setSavingDefaults] = useState(false)
+
+  // Per-team timer settings: Record<teamId, { pitchMin, pitchSec, investMin, investSec }>
+  const [teamTimers, setTeamTimers] = useState<Record<string, { pitchMin: number; pitchSec: number; investMin: number; investSec: number }>>(() => {
+    const map: Record<string, { pitchMin: number; pitchSec: number; investMin: number; investSec: number }> = {}
+    teams.forEach(t => {
+      const pSec = t.pitchDurationSeconds ?? defaultPitchSec
+      const iSec = t.investmentWindowSeconds ?? defaultInvestSec
+      map[t.id] = {
+        pitchMin: Math.floor(pSec / 60),
+        pitchSec: pSec % 60,
+        investMin: Math.floor(iSec / 60),
+        investSec: iSec % 60,
+      }
+    })
+    return map
+  })
+  const [savingTeamId, setSavingTeamId] = useState<string | null>(null)
+
+  // Update team timers state when teams change
+  useEffect(() => {
+    setTeamTimers(prev => {
+      const next = { ...prev }
+      teams.forEach(t => {
+        if (!next[t.id]) {
+          const pSec = t.pitchDurationSeconds ?? defaultPitchSec
+          const iSec = t.investmentWindowSeconds ?? defaultInvestSec
+          next[t.id] = {
+            pitchMin: Math.floor(pSec / 60),
+            pitchSec: pSec % 60,
+            investMin: Math.floor(iSec / 60),
+            investSec: iSec % 60,
+          }
+        }
+      })
+      return next
+    })
+  }, [teams, defaultPitchSec, defaultInvestSec])
+
+  // Save Default Durations to Event Config
+  const handleSaveDefaults = async () => {
+    const totalPitch = Math.max(10, (pitchMin * 60) + pitchSec)
+    const totalInvest = Math.max(10, (investMin * 60) + investSec)
+
+    setSavingDefaults(true)
+    const updatedConfig = {
+      ...currentEventConfig,
+      pitchDurationSeconds: totalPitch,
+      investmentWindowSeconds: totalInvest,
+    } as any
+
+    setEventConfig(updatedConfig)
+    if (event) {
+      setEvent({ ...event, config: updatedConfig })
+    }
+
+    const ok = await updateEventConfig(eventId, {
+      pitchDurationSeconds: totalPitch,
+      investmentWindowSeconds: totalInvest,
+    })
+    setSavingDefaults(false)
+
+    if (ok) {
+      toast.success(`Default timers saved: ${pitchMin}m ${pitchSec}s pitch, ${investMin}m ${investSec}s window`)
+    } else {
+      toast.error('Failed to persist default timers to Supabase')
+    }
+  }
+
+  // Save Per-Team Override
+  const handleSaveTeamTimer = async (teamId: string) => {
+    const timer = teamTimers[teamId]
+    if (!timer) return
+
+    const totalPitch = Math.max(10, (timer.pitchMin * 60) + timer.pitchSec)
+    const totalInvest = Math.max(10, (timer.investMin * 60) + timer.investSec)
+
+    setSavingTeamId(teamId)
+    const ok = await updateTeamTimerSettings(teamId, totalPitch, totalInvest)
+    setSavingTeamId(null)
+
+    if (ok) {
+      setTeams(teams.map(t => t.id === teamId ? { ...t, pitchDurationSeconds: totalPitch, investmentWindowSeconds: totalInvest } : t))
+      toast.success(`Timer updated for ${teams.find(t => t.id === teamId)?.name || 'team'}!`)
+    } else {
+      toast.error('Failed to update team timer')
+    }
+  }
+
+  // Reset team to global defaults
+  const handleResetTeamToDefaults = (teamId: string) => {
+    setTeamTimers(prev => ({
+      ...prev,
+      [teamId]: {
+        pitchMin,
+        pitchSec,
+        investMin,
+        investSec,
+      }
+    }))
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <SectionHeader
+        title="Pitch Timer & Investment Window"
+        subtitle="Configure presentation and audience investment phase durations. Changes synchronize authoritatively across stage screens and audience devices."
+      />
+
+      {/* 1. Global Default Durations Card */}
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+          <div>
+            <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+              <Clock size={16} className="text-zinc-950" />
+              Event Default Durations
+            </h3>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              These durations apply to all pitching rounds unless overridden for a specific team.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
+            Authoritative Defaults
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Default Pitch Duration */}
+          <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-zinc-900 font-bold text-xs">Phase 1: Pitch Presentation Duration</label>
+              <span className="text-zinc-400 text-xs font-mono">{(pitchMin * 60) + pitchSec}s total</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-zinc-500 font-semibold uppercase">Minutes</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={pitchMin}
+                  onChange={e => setPitchMin(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs font-mono font-bold text-zinc-900 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-zinc-500 font-semibold uppercase">Seconds</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={pitchSec}
+                  onChange={e => setPitchSec(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs font-mono font-bold text-zinc-900 outline-none"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              During this presentation phase, audience investment controls remain waiting.
+            </p>
+          </div>
+
+          {/* Default Investment Window */}
+          <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-zinc-900 font-bold text-xs">Phase 2: Audience Investment Window</label>
+              <span className="text-zinc-400 text-xs font-mono">{(investMin * 60) + investSec}s total</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-zinc-500 font-semibold uppercase">Minutes</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={investMin}
+                  onChange={e => setInvestMin(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs font-mono font-bold text-zinc-900 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-zinc-500 font-semibold uppercase">Seconds</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={investSec}
+                  onChange={e => setInvestSec(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs font-mono font-bold text-zinc-900 outline-none"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              When this window closes, investments are automatically locked and rejected.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Presets */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-zinc-400 text-xs font-medium">Quick Presets:</span>
+          {[
+            { label: '3m Pitch / 2m Invest', pM: 3, pS: 0, iM: 2, iS: 0 },
+            { label: '5m Pitch / 3m Invest', pM: 5, pS: 0, iM: 3, iS: 0 },
+            { label: '7m Pitch / 4m Invest', pM: 7, pS: 0, iM: 4, iS: 0 },
+            { label: '1m Demo / 45s Invest', pM: 1, pS: 0, iM: 0, iS: 45 },
+          ].map(preset => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                setPitchMin(preset.pM)
+                setPitchSec(preset.pS)
+                setInvestMin(preset.iM)
+                setInvestSec(preset.iS)
+              }}
+              className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold transition-colors"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <Button
+          loading={savingDefaults}
+          onClick={handleSaveDefaults}
+          className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
+          icon={<CheckCircle2 size={14} />}
+        >
+          Save & Apply Default Durations
+        </Button>
+      </div>
+
+      {/* 2. Team-Specific Timer Configurations */}
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+            <Sliders size={16} className="text-zinc-950" />
+            Team-Specific Duration Overrides ({teams.length} teams)
+          </h3>
+          <p className="text-zinc-500 text-xs mt-0.5">
+            Configure custom presentation or investment windows for specific teams if needed.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {teams.map(team => {
+            const timer = teamTimers[team.id] || {
+              pitchMin: Math.floor((team.pitchDurationSeconds ?? defaultPitchSec) / 60),
+              pitchSec: (team.pitchDurationSeconds ?? defaultPitchSec) % 60,
+              investMin: Math.floor((team.investmentWindowSeconds ?? defaultInvestSec) / 60),
+              investSec: (team.investmentWindowSeconds ?? defaultInvestSec) % 60,
+            }
+
+            return (
+              <div
+                key={team.id}
+                className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              >
+                <div className="min-w-0 md:w-1/3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-mono text-xs font-bold">#{team.pitchOrder}</span>
+                    <h4 className="text-zinc-950 font-bold text-sm truncate">{team.name}</h4>
+                  </div>
+                  <p className="text-zinc-500 text-xs truncate">{team.pitchTitle}</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Pitch Min</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={timer.pitchMin}
+                      onChange={e => setTeamTimers(prev => ({
+                        ...prev,
+                        [team.id]: { ...timer, pitchMin: Math.max(0, parseInt(e.target.value) || 0) }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Pitch Sec</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={timer.pitchSec}
+                      onChange={e => setTeamTimers(prev => ({
+                        ...prev,
+                        [team.id]: { ...timer, pitchSec: Math.min(59, Math.max(0, parseInt(e.target.value) || 0)) }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Invest Min</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={timer.investMin}
+                      onChange={e => setTeamTimers(prev => ({
+                        ...prev,
+                        [team.id]: { ...timer, investMin: Math.max(0, parseInt(e.target.value) || 0) }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Invest Sec</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={timer.investSec}
+                      onChange={e => setTeamTimers(prev => ({
+                        ...prev,
+                        [team.id]: { ...timer, investSec: Math.min(59, Math.max(0, parseInt(e.target.value) || 0)) }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleResetTeamToDefaults(team.id)}
+                    className="text-xs"
+                    title="Set to global defaults"
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    loading={savingTeamId === team.id}
+                    onClick={() => handleSaveTeamTimer(team.id)}
+                    className="bg-zinc-950 text-white hover:bg-zinc-800 text-xs whitespace-nowrap"
+                  >
+                    Save Team
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 8. Official Judging & Competition Results Tab ───────────
+function OfficialJudgingTab() {
+  const { teams, setTeams, event, setEvent } = useEventStore()
+  const eventId = event?.id || 'event-pitch-arena-2025'
+
+  const [isPublished, setIsPublished] = useState(event?.config.officialResultsPublished ?? false)
+  const [saving, setSaving] = useState(false)
+
+  // Independent judging results per team
+  const [results, setResults] = useState<Record<string, { rank?: number; score?: number; award?: string; notes?: string }>>(() => {
+    const map: Record<string, { rank?: number; score?: number; award?: string; notes?: string }> = {}
+    teams.forEach(t => {
+      map[t.id] = {
+        rank: t.officialRank ?? undefined,
+        score: t.officialScore ?? undefined,
+        award: t.officialAward || '',
+        notes: t.officialNotes || '',
+      }
+    })
+    return map
+  })
+
+  // Sync results when teams change
+  useEffect(() => {
+    setResults(prev => {
+      const next = { ...prev }
+      teams.forEach(t => {
+        if (!next[t.id]) {
+          next[t.id] = {
+            rank: t.officialRank ?? undefined,
+            score: t.officialScore ?? undefined,
+            award: t.officialAward || '',
+            notes: t.officialNotes || '',
+          }
+        }
+      })
+      return next
+    })
+  }, [teams])
+
+  const handleSaveResults = async () => {
+    setSaving(true)
+
+    const list: OfficialResult[] = teams.map(t => ({
+      teamId: t.id,
+      rank: results[t.id]?.rank,
+      score: results[t.id]?.score,
+      award: results[t.id]?.award?.trim() || undefined,
+      notes: results[t.id]?.notes?.trim() || undefined,
+    }))
+
+    const ok = await saveOfficialResults(eventId, list, isPublished)
+    setSaving(false)
+
+    if (ok) {
+      // Update local teams state
+      const updatedTeams = teams.map(t => {
+        const r = results[t.id]
+        return {
+          ...t,
+          officialRank: r?.rank,
+          officialScore: r?.score,
+          officialAward: r?.award?.trim() || undefined,
+          officialNotes: r?.notes?.trim() || undefined,
+        }
+      })
+      setTeams(updatedTeams)
+
+      if (event) {
+        setEvent({
+          ...event,
+          config: {
+            ...event.config,
+            officialResultsPublished: isPublished,
+          }
+        })
+      }
+
+      toast.success(isPublished ? 'Official Competition Results published to audience!' : 'Official results saved (draft).')
+    } else {
+      toast.error('Failed to save official judging results')
+    }
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <SectionHeader
+        title="Official Competition Results"
+        subtitle="Record independent jury scores, awards, and rankings. Audience investments never influence or determine official rankings."
+      />
+
+      {/* Critical Independence Alert Card */}
+      <div className="p-5 rounded-2xl bg-zinc-950 text-white space-y-2.5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-emerald-400" />
+          <h4 className="font-black text-sm uppercase tracking-wider text-emerald-400">
+            Jury & Ranking Independence Rule
+          </h4>
+        </div>
+        <p className="text-zinc-300 text-xs leading-relaxed">
+          The official judges evaluate pitching teams independently using their own scoring process (including pen and paper).
+          Audience investment points are strictly categorized as <strong>Audience Investment Activity</strong> and can <strong>never</strong> determine, modify, tie-break, or influence official competition winners.
+        </p>
+      </div>
+
+      {/* Publication Control Card */}
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
+            <Trophy size={16} className="text-zinc-950" />
+            Audience Results Visibility
+          </h3>
+          <p className="text-zinc-500 text-xs mt-0.5">
+            {isPublished
+              ? 'Official competition rankings and awards are currently VISIBLE to the audience on the scoreboard.'
+              : 'Official competition rankings are currently UNPUBLISHED. Audience sees only investment activity.'}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsPublished(!isPublished)}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            isPublished
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200'
+          }`}
+        >
+          {isPublished ? <CheckCircle2 size={14} /> : <Lock size={14} />}
+          <span>{isPublished ? 'Published to Audience' : 'Unpublished (Draft)'}</span>
+        </button>
+      </div>
+
+      {/* Entry Form Table */}
+      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-zinc-950 font-bold text-sm">Official Jury Evaluations ({teams.length} teams)</h3>
+          <span className="text-[11px] text-zinc-400 font-mono">Independent Judging Scorecard</span>
+        </div>
+
+        <div className="space-y-3">
+          {teams.map(team => {
+            const r = results[team.id] || {}
+
+            return (
+              <div
+                key={team.id}
+                className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+              >
+                <div className="min-w-0 lg:w-1/4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-mono text-xs font-bold">#{team.pitchOrder}</span>
+                    <h4 className="text-zinc-950 font-bold text-sm truncate">{team.name}</h4>
+                  </div>
+                  <p className="text-zinc-500 text-xs truncate">{team.pitchTitle}</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 flex-1">
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Official Rank</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 1"
+                      value={r.rank ?? ''}
+                      onChange={e => setResults(prev => ({
+                        ...prev,
+                        [team.id]: { ...r, rank: e.target.value ? parseInt(e.target.value) : undefined }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Jury Score (/100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="e.g. 94.5"
+                      value={r.score ?? ''}
+                      onChange={e => setResults(prev => ({
+                        ...prev,
+                        [team.id]: { ...r, score: e.target.value ? parseFloat(e.target.value) : undefined }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs font-mono font-bold text-zinc-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Official Award</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Grand Champion"
+                      value={r.award ?? ''}
+                      onChange={e => setResults(prev => ({
+                        ...prev,
+                        [team.id]: { ...r, award: e.target.value }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs text-zinc-900 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-zinc-500 font-bold uppercase">Jury Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Judge feedback"
+                      value={r.notes ?? ''}
+                      onChange={e => setResults(prev => ({
+                        ...prev,
+                        [team.id]: { ...r, notes: e.target.value }
+                      }))}
+                      className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-200 text-xs text-zinc-900 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <Button
+          loading={saving}
+          onClick={handleSaveResults}
+          className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm mt-3"
+          icon={<CheckCircle2 size={14} />}
+        >
+          {isPublished ? 'Save & Publish Official Results' : 'Save Draft Official Results'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── 9. Settings Tab ─────────────────────────────────────────
 function SettingsTab() {
   const { eventConfig, setEventConfig } = useAdminStore()
-  const { event } = useEventStore()
+  const { event, setEvent } = useEventStore()
   const [config, setConfig] = useState(eventConfig ?? event?.config)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleSave = async () => {
     if (!config) return
+    setLoading(true)
     setEventConfig(config)
-    setSaved(true)
-    toast.success('Event configuration updated!')
-    setTimeout(() => setSaved(false), 2000)
+    if (event) {
+      setEvent({ ...event, config })
+    }
+    const eventId = event?.id || 'event-pitch-arena-2025'
+    const ok = await updateEventConfig(eventId, config)
+    setLoading(false)
+
+    if (ok) {
+      setSaved(true)
+      toast.success('Event configuration saved and synced to Supabase database!')
+      setTimeout(() => setSaved(false), 2000)
+    } else {
+      toast.error('Failed to sync configuration to database.')
+    }
   }
 
   if (!config) return null
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Competition Rules & Thresholds" subtitle="Configuration parameters update dynamically" />
+      <SectionHeader title="Competition Rules & Thresholds" subtitle="Configuration parameters update dynamically and persist to database" />
       <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
         {[
           { label: 'Free Points Allocation', key: 'freePointsAllocation', suffix: 'pts' },
@@ -1422,15 +2295,20 @@ function SettingsTab() {
           </div>
         ))}
 
-        <Button onClick={handleSave} className="w-full justify-center mt-3 bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm" icon={saved ? <CheckCircle2 size={14} /> : undefined}>
-          {saved ? 'Saved Successfully!' : 'Save Configuration'}
+        <Button
+          loading={loading}
+          onClick={handleSave}
+          className="w-full justify-center mt-3 bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
+          icon={saved ? <CheckCircle2 size={14} /> : undefined}
+        >
+          {saved ? 'Saved & Synced!' : 'Save Configuration'}
         </Button>
       </div>
     </div>
   )
 }
 
-// ── 8. Audit Logs Tab ───────────────────────────────────────
+// ── 10. Audit Logs Tab ──────────────────────────────────────
 function LogsTab() {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -1480,12 +2358,13 @@ function LogsTab() {
 export function AdminDashboard() {
   const { user } = useAuthStore()
   const { selectedTab, setSelectedTab } = useAdminStore()
-  const navigate = useNavigate()
 
   const tabContent: Record<string, React.ReactNode> = {
     overview: <OverviewTab />,
     control: <ControlTab />,
+    timer: <TimerConfigTab />,
     teams: <TeamsTab />,
+    judging: <OfficialJudgingTab />,
     cast: <CastAdminTab />,
     allowlist: <AllowlistTab />,
     payments: <PaymentsTab />,

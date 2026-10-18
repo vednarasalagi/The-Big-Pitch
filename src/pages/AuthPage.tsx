@@ -1,13 +1,15 @@
 // ============================================================
 // Auth Page — Modern, Secure Authentication Portal
 // Powered by Supabase Auth with server-verified role management.
+// Supports Email/Password, Email OTP Verification, and Google OAuth.
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import {
   Zap, Shield, Gift, Users, CheckCircle2, AlertCircle,
-  Mail, Lock, User, Eye, EyeOff, ArrowRight, AlertTriangle
+  Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft,
+  KeyRound, RefreshCw, ShieldCheck
 } from 'lucide-react'
 import { useAuthStore, useWalletStore } from '@/store'
 import { Button, Card, Badge } from '@/components/ui'
@@ -18,10 +20,10 @@ import { toUserFriendlyError } from '@/lib/supabaseApi'
 import { toast } from 'sonner'
 
 const BENEFITS = [
-  { icon: Gift,         text: '500 free points on joining',  color: 'text-emerald-400' },
-  { icon: Zap,          text: 'Invest in live student pitches', color: 'text-arena-blue-3' },
-  { icon: Users,        text: 'Compete on real-time leaderboard', color: 'text-arena-violet-3' },
-  { icon: CheckCircle2, text: 'Claim badges & sponsor rewards', color: 'text-amber-400' },
+  { icon: Gift,         text: '500 free allocation points on sign up', color: 'text-zinc-900' },
+  { icon: Zap,          text: 'Invest live in student pitch rounds', color: 'text-zinc-900' },
+  { icon: Users,        text: 'Compete for #1 Audience Champion', color: 'text-zinc-900' },
+  { icon: CheckCircle2, text: 'Realtime millisecond-precision ranking', color: 'text-zinc-900' },
 ]
 
 export function AuthPage() {
@@ -30,16 +32,32 @@ export function AuthPage() {
   const redirectParam = searchParams.get('redirect')
 
   const { user, setUser, setLoading } = useAuthStore()
-  const { setWallet } = useWalletStore()
 
   // Form state
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [mode, setMode] = useState<'signin' | 'signup' | 'verify-otp'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [otp, setOtp] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [resending, setResending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [cooldown, setCooldown] = useState(0)
+
+  // Start cooldown timer
+  const startCooldown = (seconds = 45) => {
+    setCooldown(seconds)
+    const interval = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -74,7 +92,7 @@ export function AuthPage() {
       toast.success('Welcome, Administrator! Opening Admin Control Room...')
       navigate('/admin', { replace: true })
     } else {
-      toast.success(`Welcome back, ${profile.displayName}!`)
+      toast.success(`Welcome to The Big Pitch, ${profile.displayName}!`)
       const target = redirectParam && redirectParam !== '/admin' ? redirectParam : '/'
       navigate(target, { replace: true })
     }
@@ -104,7 +122,6 @@ export function AuthPage() {
 
     setSubmitting(true)
 
-    // --- Real Supabase Authentication ---
     try {
       if (mode === 'signin') {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -113,6 +130,19 @@ export function AuthPage() {
         })
 
         if (error) {
+          const errMsg = error.message.toLowerCase()
+
+          // If unconfirmed email, transition directly to OTP verification view!
+          if (errMsg.includes('email not confirmed')) {
+            setMode('verify-otp')
+            setErrorMessage('Your email address has not been verified yet. We have sent a 6-digit confirmation code to your email.')
+            // Auto resend verification code
+            await supabase.auth.resend({ type: 'signup', email: cleanEmail }).catch(() => {})
+            startCooldown(45)
+            setSubmitting(false)
+            return
+          }
+
           setErrorMessage(toUserFriendlyError(error, 'Incorrect email or password. Please verify and try again.'))
           setSubmitting(false)
           return
@@ -126,7 +156,7 @@ export function AuthPage() {
           )
         }
       } else {
-        // Sign Up
+        // Sign Up with OTP Email Verification
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
@@ -141,6 +171,16 @@ export function AuthPage() {
           return
         }
 
+        // Check if confirmation OTP is required (Supabase default)
+        if (data.user && !data.session) {
+          toast.success(`Verification code sent to ${cleanEmail}!`)
+          setMode('verify-otp')
+          startCooldown(45)
+          setSubmitting(false)
+          return
+        }
+
+        // Direct login if email confirmation is turned off in Supabase project
         if (data.user) {
           toast.success('Welcome! Your account has been created.')
           handleSuccessfulAuth(
@@ -154,6 +194,116 @@ export function AuthPage() {
       setErrorMessage(toUserFriendlyError(err, 'An unexpected error occurred. Please try again.'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Handle 6-Digit Email Verification OTP Confirmation
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMessage(null)
+
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanOtp = otp.trim()
+
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setErrorMessage('Please enter the 6-digit verification code sent to your email.')
+      return
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      setErrorMessage('Authentication service is temporarily unavailable.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // 1. Verify signup OTP
+      let { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanOtp,
+        type: 'signup',
+      })
+
+      // 2. Fallback to 'email' OTP type if project is configured with email token
+      if (error) {
+        const fallback = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanOtp,
+          type: 'email',
+        })
+        if (!fallback.error) {
+          error = null
+          data = fallback.data
+        }
+      }
+
+      if (error) {
+        setErrorMessage(toUserFriendlyError(error, 'Incorrect or expired verification code. Please check your email and try again.'))
+        setSubmitting(false)
+        return
+      }
+
+      if (data.user) {
+        toast.success('Email confirmed successfully! Welcome to The Big Pitch.')
+        handleSuccessfulAuth(
+          data.user.email ?? cleanEmail,
+          data.user.user_metadata?.full_name ?? (fullName.trim() || cleanEmail.split('@')[0]),
+          data.user.id
+        )
+      } else {
+        // If session was not returned automatically, sign in with the password
+        if (password) {
+          const loginRes = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          })
+          if (loginRes.data?.user) {
+            handleSuccessfulAuth(
+              loginRes.data.user.email ?? cleanEmail,
+              loginRes.data.user.user_metadata?.full_name ?? (fullName.trim() || cleanEmail.split('@')[0]),
+              loginRes.data.user.id
+            )
+            return
+          }
+        }
+
+        toast.success('Email verified! You can now sign in.')
+        setMode('signin')
+      }
+    } catch (err: any) {
+      setErrorMessage(toUserFriendlyError(err, 'Verification failed. Please try again.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Resend Verification Code
+  const handleResendSignupCode = async () => {
+    if (cooldown > 0 || resending) return
+    if (!isSupabaseConfigured || !supabase) {
+      setErrorMessage('Authentication service is temporarily unavailable.')
+      return
+    }
+    setErrorMessage(null)
+    setResending(true)
+
+    const cleanEmail = email.trim().toLowerCase()
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
+      })
+
+      if (error) {
+        setErrorMessage(toUserFriendlyError(error, 'Could not resend code. Please wait a moment before trying again.'))
+      } else {
+        toast.success(`A fresh 6-digit verification code has been sent to ${cleanEmail}`)
+        startCooldown(45)
+      }
+    } catch (err: any) {
+      setErrorMessage(toUserFriendlyError(err, 'Could not resend code.'))
+    } finally {
+      setResending(false)
     }
   }
 
@@ -196,31 +346,33 @@ export function AuthPage() {
 
         {/* Main Authentication Card */}
         <div className="bg-white p-7 sm:p-8 space-y-5 border border-zinc-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.05)] rounded-2xl relative">
-          {/* Mode Switcher Tabs */}
-          <div className="flex p-1 rounded-xl bg-zinc-100 border border-zinc-200/60">
-            <button
-              type="button"
-              onClick={() => { setMode('signin'); setErrorMessage(null) }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                mode === 'signin'
-                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
-                  : 'text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('signup'); setErrorMessage(null) }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                mode === 'signup'
-                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
-                  : 'text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
+          {/* Mode Switcher Tabs (Only shown when not verifying OTP) */}
+          {mode !== 'verify-otp' && (
+            <div className="flex p-1 rounded-xl bg-zinc-100 border border-zinc-200/60">
+              <button
+                type="button"
+                onClick={() => { setMode('signin'); setErrorMessage(null) }}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'signin'
+                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setErrorMessage(null) }}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'signup'
+                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
 
           {/* Error Message Alert */}
           {errorMessage && (
@@ -230,119 +382,191 @@ export function AuthPage() {
             </div>
           )}
 
-          {/* Credentials Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <div className="space-y-1.5 animate-fade-in">
-                <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                  <User size={13} className="text-zinc-500" />
-                  Full Name
-                </label>
-                <div className="relative">
+          {/* ──────────────────────────────────────────────────────── */}
+          {/* VIEW A: EMAIL & PASSWORD CREDENTIALS FORM                */}
+          {/* ──────────────────────────────────────────────────────── */}
+          {mode !== 'verify-otp' ? (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {mode === 'signup' && (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                      <User size={13} className="text-zinc-500" />
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="e.g. Alex Morgan"
+                        className="arena-input pl-3 w-full text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                    <Mail size={13} className="text-zinc-500" />
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="arena-input pl-3 w-full text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                      <Lock size={13} className="text-zinc-500" />
+                      Password
+                    </label>
+                    {mode === 'signin' && (
+                      <Link
+                        to={`/reset-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
+                        className="text-[11px] text-zinc-500 hover:text-zinc-950 font-semibold hover:underline"
+                      >
+                        Forgot Password?
+                      </Link>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="arena-input pl-3 pr-10 w-full text-sm font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <Button
+                  type="submit"
+                  className="w-full justify-center text-sm py-2.5 font-bold bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
+                  loading={submitting}
+                  icon={<ArrowRight size={15} />}
+                >
+                  {mode === 'signin' ? 'Sign In' : 'Create Account & Send Code'}
+                </Button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative flex items-center justify-center">
+                <div className="border-t border-zinc-200 w-full" />
+                <span className="bg-white px-3 text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
+                  or
+                </span>
+              </div>
+
+              {/* Google OAuth Button */}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleGoogleSignIn}
+                className="w-full justify-center gap-3 border-zinc-200 hover:bg-zinc-50 text-zinc-800 text-xs font-semibold py-2.5 shadow-sm"
+                icon={
+                  <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                  </svg>
+                }
+              >
+                Continue with Google
+              </Button>
+            </>
+          ) : (
+            /* ──────────────────────────────────────────────────────── */
+            /* VIEW B: EMAIL VERIFICATION OTP CONFIRMATION VIEW         */
+            /* ──────────────────────────────────────────────────────── */
+            <div className="space-y-5 animate-fade-in">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center mx-auto text-zinc-900 mb-2">
+                  <Mail size={22} />
+                </div>
+                <h2 className="text-lg font-black text-zinc-950">Verify Your Email Address</h2>
+                <p className="text-zinc-500 text-xs">
+                  We sent a 6-digit verification code to <strong className="text-zinc-900">{email}</strong>.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-semibold text-zinc-700">Enter 6-Digit Code</label>
+                    <button
+                      type="button"
+                      onClick={handleResendSignupCode}
+                      disabled={cooldown > 0 || resending}
+                      className="text-zinc-900 font-semibold hover:underline disabled:text-zinc-400 disabled:no-underline flex items-center gap-1 text-[11px]"
+                    >
+                      <RefreshCw size={10} className={resending ? 'animate-spin' : ''} />
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+                    </button>
+                  </div>
+
                   <input
                     type="text"
                     required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Alex Morgan"
-                    className="arena-input pl-3 w-full text-sm"
+                    autoFocus
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="arena-input text-center text-2xl font-mono font-black tracking-widest w-full py-3"
                   />
                 </div>
-              </div>
-            )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                <Mail size={13} className="text-zinc-500" />
-                Email Address
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="arena-input pl-3 w-full text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                  <Lock size={13} className="text-zinc-500" />
-                  Password
-                </label>
-                {mode === 'signin' && (
-                  <span className="text-[11px] text-zinc-400 hover:text-zinc-700 cursor-pointer">
-                    Forgot?
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="arena-input pl-3 pr-10 w-full text-sm font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 transition-colors"
-                  tabIndex={-1}
+                <Button
+                  type="submit"
+                  loading={submitting}
+                  className="w-full justify-center bg-zinc-950 text-white font-bold py-2.5 text-sm shadow-sm"
+                  icon={<CheckCircle2 size={15} />}
                 >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
+                  Verify Code & Continue
+                </Button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signin'); setErrorMessage(null) }}
+                    className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-950 font-medium"
+                  >
+                    <ArrowLeft size={13} />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </form>
             </div>
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full justify-center text-sm py-2.5 font-semibold bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
-              loading={submitting}
-              icon={<ArrowRight size={15} />}
-            >
-              {mode === 'signin' ? 'Sign In' : 'Create Account'}
-            </Button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-zinc-200 w-full" />
-            <span className="bg-white px-3 text-[11px] text-zinc-400 uppercase tracking-wider font-semibold">
-              or
-            </span>
-          </div>
-
-          {/* Google OAuth Button */}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleGoogleSignIn}
-            className="w-full justify-center gap-3 border-zinc-200 hover:bg-zinc-50 text-zinc-800 text-xs font-semibold py-2.5 shadow-sm"
-            icon={
-              <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
-                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-              </svg>
-            }
-          >
-            Continue with Google
-          </Button>
+          )}
 
           {/* Security Note */}
-          <div className="flex items-center gap-1.5 justify-center pt-1 text-zinc-400 text-xs">
-            <Shield size={12} />
-            <span>Secure Supabase Authentication</span>
+          <div className="flex items-center gap-1.5 justify-center pt-1 text-zinc-400 text-xs border-t border-zinc-100">
+            <ShieldCheck size={13} className="text-emerald-600" />
+            <span>Secure Supabase Authentication & OTP</span>
           </div>
         </div>
 
@@ -363,3 +587,4 @@ export function AuthPage() {
     </div>
   )
 }
+

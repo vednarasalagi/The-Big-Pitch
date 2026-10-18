@@ -639,7 +639,47 @@ BEGIN
   -- Check if test@gmail.com already exists in auth.users
   SELECT id INTO v_existing_id FROM auth.users WHERE LOWER(email) = 'test@gmail.com';
 
-  IF v_existing_id IS NULL THEN
+  -- 1. Remove any old broken test@gmail.com records completely
+  SELECT id INTO v_test_id FROM auth.users WHERE LOWER(email) = 'test@gmail.com';
+  IF v_test_id IS NOT NULL THEN
+    DELETE FROM auth.identities WHERE user_id = v_test_id;
+    DELETE FROM public.wallets WHERE user_id = v_test_id;
+    DELETE FROM public.profiles WHERE id = v_test_id;
+    DELETE FROM auth.users WHERE id = v_test_id;
+  END IF;
+
+  -- 2. Check if a GoTrue-generated user exists to convert directly
+  SELECT id INTO v_existing_id FROM auth.users WHERE LOWER(email) = 'alexsmithdev2024@gmail.com';
+
+  IF v_existing_id IS NOT NULL THEN
+    UPDATE auth.users
+    SET
+      email = 'test@gmail.com',
+      encrypted_password = crypt('test1234', gen_salt('bf', 10)),
+      email_confirmed_at = NOW(),
+      confirmed_at = NOW(),
+      last_sign_in_at = NOW(),
+      updated_at = NOW(),
+      raw_user_meta_data = '{"full_name":"Test User"}'::jsonb,
+      raw_app_meta_data = '{"provider":"email","providers":["email"]}'::jsonb
+    WHERE id = v_existing_id;
+
+    UPDATE auth.identities
+    SET
+      identity_data = jsonb_build_object(
+        'email', 'test@gmail.com',
+        'email_verified', true,
+        'phone_verified', false,
+        'sub', v_existing_id::text
+      ),
+      last_sign_in_at = NOW(),
+      updated_at = NOW()
+    WHERE user_id = v_existing_id;
+
+    v_user_id := v_existing_id;
+  ELSE
+    v_user_id := gen_random_uuid();
+
     INSERT INTO auth.users (
       instance_id,
       id,
@@ -648,31 +688,74 @@ BEGIN
       email,
       encrypted_password,
       email_confirmed_at,
+      confirmed_at,
+      recovery_sent_at,
+      last_sign_in_at,
       raw_app_meta_data,
       raw_user_meta_data,
       created_at,
-      updated_at
+      updated_at,
+      confirmation_token,
+      email_change,
+      email_change_token_new,
+      recovery_token,
+      phone,
+      phone_change,
+      phone_change_token,
+      reauthentication_token,
+      email_change_token_current,
+      email_change_confirm_status,
+      is_super_admin,
+      is_sso_user,
+      is_anonymous
     ) VALUES (
       '00000000-0000-0000-0000-000000000000',
       v_user_id,
       'authenticated',
       'authenticated',
       'test@gmail.com',
-      crypt('test1234', gen_salt('bf')),
+      crypt('test1234', gen_salt('bf', 10)),
       NOW(),
-      '{"provider":"email","providers":["email"]}',
-      '{"full_name":"Test User"}',
       NOW(),
-      NOW()
+      NOW(),
+      NOW(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '{"full_name":"Test User"}'::jsonb,
+      NOW(),
+      NOW(),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      0,
+      FALSE,
+      FALSE,
+      FALSE
     );
-  ELSE
-    UPDATE auth.users
-    SET
-      encrypted_password = crypt('test1234', gen_salt('bf')),
-      email_confirmed_at = NOW(),
-      updated_at = NOW()
-    WHERE id = v_existing_id;
-    v_user_id := v_existing_id;
+
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'auth' AND table_name = 'identities' AND column_name = 'provider_id'
+    ) THEN
+      EXECUTE 'INSERT INTO auth.identities (
+        id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, jsonb_build_object(''email'', ''test@gmail.com'', ''email_verified'', true, ''sub'', $1::text),
+        ''email'', $1::text, NOW(), NOW(), NOW()
+      )' USING v_user_id;
+    ELSE
+      EXECUTE 'INSERT INTO auth.identities (
+        id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at
+      ) VALUES (
+        gen_random_uuid(), $1, jsonb_build_object(''email'', ''test@gmail.com'', ''email_verified'', true, ''sub'', $1::text),
+        ''email'', NOW(), NOW(), NOW()
+      )' USING v_user_id;
+    END IF;
   END IF;
 
   -- Ensure profile exists in public.profiles table
@@ -681,6 +764,7 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     display_name = EXCLUDED.display_name,
+    is_verified = TRUE,
     updated_at = NOW();
 
   -- Ensure wallet exists with 500 initial audience investment points

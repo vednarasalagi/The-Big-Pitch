@@ -66,3 +66,15 @@ export function clamp(value: number, min: number, max: number): number {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export function formatExactMs(ms: number): string {
+  return `${Math.round(ms).toLocaleString()} ms`
+}
+
+export function formatMilliseconds(ms: number): string {
+  if (ms <= 0) return '0 ms'
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  const secs = (ms / 1000).toFixed(3)
+  return `${secs}s (${Math.round(ms).toLocaleString()} ms)`
+}
+

@@ -51,7 +51,7 @@ export function BrandLogo({ size = 28, showText = true, className, subtitle }: B
             THE BIG PITCH
           </span>
           <span className="text-[10px] font-medium tracking-wide text-zinc-500 uppercase mt-0.5">
-            {subtitle || 'Pitch Arena'}
+            {subtitle || 'Audience Edition'}
           </span>
         </div>
       )}

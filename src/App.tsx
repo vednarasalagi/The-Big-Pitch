@@ -10,6 +10,7 @@ import { ScoreboardPage } from '@/pages/ScoreboardPage'
 import { WalletPage }     from '@/pages/WalletPage'
 import { RewardsPage }    from '@/pages/RewardsPage'
 import { AuthPage }       from '@/pages/AuthPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AdminDashboard } from '@/pages/AdminDashboard'
 import { CastScreenPage } from '@/pages/CastScreenPage'
 import { AccessDeniedPage } from '@/pages/AccessDeniedPage'
@@ -54,7 +55,7 @@ function AuthCallback() {
           toast.success('Signed in as Administrator. Welcome to Admin Control Room!')
           setTarget('/admin')
         } else {
-          toast.success('Welcome to Pitch Arena!')
+          toast.success('Welcome to THE BIG PITCH!')
           setTarget('/')
         }
       } else {
@@ -249,8 +250,9 @@ export default function App() {
           <Route path="/live"          element={<LivePitchPage />} />
           <Route path="/scoreboard"    element={<ScoreboardPage />} />
           <Route path="/wallet"        element={<WalletPage />} />
-          <Route path="/rewards"       element={<RewardsPage />} />
+          <Route path="/rewards"       element={<Navigate to="/" replace />} />
           <Route path="/auth"          element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/access-denied" element={<AccessDeniedPage />} />
           <Route path="/admin"         element={

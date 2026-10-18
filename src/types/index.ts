@@ -58,6 +58,7 @@ export interface EventConfig {
   blindLeaderboard: boolean;
   allowedEmailDomains: string[];        // empty = allow all
   rewardRules: RewardRule[];
+  officialResultsPublished?: boolean;
   updatedAt: string;
 }
 
@@ -79,14 +80,28 @@ export interface Team {
   investmentWindowSeconds?: number;
   totalInvestment: number;
   uniqueBackers: number;
+  // Official Competition Judging (strictly independent of audience investments)
+  officialRank?: number | null;
+  officialScore?: number | null;
+  officialAward?: string | null;
+  officialNotes?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OfficialResult {
+  teamId: string;
+  rank?: number | null;
+  score?: number | null;
+  award?: string | null;
+  notes?: string | null;
 }
 
 // --- Pitch Round ---
 export type RoundStatus =
   | 'scheduled'
   | 'announced'
+  | 'pitching'
   | 'investment_open'
   | 'investment_paused'
   | 'investment_closed'
@@ -157,7 +172,20 @@ export interface Investment {
   teamId: string;
   roundId: string;
   amount: number;
+  timeElapsedMs?: number;
   createdAt: string;
+}
+
+export interface TeamInvestorStanding {
+  userId: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string;
+  amount: number;
+  timeElapsedMs: number;
+  investedAt: string;
+  rank: number;
+  isCurrentUser?: boolean;
 }
 
 // --- Payment ---

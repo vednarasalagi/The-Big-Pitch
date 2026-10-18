@@ -1,11 +1,12 @@
 // ============================================================
 // AppShell — Main layout with clean, ultra-professional light navbar
+// Simple, intuitive navigation designed for all device screens.
 // ============================================================
 
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Compass, Radio, Award, Wallet, Gift, Settings, Bell,
-  LogOut, Shield, ChevronRight
+  Layers, Radio, Trophy, Wallet,
+  LogOut, Shield, ChevronRight, Bell, Sparkles, ArrowRight
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -14,24 +15,26 @@ import { Avatar, LiveIndicator, BrandLogo } from '@/components/ui'
 import { formatPoints } from '@/lib/utils'
 import { toast } from 'sonner'
 
+// Simple, self-explanatory navigation items that attendees immediately understand
 const NAV_ITEMS = [
-  { to: '/',           icon: Compass, label: 'Startups'   },
-  { to: '/live',       icon: Radio,   label: 'Live Stage' },
-  { to: '/scoreboard', icon: Award,   label: 'Rankings'   },
-  { to: '/wallet',     icon: Wallet,  label: 'Allocation' },
-  { to: '/rewards',    icon: Gift,    label: 'Rewards'    },
+  { to: '/',           icon: Layers,  label: 'Startups',    description: 'Browse Pitch Lineup' },
+  { to: '/live',       icon: Radio,   label: 'Live Pitch',  description: 'Stage & Invest' },
+  { to: '/scoreboard', icon: Trophy,  label: 'Leaderboard', description: 'Audience & Awards' },
+  { to: '/wallet',     icon: Wallet,  label: 'My Points',   description: 'Balance & Packages' },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
-  const { activeRound } = useEventStore()
+  const { activeRound, teams } = useEventStore()
   const { wallet } = useWalletStore()
   const { unreadCount } = useNotificationStore()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const isLive = activeRound?.status === 'investment_open'
+  const isLive = activeRound?.status === 'investment_open' || activeRound?.status === 'announced' || activeRound?.status === 'pitching'
+  const isInvestingNow = activeRound?.status === 'investment_open'
+  const currentLiveTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
   const isAdmin = user?.role === 'admin'
   const totalPoints = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
 
@@ -54,81 +57,67 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh flex flex-col bg-[#FAFAFA] text-zinc-900 selection:bg-zinc-900 selection:text-white">
       {/* Top Navbar */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center justify-between px-4 lg:px-8 backdrop-blur-xl bg-white/85 border-b border-zinc-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+      <header className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center justify-between px-3 sm:px-6 lg:px-8 backdrop-blur-xl bg-white/90 border-b border-zinc-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         {/* Left: Unique Brand Logo */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <Link to="/" className="flex items-center">
-            <BrandLogo size={24} subtitle="Pitch Arena" />
+            <BrandLogo size={22} subtitle="Audience Edition" />
           </Link>
         </div>
 
-        {/* Center: Desktop Navigation Bar */}
-        <nav className="hidden lg:flex items-center gap-1.5 bg-zinc-100/70 p-1 rounded-xl border border-zinc-200/60">
+        {/* Center: Desktop Navigation Bar with clear, simple names */}
+        <nav className="hidden md:flex items-center gap-1 bg-zinc-100/80 p-1 rounded-2xl border border-zinc-200/70 shadow-inner">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
             const active = isActive(to)
+            const showLiveBadge = to === '/live' && isLive
+
             return (
               <Link
                 key={to}
                 to={to}
                 className={cn(
-                  'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150',
+                  'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150',
                   active
-                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80'
-                    : 'text-zinc-600 hover:text-zinc-950 hover:bg-white/50'
+                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200'
+                    : 'text-zinc-600 hover:text-zinc-950 hover:bg-white/60'
                 )}
               >
-                <Icon size={14} strokeWidth={active ? 2 : 1.75} className={active ? 'text-zinc-950' : 'text-zinc-500'} />
+                <Icon size={15} strokeWidth={active ? 2.2 : 1.75} className={active ? 'text-zinc-950' : 'text-zinc-500'} />
                 <span>{label}</span>
-                {to === '/live' && isLive && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {showLiveBadge && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white animate-pulse">
+                    Live
+                  </span>
                 )}
               </Link>
             )
           })}
         </nav>
 
-        {/* Right: Actions, Wallet Points, Admin Link, Auth */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {isLive && (
-            <div className="hidden md:flex">
-              <LiveIndicator />
-            </div>
-          )}
-
-          {/* Points indicator for audience */}
+        {/* Right: Actions, Balance Pill, Admin Link, Auth */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* Points indicator — VISIBLE ON BOTH MOBILE & DESKTOP for instant clarity */}
           {user && !isAdmin && (
             <Link
               to="/wallet"
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-zinc-200 hover:border-zinc-300 transition-colors shadow-sm text-xs"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 border border-zinc-200/90 transition-all text-xs font-semibold text-zinc-950 shadow-xs"
+              title="Your Available Points — Click to manage wallet"
             >
-              <div className="w-2 h-2 rounded-full bg-zinc-900" />
-              <span className="text-zinc-500 font-medium">Balance</span>
-              <span className="text-zinc-900 font-bold font-mono">{formatPoints(totalPoints)} pts</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden sm:inline text-zinc-500 font-medium">Points:</span>
+              <span className="font-mono font-black">{formatPoints(totalPoints)}</span>
+              <span className="text-[10px] text-zinc-500 font-sans">pts</span>
             </Link>
           )}
 
-          {/* Notifications */}
-          {user && (
-            <button
-              className="relative p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-              onClick={() => toast.info('You have no new alerts.')}
-              aria-label="Notifications"
-            >
-              <Bell size={18} strokeWidth={1.75} />
-              {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-zinc-900 rounded-full" />
-              )}
-            </button>
-          )}
-
-          {/* Admin link */}
+          {/* Admin shortcut for administrators */}
           {isAdmin && (
             <Link
               to="/admin"
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 text-white text-xs font-semibold hover:bg-zinc-800 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-zinc-950 text-white text-xs font-bold hover:bg-zinc-800 transition-all shadow-sm"
             >
               <Shield size={13} strokeWidth={2} />
-              Admin Room
+              <span className="hidden sm:inline">Admin Room</span>
             </Link>
           )}
 
@@ -136,14 +125,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {user ? (
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="flex items-center gap-2 p-1 rounded-full hover:ring-2 hover:ring-zinc-200 transition-all"
+              className="flex items-center gap-2 p-1 rounded-full hover:ring-2 hover:ring-zinc-300 transition-all"
+              aria-label="User profile menu"
             >
               <Avatar name={user.displayName} src={user.avatarUrl} size="sm" />
             </button>
           ) : (
             <Link
               to="/auth"
-              className="btn-primary text-xs px-4 py-2 font-semibold"
+              className="px-3 sm:px-4 py-1.5 rounded-xl bg-zinc-950 text-white text-xs font-bold hover:bg-zinc-800 transition-all shadow-sm"
             >
               Sign In
             </Link>
@@ -151,77 +141,144 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      {/* Global "Live Pitch Now Active" Callout Bar */}
+      {/* Guides attendees on any screen directly to the active stage pitch! */}
+      {isLive && currentLiveTeam && !location.pathname.startsWith('/live') && (
+        <div className="fixed top-16 left-0 right-0 z-40 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white px-3 sm:px-6 py-2 border-b border-zinc-800 shadow-md">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+              <span className="font-black uppercase tracking-wider text-emerald-400 text-[10px] hidden sm:inline">
+                {isInvestingNow ? 'Investing Window Open' : 'Pitch In Progress'}
+              </span>
+              <span className="font-bold text-white truncate">
+                {currentLiveTeam.name}
+              </span>
+              <span className="text-zinc-400 truncate hidden md:inline">
+                — {currentLiveTeam.pitchTitle}
+              </span>
+            </div>
+
+            <Link
+              to="/live"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs transition-colors flex-shrink-0 shadow-sm"
+            >
+              <span>{isInvestingNow ? 'Invest Points' : 'Watch Live'}</span>
+              <ArrowRight size={13} strokeWidth={2.5} />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* User Dropdown Menu */}
       {menuOpen && user && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="fixed top-18 right-6 z-50 w-64 bg-white border border-zinc-200 shadow-xl rounded-2xl animate-slide-down overflow-hidden">
-            <div className="p-4 border-b border-zinc-100 bg-zinc-50/50">
+          <div className="fixed top-18 right-4 sm:right-6 z-50 w-72 bg-white border border-zinc-200 shadow-2xl rounded-2xl animate-slide-down overflow-hidden text-zinc-900">
+            <div className="p-4 border-b border-zinc-100 bg-zinc-50/70">
               <div className="flex items-center gap-3">
                 <Avatar name={user.displayName} src={user.avatarUrl} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-zinc-900 font-bold text-sm truncate">{user.displayName}</p>
+                  <p className="text-zinc-950 font-bold text-sm truncate">{user.displayName}</p>
                   <p className="text-zinc-500 text-xs font-mono truncate">{user.email}</p>
                 </div>
               </div>
+              <div className="mt-3 pt-2.5 border-t border-zinc-200/70 flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Your Point Balance:</span>
+                <span className="font-mono font-black text-zinc-950">{formatPoints(totalPoints)} pts</span>
+              </div>
             </div>
-            <div className="p-2 space-y-1">
+
+            <div className="p-2 space-y-1 text-sm font-medium">
               <button
                 onClick={() => { navigate('/wallet'); setMenuOpen(false) }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-700 text-sm font-medium transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
               >
-                <Wallet size={15} strokeWidth={1.75} />
-                My Allocation & Wallet
-                <ChevronRight size={13} className="ml-auto text-zinc-400" />
+                <Wallet size={16} className="text-zinc-500" />
+                <span>My Points & Wallet</span>
+                <ChevronRight size={14} className="ml-auto text-zinc-400" />
               </button>
+
+              <button
+                onClick={() => { navigate('/live'); setMenuOpen(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
+              >
+                <Radio size={16} className="text-zinc-500" />
+                <span>Live Pitch Arena</span>
+                {isLive && <span className="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+              </button>
+
+              <button
+                onClick={() => { navigate('/scoreboard'); setMenuOpen(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
+              >
+                <Trophy size={16} className="text-zinc-500" />
+                <span>Tournament Leaderboard</span>
+                <ChevronRight size={14} className="ml-auto text-zinc-400" />
+              </button>
+
               {isAdmin && (
                 <button
                   onClick={() => { navigate('/admin'); setMenuOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-950 text-sm font-semibold transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-950 font-bold transition-colors"
                 >
-                  <Shield size={15} strokeWidth={1.75} />
-                  Admin Control Room
-                  <ChevronRight size={13} className="ml-auto text-zinc-400" />
+                  <Shield size={16} className="text-zinc-950" />
+                  <span>Admin Control Room</span>
+                  <ChevronRight size={14} className="ml-auto text-zinc-400" />
                 </button>
               )}
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 text-sm font-medium transition-colors"
-              >
-                <LogOut size={15} strokeWidth={1.75} />
-                Sign Out
-              </button>
+
+              <div className="pt-1 border-t border-zinc-100">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 transition-colors"
+                >
+                  <LogOut size={16} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             </div>
           </div>
         </>
       )}
 
-      {/* Main Content */}
-      <main className="flex-1 pt-16 pb-20 lg:pb-8">
+      {/* Main Content Area */}
+      {/* Offset dynamically for top navbar + live banner, with safe bottom padding for mobile bar */}
+      <main className={cn(
+        'flex-1 pb-24 md:pb-12 transition-all',
+        isLive && currentLiveTeam && !location.pathname.startsWith('/live') ? 'pt-26 sm:pt-28' : 'pt-16'
+      )}>
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden backdrop-blur-xl bg-white/95 border-t border-zinc-200 safe-bottom shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center justify-around px-2 py-1.5">
+      {/* Mobile Bottom Navigation Bar (Ultra-clean, touch-friendly, high contrast) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden backdrop-blur-2xl bg-white/95 border-t border-zinc-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[max(0.35rem,env(safe-area-inset-bottom,0px))]">
+        <div className="flex items-center justify-around px-1 py-1.5">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
             const active = isActive(to)
+            const showLiveDot = to === '/live' && isLive
+
             return (
               <Link
                 key={to}
                 to={to}
                 className={cn(
-                  'flex flex-col items-center gap-1 py-1 px-3 rounded-xl min-w-0 flex-1 text-[11px] font-medium transition-colors',
-                  active ? 'text-zinc-950 font-bold' : 'text-zinc-400 hover:text-zinc-700'
+                  'flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl min-w-0 flex-1 transition-all',
+                  active ? 'text-zinc-950 font-bold scale-[1.03]' : 'text-zinc-500 hover:text-zinc-800 font-medium'
                 )}
               >
-                <div className="relative">
-                  <Icon size={19} strokeWidth={active ? 2.2 : 1.75} />
-                  {to === '/live' && isLive && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <div className="relative flex items-center justify-center">
+                  <div className={cn(
+                    'p-1 rounded-lg transition-colors',
+                    active ? 'bg-zinc-100 text-zinc-950' : 'text-zinc-500'
+                  )}>
+                    <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
+                  </div>
+                  {showLiveDot && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
                   )}
                 </div>
-                <span className="truncate">{label}</span>
+                <span className="text-[10px] tracking-tight truncate leading-none">{label}</span>
               </Link>
             )
           })}
