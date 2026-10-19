@@ -29,7 +29,7 @@ export function PrivacyPage() {
           1. Our Commitment to Privacy
         </h2>
         <p>
-          <strong>THE BIG PITCH</strong> (&ldquo;We&rdquo;, &ldquo;Our&rdquo;, or &ldquo;Us&rdquo;), organized under Sphinx 2026 and the Entrepreneurship Cell (E-Cell) at <strong>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</strong>, is dedicated to protecting the privacy of every participant, attendee, and investor (&ldquo;You&rdquo;) using our platform.
+          <strong>THE BIG PITCH</strong> (&ldquo;We&rdquo;, &ldquo;Our&rdquo;, or &ldquo;Us&rdquo;), organized under Sphinx 2026 and the Entrepreneurship Cell (E-Cell) at <strong>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</strong>, is dedicated to protecting the privacy of every participant, attendee, and fest guest (&ldquo;You&rdquo;) using our platform.
         </p>
       </section>
 
@@ -65,7 +65,7 @@ export function PrivacyPage() {
         <ul className="list-disc pl-5 space-y-1.5 text-zinc-700">
           <li>To authenticate and manage your user account via Supabase Auth.</li>
           <li>To deliver instant digital credits of purchased points into your live wallet.</li>
-          <li>To compile real-time tournament leaderboards and audience investment scorecards.</li>
+          <li>To compile real-time tournament leaderboards and audience scoring scorecards.</li>
           <li>To resolve transaction or billing inquiries under our <Link to="/terms#refunds" className="text-zinc-950 font-bold underline">Refund Policy</Link>.</li>
           <li>To prevent fraudulent bot voting and maintain tournament integrity.</li>
         </ul>

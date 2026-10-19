@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 // Simple, self-explanatory navigation items that attendees immediately understand
 const NAV_ITEMS = [
   { to: '/',           icon: Layers,  label: 'Startups',    description: 'Browse Pitch Lineup' },
-  { to: '/live',       icon: Radio,   label: 'Live Pitch',  description: 'Stage & Invest' },
+  { to: '/live',       icon: Radio,   label: 'Live Pitch',  description: 'Stage & Score' },
   { to: '/scoreboard', icon: Trophy,  label: 'Leaderboard', description: 'Audience & Awards' },
   { to: '/wallet',     icon: Wallet,  label: 'My Points',   description: 'Balance & Packages' },
 ]
@@ -112,7 +112,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="hidden sm:inline text-zinc-500 font-medium">Points:</span>
               <span className="font-mono font-black">{formatPoints(totalPoints)}</span>
-              <span className="text-[10px] text-zinc-500 font-sans">pts</span>
             </Link>
           )}
 
@@ -155,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
               <span className="font-black uppercase tracking-wider text-emerald-400 text-[10px] hidden sm:inline">
-                {isInvestingNow ? 'Investing Window Open' : 'Pitch In Progress'}
+                {isInvestingNow ? 'Scoring Window Open' : 'Pitch In Progress'}
               </span>
               <span className="font-bold text-white truncate">
                 {currentLiveTeam.name}
@@ -169,7 +168,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               to="/live"
               className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs transition-colors flex-shrink-0 shadow-sm"
             >
-              <span>{isInvestingNow ? 'Invest Points' : 'Watch Live'}</span>
+              <span>{isInvestingNow ? 'Score Points' : 'Watch Live'}</span>
               <ArrowRight size={13} strokeWidth={2.5} />
             </Link>
           </div>
@@ -191,7 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="mt-3 pt-2.5 border-t border-zinc-200/70 flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Your Point Balance:</span>
-                <span className="font-mono font-black text-zinc-950">{formatPoints(totalPoints)} pts</span>
+                <span className="font-mono font-black text-zinc-950">{formatPoints(totalPoints)}</span>
               </div>
             </div>
 

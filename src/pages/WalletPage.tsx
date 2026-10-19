@@ -141,8 +141,9 @@ function RazorpayCheckoutModal({
       key: razorpayKey,
       amount: pkg.rupees * 100, // Amount in paise
       currency: 'INR',
-      name: 'THE BIG PITCH',
-      description: `${pkg.points} Allocation Points — ${pkg.label} Package`,
+      name: 'THE BIG PITCH — Sphinx 2026',
+      description: `${pkg.points} Event Participation Points — ${pkg.label} Package (Digital Event Goods)`,
+      notes_key_1: 'NOT an investment. Virtual event tokens for audience scoring at college fest.',
       order_id: orderId,
       prefill: {
         name: user.displayName || '',
@@ -186,165 +187,102 @@ function RazorpayCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="bg-white border border-zinc-200 shadow-2xl rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 sm:space-y-5 text-zinc-900 max-h-[90vh] overflow-y-auto"
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        className="bg-white border border-zinc-200/90 shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden text-zinc-900 my-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold mb-1.5">
-              <ShieldCheck size={12} className="text-emerald-700" />
-              <span>SSL 256-Bit Encrypted Checkout</span>
+        <div className="p-4 sm:p-5 border-b border-zinc-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-zinc-950 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+              <ShoppingBag size={15} />
             </div>
-            <h3 className="text-zinc-950 font-black text-xl tracking-tight">Order Summary</h3>
-            <p className="text-zinc-500 text-xs mt-0.5">Official Points Allocation • {eventName}</p>
+            <div className="min-w-0">
+              <h3 className="text-zinc-950 font-black text-base tracking-tight leading-none truncate">Checkout</h3>
+              <p className="text-zinc-400 text-[11px] mt-1 truncate">{eventName}</p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-colors"
+            aria-label="Close Checkout"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-colors flex-shrink-0"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* E-Commerce Order Item Card */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3.5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-zinc-950 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                <ShoppingBag size={18} />
+        {/* Content Body */}
+        <div className="p-4 sm:p-5 space-y-4">
+          {/* Order Details Card */}
+          <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="font-bold text-zinc-950 text-sm block truncate">{pkg.label} Package</span>
+                <span className="text-zinc-500 text-xs">+{formatPoints(pkg.points)} Event Participation Points</span>
               </div>
-              <div>
-                <h4 className="font-bold text-zinc-950 text-sm leading-snug">{pkg.label} Package</h4>
-                <p className="text-zinc-500 text-xs mt-0.5">
-                  {formatPoints(pkg.points)} Audience Allocation Points
-                </p>
-              </div>
+              <span className="font-mono font-black text-xl text-zinc-950 flex-shrink-0">{formatRupees(pkg.rupees)}</span>
             </div>
-            <div className="text-right">
-              <span className="font-mono font-black text-zinc-950 text-base">{formatRupees(pkg.rupees)}</span>
-              <p className="text-[10px] text-zinc-400">Qty: 1</p>
+
+            <div className="border-t border-zinc-200/60 pt-2 flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Attendee</span>
+              <span className="font-medium text-zinc-800 truncate max-w-[180px] text-right">
+                {user.displayName || user.email}
+              </span>
             </div>
           </div>
 
-          {/* Pricing Breakdown */}
-          <div className="border-t border-zinc-200/80 pt-3 space-y-1.5 text-xs">
-            <div className="flex justify-between text-zinc-600">
-              <span>Item Subtotal</span>
-              <span className="font-mono text-zinc-900">{formatRupees(pkg.rupees)}</span>
-            </div>
-            <div className="flex justify-between text-zinc-600">
-              <span>Payment Gateway & Processing Fee</span>
-              <span className="text-emerald-700 font-semibold">FREE (₹0.00)</span>
-            </div>
-            <div className="flex justify-between text-zinc-600">
-              <span>Taxes & GST (18%)</span>
-              <span className="text-zinc-600">Included</span>
-            </div>
-            <div className="border-t border-zinc-200 pt-2 flex justify-between items-baseline">
-              <div>
-                <span className="font-bold text-zinc-950 text-sm block">Total Amount Payable</span>
-                <span className="text-[10px] text-zinc-400">Instant credit upon authorization</span>
-              </div>
-              <span className="font-mono font-black text-2xl text-zinc-950">{formatRupees(pkg.rupees)}</span>
-            </div>
+          {/* Secure Payment Note */}
+          <div className="flex items-center justify-between text-[11px] text-zinc-500 px-0.5">
+            <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+              <ShieldCheck size={13} className="text-emerald-600 flex-shrink-0" />
+              <span>Razorpay Secure</span>
+            </span>
+            <span className="text-zinc-400 text-[10px]">UPI • Cards • NetBanking</span>
           </div>
-        </div>
 
-        {/* Attendee Billing Details */}
-        <div className="rounded-xl border border-zinc-200 p-3 bg-white text-xs space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500 font-medium">Attendee Name</span>
-            <span className="font-semibold text-zinc-900">{user.displayName || 'Registered Attendee'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500 font-medium">Billing Email</span>
-            <span className="font-mono text-zinc-700 text-[11px] truncate max-w-[200px]">{user.email}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-zinc-500 font-medium">Credited Destination</span>
-            <span className="text-zinc-800 text-[11px] font-medium">Attendee Live Wallet</span>
-          </div>
-        </div>
+          {/* Error Notice */}
+          {errorMsg && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
+              <AlertCircle size={14} className="text-rose-600 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-rose-800 flex-1">{errorMsg}</p>
+            </div>
+          )}
 
-        {/* Accepted Payment Methods via Razorpay Standard Checkout */}
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-            Accepted via Razorpay Standard Checkout:
+          {/* Action Buttons */}
+          <div className="space-y-2 pt-1">
+            <Button
+              onClick={handleProceedToRazorpay}
+              loading={loading}
+              className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 py-3 font-bold text-sm shadow-sm"
+              icon={<Lock size={14} />}
+            >
+              {loading ? 'Initializing Razorpay...' : `Pay ${formatRupees(pkg.rupees)} via Razorpay`}
+            </Button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="w-full text-center text-xs text-zinc-400 hover:text-zinc-800 font-semibold py-1 transition-colors"
+            >
+              Cancel & Return
+            </button>
+          </div>
+
+          {/* Legal Notice */}
+          <p className="text-[10px] text-zinc-400 text-center leading-normal px-1">
+            You are purchasing <strong>virtual event participation tokens</strong> (digital goods) for audience scoring at a live college fest. No financial investment is made in any startup.{' '}
+            <Link to="/terms" target="_blank" className="text-zinc-600 font-semibold hover:underline">Terms</Link>
+            {' '}&{' '}
+            <Link to="/terms#refunds" target="_blank" className="text-zinc-600 font-semibold hover:underline">Refund Policy</Link>.
           </p>
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
-            <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 font-medium border border-zinc-200/80">
-              UPI (GPay / PhonePe / Paytm / QR)
-            </span>
-            <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 font-medium border border-zinc-200/80">
-              Cards (Visa / Mastercard / RuPay)
-            </span>
-            <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 font-medium border border-zinc-200/80">
-              NetBanking (50+ Banks)
-            </span>
-            <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 font-medium border border-zinc-200/80">
-              Wallets
-            </span>
-          </div>
-        </div>
-
-        {/* Error Notice */}
-        {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
-            <AlertCircle size={16} className="text-rose-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">Payment Error</p>
-              <p className="text-[11px] text-rose-800 mt-0.5">{errorMsg}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="space-y-2 pt-1">
-          <Button
-            onClick={handleProceedToRazorpay}
-            loading={loading}
-            className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 py-3 font-bold text-sm shadow-sm"
-            icon={<Lock size={15} />}
-          >
-            {loading ? 'Initializing Razorpay...' : `Proceed to Pay ${formatRupees(pkg.rupees)} via Razorpay`}
-          </Button>
-
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={loading}
-            className="w-full justify-center text-zinc-500 hover:text-zinc-900 text-xs font-semibold py-1.5"
-          >
-            Cancel and Return
-          </Button>
-        </div>
-
-        {/* Legal & Compliance Notice */}
-        <p className="text-[11px] text-zinc-400 text-center leading-relaxed px-1">
-          By proceeding, you agree to our{' '}
-          <Link to="/terms" target="_blank" className="text-zinc-700 hover:text-zinc-950 font-bold underline">Terms & Conditions</Link>
-          {' '}and{' '}
-          <Link to="/terms#refunds" target="_blank" className="text-zinc-700 hover:text-zinc-950 font-bold underline">Refund Policy</Link>.
-          Digital simulation points are delivered instantly.
-        </p>
-
-        {/* Trust Seal */}
-        <div className="pt-2 border-t border-zinc-100 flex items-center justify-center gap-3 text-[10px] text-zinc-400">
-          <span className="flex items-center gap-1">
-            <CheckCircle2 size={11} className="text-emerald-600" />
-            PCI-DSS Level 1 Certified
-          </span>
-          <span>•</span>
-          <span>Razorpay Official Partner</span>
         </div>
       </motion.div>
     </div>
@@ -371,11 +309,11 @@ export function WalletPage() {
     const baseTiers = [
       { rupees: 5, label: 'Starter', popular: false, badge: 'Budget' },
       { rupees: 10, label: 'Standard', popular: true, badge: 'Most Popular' },
-      { rupees: 20, label: 'Growth', popular: false, badge: 'Value Pack' },
-      { rupees: 50, label: 'Venture', popular: false, badge: 'High Impact' },
-      { rupees: 100, label: 'Principal', popular: false, badge: 'Power Backer' },
-      { rupees: 200, label: 'Angel Tier', popular: false, badge: 'Angel' },
-      { rupees: 500, label: 'Syndicate', popular: false, badge: 'Syndicate' },
+      { rupees: 20, label: 'Supporter', popular: false, badge: 'Value Pack' },
+      { rupees: 50, label: 'Enthusiast', popular: false, badge: 'High Impact' },
+      { rupees: 100, label: 'Champion', popular: false, badge: 'Power Backer' },
+      { rupees: 200, label: 'Super Fan', popular: false, badge: 'Top Cheer' },
+      { rupees: 500, label: 'Mega Backer', popular: false, badge: 'Mega Cheer' },
     ]
 
     const filtered = baseTiers.filter(t => t.rupees <= maxPaid)
@@ -472,7 +410,7 @@ export function WalletPage() {
             My Allocation Wallet
           </h1>
           <p className="text-zinc-500 text-xs sm:text-sm mt-0.5">
-            Event: <span className="font-semibold text-zinc-900">{event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}</span> • Live Investment Balance
+            Event: <span className="font-semibold text-zinc-900">{event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}</span> • Event Participation Points Wallet
           </p>
         </div>
 
@@ -493,7 +431,7 @@ export function WalletPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold mb-1">
-              Total Available Investment Points
+              Available Event Participation Points
             </p>
             <p className="text-4xl sm:text-6xl font-black font-mono text-zinc-950 tracking-tight">
               {formatPoints(available)}
@@ -749,12 +687,12 @@ export function WalletPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3.5">
         <StatCard
-          label="Points Deployed"
+          label="Points Allocated"
           value={formatPoints(wallet?.investedPoints ?? 0)}
           icon={<TrendingUp size={18} />}
         />
         <StatCard
-          label="Pitches Backed"
+          label="Pitches Scored"
           value={investments.length}
           subtext={`across ${new Set(investments.map(i => i.teamId)).size} startups`}
           icon={<ArrowUpRight size={18} />}

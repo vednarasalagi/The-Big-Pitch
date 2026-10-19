@@ -119,7 +119,7 @@ const statusConfig = {
   announced:         { label: 'Announced',           variant: 'violet'  as BadgeVariant },
   investment_open:   { label: 'Live Now',            variant: 'emerald' as BadgeVariant },
   investment_paused: { label: 'Paused',              variant: 'amber'   as BadgeVariant },
-  investment_closed: { label: 'Investing Closed',    variant: 'rose'    as BadgeVariant },
+  investment_closed: { label: 'Scoring Closed',      variant: 'rose'    as BadgeVariant },
   results_published: { label: 'Results Published',   variant: 'violet'  as BadgeVariant },
   completed:         { label: 'Completed',           variant: 'blue'    as BadgeVariant },
   active:            { label: 'Live Pitching',       variant: 'emerald' as BadgeVariant },

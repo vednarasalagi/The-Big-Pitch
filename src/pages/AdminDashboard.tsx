@@ -25,6 +25,7 @@ import {
 import { formatPoints, formatRupees, formatRelativeTime } from '@/lib/utils'
 import {
   getAuditLogs,
+  logAuditEvent,
   createTeam,
   updateTeam,
   deleteTeam,
@@ -48,6 +49,7 @@ import {
   isSuperAdmin,
   syncAdminAllowlistFromSupabase,
 } from '@/lib/adminConfig'
+import { broadcastRoundUpdate, broadcastTeamsUpdate } from '@/lib/realtimeSync'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { Team, OfficialResult } from '@/types'
@@ -64,10 +66,10 @@ export interface AdminTabItem {
 }
 
 export const ADMIN_CATEGORIES = [
-  { id: 'all', label: 'All Controls', count: 11, icon: LayoutGrid },
+  { id: 'all', label: 'All Controls', count: 10, icon: LayoutGrid },
   { id: 'live', label: 'Live Stage', count: 4, icon: Radio },
   { id: 'competition', label: 'Startups & Jury', count: 2, icon: Trophy },
-  { id: 'system', label: 'Config & Access', count: 5, icon: Settings },
+  { id: 'system', label: 'Config & Access', count: 4, icon: Settings },
 ] as const
 
 export const ADMIN_TABS: AdminTabItem[] = [
@@ -137,14 +139,6 @@ export const ADMIN_TABS: AdminTabItem[] = [
     category: 'system',
   },
   {
-    id: 'rewards',
-    icon: Gift,
-    label: 'Rewards & Prizes',
-    shortLabel: 'Rewards',
-    description: 'Audience prizes, champion badges & claim code verification',
-    category: 'system',
-  },
-  {
     id: 'settings',
     icon: Settings,
     label: 'Event Configuration',
@@ -170,7 +164,14 @@ function OverviewTab() {
   const totalBackers = teams.reduce((s, t) => s + t.uniqueBackers, 0)
 
   useEffect(() => {
-    getAuditLogs().then(data => setRecentLogs(data.slice(0, 4)))
+    const fetchRecent = () => getAuditLogs().then(data => setRecentLogs(data.slice(0, 5)))
+    fetchRecent()
+    window.addEventListener('audit-logs-updated', fetchRecent)
+    const interval = setInterval(fetchRecent, 5000)
+    return () => {
+      window.removeEventListener('audit-logs-updated', fetchRecent)
+      clearInterval(interval)
+    }
   }, [])
 
   return (
@@ -275,8 +276,11 @@ function OverviewTab() {
                     <Activity size={12} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-zinc-900 text-xs font-medium truncate">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
-                    <p className="text-zinc-400 text-[10px] font-mono">{formatRelativeTime(log.created_at || log.createdAt)}</p>
+                    <p className="text-zinc-900 text-xs font-bold truncate">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
+                    {log.metadata?.description && (
+                      <p className="text-zinc-500 text-[11px] truncate mt-0.5">{log.metadata.description}</p>
+                    )}
+                    <p className="text-zinc-400 text-[10px] font-mono mt-0.5">{formatRelativeTime(log.created_at || log.createdAt)}</p>
                   </div>
                 </div>
               ))
@@ -302,7 +306,7 @@ function TeamModal({
   const [name, setName] = useState(team?.name || '')
   const [pitchTitle, setPitchTitle] = useState(team?.pitchTitle || '')
   const [description, setDescription] = useState(team?.description || '')
-  const [category, setCategory] = useState(team?.category || 'AI & Machine Learning')
+  const [category, setCategory] = useState(team?.category || '')
   const [presenters, setPresenters] = useState(team?.presenters?.join(', ') || '')
   const [pitchOrder, setPitchOrder] = useState(team?.pitchOrder || (teams.length + 1))
   const defaultPitch = event?.config.pitchDurationSeconds ?? 300
@@ -330,14 +334,15 @@ function TeamModal({
     const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
     const totalPitchSec = pitchDurationMin * 60 + pitchDurationSec
     const totalInvestSec = investmentWindowMin * 60 + investmentWindowSec
+    const cleanCategory = (category || 'General').trim()
 
     if (team) {
       // Edit
       const ok = await updateTeam(team.id, {
-        name,
-        pitchTitle,
-        description,
-        category,
+        name: name.trim(),
+        pitchTitle: pitchTitle.trim(),
+        description: description.trim(),
+        category: cleanCategory,
         presenters: presenterList,
         pitchOrder: Number(pitchOrder) || 1,
         pitchDurationSeconds: totalPitchSec,
@@ -346,17 +351,25 @@ function TeamModal({
       setLoading(false)
       if (ok) {
         toast.success(`Updated ${name} successfully!`)
-        onSaved({
+        const updated = {
           ...team,
           name: name.trim(),
           pitchTitle: pitchTitle.trim(),
           description: description.trim(),
-          category: category.trim(),
+          category: cleanCategory,
           presenters: presenterList,
           pitchOrder: Number(pitchOrder) || 1,
           pitchDurationSeconds: totalPitchSec,
           investmentWindowSeconds: totalInvestSec,
           updatedAt: new Date().toISOString(),
+        }
+        onSaved(updated)
+        broadcastTeamsUpdate(teams.map(t => (t.id === team.id ? updated : t)))
+        await logAuditEvent({
+          action: 'UPDATE_STARTUP',
+          targetId: team.id,
+          metadata: { name: name.trim(), category: cleanCategory, description: `Updated details for "${name.trim()}"` },
+          eventId,
         })
         onClose()
       } else {
@@ -366,10 +379,10 @@ function TeamModal({
       // Create new
       const created = await createTeam({
         eventId,
-        name,
-        pitchTitle,
-        description,
-        category,
+        name: name.trim(),
+        pitchTitle: pitchTitle.trim(),
+        description: description.trim(),
+        category: cleanCategory,
         presenters: presenterList,
         pitchOrder: Number(pitchOrder) || (teams.length + 1),
         pitchDurationSeconds: totalPitchSec,
@@ -379,6 +392,13 @@ function TeamModal({
       if (created) {
         toast.success(`Pre-listed ${name} successfully!`)
         onSaved(created)
+        broadcastTeamsUpdate([...teams, created])
+        await logAuditEvent({
+          action: 'PRELIST_STARTUP',
+          targetId: created.id,
+          metadata: { name: created.name, category: cleanCategory, description: `Pre-listed new startup "${created.name}"` },
+          eventId,
+        })
         onClose()
       } else {
         toast.error('Unable to pre-list team. Please try again.')
@@ -387,31 +407,35 @@ function TeamModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/65 backdrop-blur-sm animate-fade-in overflow-y-auto" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.98 }}
-        className="bg-white w-full max-w-lg p-6 sm:p-8 space-y-5 rounded-3xl border border-zinc-200 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+        className="bg-white w-full max-w-lg rounded-2xl border border-zinc-200 shadow-2xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col text-zinc-900 my-auto overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors"
-        >
-          <X size={16} />
-        </button>
-
-        <div>
-          <h3 className="text-zinc-950 font-black text-xl tracking-tight">
-            {team ? `Edit Startup: ${team.name}` : 'Pre-list New Pitching Startup'}
-          </h3>
-          <p className="text-zinc-500 text-xs mt-1">
-            Pre-listed details (startup idea, team name, and pitchers) will appear immediately on the audience home screen and stage boards.
-          </p>
+        {/* Fixed Header */}
+        <div className="p-4 sm:p-5 border-b border-zinc-100 flex items-start justify-between gap-3 bg-white flex-shrink-0">
+          <div>
+            <h3 className="text-zinc-950 font-black text-lg sm:text-xl tracking-tight">
+              {team ? `Edit Startup: ${team.name}` : 'Pre-list New Pitching Startup'}
+            </h3>
+            <p className="text-zinc-500 text-xs mt-0.5">
+              Pre-listed details will appear immediately on the audience home screen and stage boards.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex-shrink-0"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-zinc-700 text-xs font-bold block mb-1.5">Team / Startup Name *</label>
@@ -425,21 +449,33 @@ function TeamModal({
               />
             </div>
             <div>
-              <label className="text-zinc-700 text-xs font-bold block mb-1.5">Category *</label>
-              <select
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-zinc-700 text-xs font-bold">Category</label>
+                <span className="text-[10px] text-zinc-400 font-medium">Optional</span>
+              </div>
+              <input
+                type="text"
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all"
-              >
-                <option value="AI & Machine Learning">AI & Machine Learning</option>
-                <option value="CleanTech">CleanTech & Energy</option>
-                <option value="FinTech">FinTech & Payments</option>
-                <option value="HealthTech">HealthTech & Bio</option>
-                <option value="EdTech">EdTech & Education</option>
-                <option value="SaaS">B2B SaaS</option>
-                <option value="Consumer">Consumer & Mobile</option>
-                <option value="Hardware">Hardware & Robotics</option>
-              </select>
+                placeholder="e.g. AgriTech, AI & ML, FinTech, Web3..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none transition-all placeholder:text-zinc-400"
+              />
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {['AI & ML', 'CleanTech', 'FinTech', 'HealthTech', 'EdTech', 'B2B SaaS', 'AgriTech', 'D2C'].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setCategory(tag)}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                      category === tag
+                        ? 'bg-zinc-900 text-white'
+                        : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -548,11 +584,14 @@ function TeamModal({
             </div>
           </div>
 
-          <div className="flex gap-3 pt-3">
-            <Button variant="secondary" onClick={onClose} className="flex-1 justify-center">
+          </div>
+
+          {/* Fixed Footer Actions */}
+          <div className="p-3.5 sm:p-4 border-t border-zinc-100 bg-white flex gap-3 flex-shrink-0">
+            <Button variant="secondary" onClick={onClose} className="flex-1 justify-center text-xs sm:text-sm py-2.5">
               Cancel
             </Button>
-            <Button type="submit" loading={loading} className="flex-1 justify-center bg-zinc-950 hover:bg-zinc-800 text-white font-bold">
+            <Button type="submit" loading={loading} className="flex-1 justify-center bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-xs sm:text-sm py-2.5">
               {team ? 'Save Changes' : 'Pre-list Team'}
             </Button>
           </div>
@@ -611,7 +650,22 @@ function ControlTab() {
       const newRound = await startPitchForTeam(eventId, teamToStart, pitchDuration, investmentWindow, phase)
       if (newRound) {
         setActiveRound(newRound)
-        setTeams(teams.map(t => (t.id === teamToStart.id ? { ...t, status: 'active' } : t)))
+        const updatedTeams = teams.map(t => (t.id === teamToStart.id ? { ...t, status: 'active' as const } : t))
+        setTeams(updatedTeams)
+        broadcastRoundUpdate(newRound)
+        broadcastTeamsUpdate(updatedTeams)
+        await logAuditEvent({
+          action: 'START_PITCH',
+          targetId: teamToStart.id,
+          metadata: {
+            teamName: teamToStart.name,
+            phase,
+            description: phase === 'announced'
+              ? `Started pitch presentation for "${teamToStart.name}"`
+              : `Opened live investment window for "${teamToStart.name}"`,
+          },
+          eventId,
+        })
         toast.success(
           phase === 'announced'
             ? `Pitch presentation started for ${teamToStart.name}! (${Math.floor(pitchDuration / 60)}m ${pitchDuration % 60}s)`
@@ -636,6 +690,18 @@ function ControlTab() {
       const updated = await openInvestmentWindow(activeRound.id, windowSec)
       if (updated) {
         setActiveRound(updated)
+        broadcastRoundUpdate(updated)
+        await logAuditEvent({
+          action: 'OPEN_INVESTMENT',
+          targetId: activeRound.teamId,
+          metadata: {
+            teamName: activeRound.team?.name,
+            roundId: activeRound.id,
+            durationSeconds: windowSec,
+            description: `Opened audience investment window for "${activeRound.team?.name || 'startup'}" (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`,
+          },
+          eventId,
+        })
         toast.success(`Audience investment window is now OPEN! (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`)
       }
     } catch (err: any) {
@@ -652,7 +718,19 @@ function ControlTab() {
     try {
       const ok = await closeInvestmentWindow(activeRound.id)
       if (ok) {
-        setActiveRound({ ...activeRound, status: 'investment_closed' })
+        const closedRound = { ...activeRound, status: 'investment_closed' as const }
+        setActiveRound(closedRound)
+        broadcastRoundUpdate(closedRound)
+        await logAuditEvent({
+          action: 'CLOSE_INVESTMENT',
+          targetId: activeRound.teamId,
+          metadata: {
+            teamName: activeRound.team?.name,
+            roundId: activeRound.id,
+            description: `Closed audience investment window for "${activeRound.team?.name || 'startup'}"`,
+          },
+          eventId,
+        })
         toast.info('Investment window closed. Audience can no longer invest.')
       }
     } catch (err: any) {
@@ -669,21 +747,45 @@ function ControlTab() {
     if (isPaused) {
       const newClose = await resumeRound(activeRound)
       if (newClose) {
-        setActiveRound({
+        const resumedRound = {
           ...activeRound,
-          status: 'investment_open',
+          status: 'investment_open' as const,
           investmentCloseTime: newClose,
           investmentPauseTime: undefined,
+        }
+        setActiveRound(resumedRound)
+        broadcastRoundUpdate(resumedRound)
+        await logAuditEvent({
+          action: 'RESUME_ROUND',
+          targetId: activeRound.teamId,
+          metadata: {
+            teamName: activeRound.team?.name,
+            roundId: activeRound.id,
+            description: `Resumed countdown timer for "${activeRound.team?.name || 'startup'}"`,
+          },
+          eventId,
         })
         toast.success('Round resumed! Remaining countdown continues.')
       }
     } else {
       const ok = await pauseRound(activeRound.id)
       if (ok) {
-        setActiveRound({
+        const pausedRound = {
           ...activeRound,
-          status: 'investment_paused',
+          status: 'investment_paused' as const,
           investmentPauseTime: new Date().toISOString(),
+        }
+        setActiveRound(pausedRound)
+        broadcastRoundUpdate(pausedRound)
+        await logAuditEvent({
+          action: 'PAUSE_ROUND',
+          targetId: activeRound.teamId,
+          metadata: {
+            teamName: activeRound.team?.name,
+            roundId: activeRound.id,
+            description: `Paused countdown timer for "${activeRound.team?.name || 'startup'}"`,
+          },
+          eventId,
         })
         toast.info('Round paused. Investments and timer temporarily held.')
       }
@@ -695,7 +797,19 @@ function ControlTab() {
     if (!activeRound) return
     const newClose = await extendRoundTimer(activeRound, 60)
     if (newClose) {
-      setActiveRound({ ...activeRound, investmentCloseTime: newClose })
+      const extendedRound = { ...activeRound, investmentCloseTime: newClose }
+      setActiveRound(extendedRound)
+      broadcastRoundUpdate(extendedRound)
+      await logAuditEvent({
+        action: 'EXTEND_TIMER',
+        targetId: activeRound.teamId,
+        metadata: {
+          teamName: activeRound.team?.name,
+          addedSeconds: 60,
+          description: `Added +60s extension to round timer for "${activeRound.team?.name || 'startup'}"`,
+        },
+        eventId,
+      })
       toast.success('+60s added to authoritative round timer!')
     }
   }
@@ -706,8 +820,21 @@ function ControlTab() {
     setLoading('stop')
     try {
       await stopPitchForTeam(activeRound.teamId, activeRound.id)
-      setTeams(teams.map(t => (t.id === activeRound.teamId ? { ...t, status: 'completed' } : t)))
+      const updatedTeams = teams.map(t => (t.id === activeRound.teamId ? { ...t, status: 'completed' as const } : t))
+      setTeams(updatedTeams)
       setActiveRound(null)
+      broadcastRoundUpdate(null)
+      broadcastTeamsUpdate(updatedTeams)
+      await logAuditEvent({
+        action: 'STOP_PITCH',
+        targetId: activeRound.teamId,
+        metadata: {
+          teamName: activeRound.team?.name,
+          roundId: activeRound.id,
+          description: `Concluded pitch round for "${activeRound.team?.name || 'team'}"`,
+        },
+        eventId,
+      })
       toast.info(`Pitch round concluded for ${activeRound.team?.name || 'team'}.`)
     } catch (err: any) {
       toast.error(toUserFriendlyError(err, 'Failed to stop pitch round.'))
@@ -731,6 +858,7 @@ function ControlTab() {
     })
 
     setTeams(updatedTeams)
+    broadcastTeamsUpdate(updatedTeams)
     await reorderTeams(updatedTeams.map(t => ({ id: t.id, pitchOrder: t.pitchOrder })))
     toast.success(`${target.name} is now designated as the NEXT pitch!`)
   }
@@ -1078,6 +1206,13 @@ function TeamsTab() {
     setTeams(reordered)
 
     await reorderTeams(reordered.map(t => ({ id: t.id, pitchOrder: t.pitchOrder })))
+    await logAuditEvent({
+      action: 'REORDER_TEAMS',
+      metadata: {
+        description: `Reordered pitching startup lineup: moved "${temp.name}" ${direction}`,
+      },
+      eventId,
+    })
     toast.success('Pitch order updated.')
   }
 
@@ -1087,7 +1222,19 @@ function TeamsTab() {
 
     const ok = await deleteTeam(teamId)
     if (ok) {
-      setTeams(teams.filter(t => t.id !== teamId))
+      if (activeRound?.teamId === teamId) {
+        setActiveRound(null)
+        broadcastRoundUpdate(null)
+      }
+      const updated = teams.filter(t => t.id !== teamId)
+      setTeams(updated)
+      broadcastTeamsUpdate(updated)
+      await logAuditEvent({
+        action: 'DELETE_STARTUP',
+        targetId: teamId,
+        metadata: { name: teamName, description: `Removed "${teamName}" from pitching lineup` },
+        eventId,
+      })
       toast.success(`Removed "${teamName}" from pitching lineup.`)
     } else {
       toast.error('Unable to remove team. Please try again.')
@@ -1100,7 +1247,20 @@ function TeamsTab() {
     const newRound = await startPitchForTeam(eventId, team, duration)
     if (newRound) {
       setActiveRound(newRound)
-      setTeams(teams.map(t => (t.id === team.id ? { ...t, status: 'active' } : t)))
+      const updatedTeams = teams.map(t => (t.id === team.id ? { ...t, status: 'active' as const } : t))
+      setTeams(updatedTeams)
+      broadcastRoundUpdate(newRound)
+      broadcastTeamsUpdate(updatedTeams)
+      await logAuditEvent({
+        action: 'START_PITCH',
+        targetId: team.id,
+        metadata: {
+          teamName: team.name,
+          durationSeconds: duration,
+          description: `Started pitch for "${team.name}" directly from startup lineup`,
+        },
+        eventId,
+      })
       toast.success(`Started pitch for ${team.name}!`)
     } else {
       toast.error('Failed to start pitch round.')
@@ -1537,6 +1697,10 @@ function AllowlistTab() {
       const updated = getAdminAllowlist()
       setAllowlist(updated)
       setNewEmail('')
+      await logAuditEvent({
+        action: 'AUTHORIZE_ADMIN',
+        metadata: { email: clean, description: `Authorized ${clean} as administrator` },
+      })
       toast.success(`Authorized ${clean} as an event administrator!`)
     } else {
       toast.error('Failed to add email to administrator list.')
@@ -1556,6 +1720,10 @@ function AllowlistTab() {
     const res = await removeAdminEmail(emailToRemove)
     if (res.success) {
       setAllowlist(getAdminAllowlist())
+      await logAuditEvent({
+        action: 'REVOKE_ADMIN',
+        metadata: { email: emailToRemove, description: `Revoked admin privileges for ${emailToRemove}` },
+      })
       toast.info(`Revoked admin access for ${emailToRemove}.`)
     } else {
       toast.error(res.message || 'Failed to remove admin.')
@@ -1692,42 +1860,7 @@ function PaymentsTab() {
   )
 }
 
-// ── 6. Rewards Admin Tab ────────────────────────────────────
-function RewardsAdminTab() {
-  const { event } = useEventStore()
-  const rules = event?.config.rewardRules ?? []
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Reward & Badge Rules" subtitle="Automated gamification rules for audience investors" />
-      <div className="space-y-2.5">
-        {rules.map(rule => (
-          <div key={rule.id} className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-950 flex-shrink-0">
-                {rule.type === 'top_investor' ? <Trophy size={18} /> : rule.type === 'early_backer' ? <Zap size={18} /> : <Award size={18} />}
-              </div>
-              <div>
-                <p className="text-zinc-950 font-bold text-sm">{rule.label}</p>
-                <p className="text-zinc-500 text-xs">{rule.description}</p>
-                <p className="text-zinc-700 font-semibold text-xs mt-0.5">{rule.prizeDescription}</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">Active</span>
-          </div>
-        ))}
-      </div>
-      <Button
-        variant="secondary"
-        className="w-full justify-center"
-        icon={<CheckCircle2 size={14} />}
-        onClick={() => toast.success('Rewards calculated successfully!')}
-      >
-        Trigger Automated Reward Distribution
-      </Button>
-    </div>
-  )
-}
 
 // ── 7. Pitch Timer & Investment Window Tab ──────────────────
 function TimerConfigTab() {
@@ -1808,6 +1941,15 @@ function TimerConfigTab() {
     setSavingDefaults(false)
 
     if (ok) {
+      await logAuditEvent({
+        action: 'UPDATE_DEFAULT_TIMERS',
+        metadata: {
+          pitchSeconds: totalPitch,
+          investSeconds: totalInvest,
+          description: `Updated default timers: pitch=${pitchMin}m ${pitchSec}s, investment window=${investMin}m ${investSec}s`,
+        },
+        eventId,
+      })
       toast.success(`Default timers saved: ${pitchMin}m ${pitchSec}s pitch, ${investMin}m ${investSec}s window`)
     } else {
       toast.error('Failed to persist default timers to Supabase')
@@ -1821,6 +1963,7 @@ function TimerConfigTab() {
 
     const totalPitch = Math.max(10, (timer.pitchMin * 60) + timer.pitchSec)
     const totalInvest = Math.max(10, (timer.investMin * 60) + timer.investSec)
+    const teamName = teams.find(t => t.id === teamId)?.name || 'team'
 
     setSavingTeamId(teamId)
     const ok = await updateTeamTimerSettings(teamId, totalPitch, totalInvest)
@@ -1828,7 +1971,18 @@ function TimerConfigTab() {
 
     if (ok) {
       setTeams(teams.map(t => t.id === teamId ? { ...t, pitchDurationSeconds: totalPitch, investmentWindowSeconds: totalInvest } : t))
-      toast.success(`Timer updated for ${teams.find(t => t.id === teamId)?.name || 'team'}!`)
+      await logAuditEvent({
+        action: 'UPDATE_TEAM_TIMER',
+        targetId: teamId,
+        metadata: {
+          teamName,
+          pitchSeconds: totalPitch,
+          investSeconds: totalInvest,
+          description: `Updated timer for "${teamName}": pitch=${timer.pitchMin}m ${timer.pitchSec}s, invest=${timer.investMin}m ${timer.investSec}s`,
+        },
+        eventId,
+      })
+      toast.success(`Timer updated for ${teamName}!`)
     } else {
       toast.error('Failed to update team timer')
     }
@@ -2177,6 +2331,18 @@ function OfficialJudgingTab() {
         })
       }
 
+      await logAuditEvent({
+        action: isPublished ? 'PUBLISH_RESULTS' : 'SAVE_RESULTS',
+        metadata: {
+          isPublished,
+          teamsCount: list.length,
+          description: isPublished
+            ? 'Published official competition jury results and rankings to audience'
+            : 'Saved draft official competition jury results',
+        },
+        eventId,
+      })
+
       toast.success(isPublished ? 'Official Competition Results published to audience!' : 'Official results saved (draft).')
     } else {
       toast.error('Failed to save official judging results')
@@ -2370,6 +2536,16 @@ function SettingsTab() {
 
     if (ok) {
       setSaved(true)
+      await logAuditEvent({
+        action: 'UPDATE_EVENT_CONFIG',
+        metadata: {
+          freePointsAllocation: updatedConfig.freePointsAllocation,
+          pointsPerRupee: updatedConfig.pointsPerRupee,
+          maxPaidPurchaseRupees: updatedConfig.maxPaidPurchaseRupees,
+          description: `Updated event configuration: welcome bonus ${updatedConfig.freePointsAllocation} pts, rate ${updatedConfig.pointsPerRupee} pts/₹, purchase cap ₹${updatedConfig.maxPaidPurchaseRupees}`,
+        },
+        eventId,
+      })
       toast.success('Event rules & buying rates saved and synced to database!')
       setTimeout(() => setSaved(false), 2500)
     } else {
@@ -2527,42 +2703,157 @@ function SettingsTab() {
 function LogsTab() {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchLogs = async () => {
+    try {
+      const data = await getAuditLogs()
+      setLogs(data)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    getAuditLogs().then(data => {
-      setLogs(data)
-      setLoading(false)
-    })
+    fetchLogs()
+
+    const handleUpdate = () => {
+      fetchLogs()
+    }
+
+    window.addEventListener('audit-logs-updated', handleUpdate)
+    const interval = setInterval(fetchLogs, 5000)
+
+    return () => {
+      window.removeEventListener('audit-logs-updated', handleUpdate)
+      clearInterval(interval)
+    }
   }, [])
+
+  const handleManualRefresh = () => {
+    setRefreshing(true)
+    fetchLogs()
+    toast.success('Audit trail refreshed.')
+  }
+
+  const handleExport = () => {
+    if (logs.length === 0) {
+      toast.info('No audit logs available to export.')
+      return
+    }
+    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `big_pitch_audit_trail_${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success('Audit log export downloaded!')
+  }
+
+  const filteredLogs = logs.filter(log => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    const action = (log.action || '').toLowerCase()
+    const desc = (log.metadata?.description || '').toLowerCase()
+    const name = (log.metadata?.name || log.metadata?.teamName || '').toLowerCase()
+    return action.includes(q) || desc.includes(q) || name.includes(q)
+  })
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <SectionHeader title="Security Audit Log" subtitle="Tamper-evident log of all administrative actions" />
-        <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={() => toast.info('Exporting audit log...')}>
-          Export Log
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <SectionHeader title="Security Audit Log" subtitle="Tamper-evident real-time log of all administrative stage events" />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />}
+            onClick={handleManualRefresh}
+          >
+            Refresh
+          </Button>
+          <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={handleExport}>
+            Export Log
+          </Button>
+        </div>
       </div>
+
+      {/* Search Filter Bar */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Filter audit actions (e.g. startup name, investment, pitch, timer)..."
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 focus:ring-1 focus:ring-zinc-950 text-xs text-zinc-900 outline-none placeholder:text-zinc-400 transition-all shadow-sm"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-600"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       <div className="bg-white border border-zinc-200/90 rounded-2xl divide-y divide-zinc-100 shadow-sm overflow-hidden">
-        {logs.length === 0 ? (
-          <div className="p-8 text-center text-zinc-400 text-xs">
-            {loading ? 'Loading audit records...' : 'No audit events recorded yet.'}
+        {filteredLogs.length === 0 ? (
+          <div className="p-12 text-center text-zinc-400 text-xs space-y-2">
+            <Shield size={24} className="mx-auto text-zinc-300" />
+            <p className="font-semibold text-zinc-600">
+              {loading ? 'Loading audit records...' : search ? 'No matching audit records found.' : 'No audit events recorded yet.'}
+            </p>
+            <p className="text-[11px] text-zinc-400">
+              Administrative actions (pre-listing startups, stage controls, timers, results) are logged here automatically.
+            </p>
           </div>
         ) : (
-          logs.map(log => (
-            <div key={log.id} className="p-4 flex items-start gap-3">
-              <div className="w-7 h-7 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Shield size={13} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-zinc-950 text-xs font-bold">{(log.action || 'admin_action').replace(/_/g, ' ')}</p>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-zinc-100 text-zinc-700 border border-zinc-200">Admin Action</span>
+          filteredLogs.map(log => {
+            const actionText = (log.action || 'admin_action').replace(/_/g, ' ')
+            const isDelete = log.action?.includes('DELETE') || log.action?.includes('REVOKE')
+            const isStart = log.action?.includes('START') || log.action?.includes('OPEN')
+            const isSettings = log.action?.includes('CONFIG') || log.action?.includes('TIMER')
+
+            return (
+              <div key={log.id} className="p-4 flex items-start gap-3 hover:bg-zinc-50/50 transition-colors">
+                <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                  isDelete
+                    ? 'bg-rose-50 border-rose-200 text-rose-600'
+                    : isStart
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : isSettings
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'bg-zinc-100 border-zinc-200 text-zinc-800'
+                }`}>
+                  <Shield size={14} />
                 </div>
-                <p className="text-zinc-400 text-[11px] font-mono mt-0.5">{formatRelativeTime(log.created_at || log.createdAt)}</p>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-zinc-950 text-xs font-bold uppercase tracking-wide">{actionText}</p>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold bg-zinc-100 text-zinc-700 border border-zinc-200">
+                      Authoritative
+                    </span>
+                  </div>
+                  {log.metadata?.description && (
+                    <p className="text-zinc-700 text-xs font-medium">{log.metadata.description}</p>
+                  )}
+                  <div className="flex items-center gap-3 text-zinc-400 text-[10px] font-mono pt-0.5">
+                    <span>{formatRelativeTime(log.created_at || log.createdAt)}</span>
+                    {log.created_at && (
+                      <span>• {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
@@ -2602,7 +2893,6 @@ export function AdminDashboard() {
     cast: <CastAdminTab />,
     allowlist: <AllowlistTab />,
     payments: <PaymentsTab />,
-    rewards: <RewardsAdminTab />,
     settings: <SettingsTab />,
     logs: <LogsTab />,
   }

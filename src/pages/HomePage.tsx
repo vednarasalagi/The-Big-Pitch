@@ -3,15 +3,16 @@
 // Minimalist, high-contrast, pure white & black aesthetic
 // ============================================================
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users, Search, X, ChevronRight,
-  Radio, ArrowUpRight, Sparkles, Building2, Layers
+  Radio, ArrowUpRight, Sparkles, Building2, Layers, Trophy
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore } from '@/store'
 import { Card, StatusBadge, LiveIndicator, Button, Badge } from '@/components/ui'
 import { formatPoints } from '@/lib/utils'
+import { syncLiveState } from '@/lib/realtimeSync'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Team } from '@/types'
 
@@ -22,85 +23,96 @@ function StartupDetailModal({ team, onClose }: { team: Team; onClose: () => void
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className="bg-white w-full max-w-lg p-6 sm:p-7 space-y-5 border border-zinc-200 shadow-2xl rounded-2xl relative max-h-[90vh] overflow-y-auto text-zinc-900"
+        className="bg-white w-full max-w-lg rounded-2xl border border-zinc-200 shadow-2xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col text-zinc-900 my-auto overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors"
-        >
-          <X size={16} />
-        </button>
-
-        {/* Header */}
-        <div className="space-y-2 pr-8">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-800 border border-zinc-200">
-              Pitch #{team.pitchOrder}
-            </span>
-            <Badge variant="blue" className="text-[11px]">{team.category}</Badge>
-            <StatusBadge status={team.status} />
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight leading-tight">
-            {team.name}
-          </h2>
-          <p className="text-base sm:text-lg font-bold text-zinc-800">
-            {team.pitchTitle}
-          </p>
-        </div>
-
-        {/* Pitcher Details */}
-        {team.presenters && team.presenters.length > 0 && (
-          <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 space-y-1">
-            <div className="flex items-center gap-2 text-zinc-700 font-semibold text-xs">
-              <Users size={14} className="text-zinc-900" />
-              <span>Pitchers & Founding Team</span>
+        {/* Fixed Header */}
+        <div className="p-4 sm:p-5 border-b border-zinc-100 flex items-start justify-between gap-3 bg-white flex-shrink-0">
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-800 border border-zinc-200">
+                Pitch #{team.pitchOrder}
+              </span>
+              <Badge variant="blue" className="text-[10px] sm:text-[11px]">{team.category}</Badge>
+              <StatusBadge status={team.status} />
             </div>
-            <p className="text-zinc-900 text-sm font-medium pl-5">
-              {team.presenters.join(', ')}
+            <h2 className="text-xl sm:text-2xl font-black text-zinc-950 tracking-tight leading-tight truncate">
+              {team.name}
+            </h2>
+            <p className="text-xs sm:text-sm font-semibold text-zinc-700 line-clamp-2">
+              {team.pitchTitle}
             </p>
           </div>
-        )}
 
-        {/* Startup Idea & Description */}
-        <div className="space-y-1.5">
-          <h4 className="text-zinc-400 uppercase text-xs font-bold tracking-wider">Startup Idea & Vision</h4>
-          <div className="p-4 rounded-xl bg-zinc-50/60 border border-zinc-200/80 text-zinc-700 text-sm leading-relaxed whitespace-pre-line font-normal">
-            {team.description || 'This team has registered their pitch idea for The Big Pitch.'}
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            aria-label="Close Overview"
+            className="p-1.5 sm:p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex-shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+          {/* Pitcher Details */}
+          {team.presenters && team.presenters.length > 0 && (
+            <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 space-y-1">
+              <div className="flex items-center gap-2 text-zinc-700 font-semibold text-xs">
+                <Users size={13} className="text-zinc-900 flex-shrink-0" />
+                <span>Pitchers & Founding Team</span>
+              </div>
+              <p className="text-zinc-900 text-xs sm:text-sm font-medium pl-5 break-words">
+                {team.presenters.join(', ')}
+              </p>
+            </div>
+          )}
+
+          {/* Startup Idea & Description */}
+          <div className="space-y-1.5">
+            <h4 className="text-zinc-400 uppercase text-[11px] font-bold tracking-wider">Startup Idea & Vision</h4>
+            <div className="p-3.5 sm:p-4 rounded-xl bg-zinc-50/70 border border-zinc-200/80 text-zinc-700 text-xs sm:text-sm leading-relaxed whitespace-pre-line font-normal break-words">
+              {team.description || 'This team has registered their pitch idea for The Big Pitch.'}
+            </div>
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1">
+            <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
+              <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block">Audience Points</span>
+              <span className="text-base sm:text-xl font-bold font-mono text-zinc-950 truncate block">{formatPoints(team.totalInvestment)}</span>
+            </div>
+            <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
+              <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block">Unique Backers</span>
+              <span className="text-base sm:text-xl font-bold font-mono text-zinc-950 truncate block">{team.uniqueBackers} Backers</span>
+            </div>
           </div>
         </div>
 
-        {/* Performance Metrics */}
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
-            <span className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold block">Audience Points</span>
-            <span className="text-xl font-bold font-mono text-zinc-950">{formatPoints(team.totalInvestment)}</span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
-            <span className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold block">Unique Backers</span>
-            <span className="text-xl font-bold font-mono text-zinc-950">{team.uniqueBackers} Backers</span>
-          </div>
-        </div>
+        {/* Fixed Footer Actions */}
+        <div className="p-3.5 sm:p-4 border-t border-zinc-100 bg-zinc-50/80 flex flex-col sm:flex-row gap-2 sm:gap-2.5 flex-shrink-0">
+          <Link to={`/leaderboard?teamId=${team.id}&tab=pitch`} className="flex-1">
+            <Button variant="secondary" icon={<Trophy size={14} />} className="w-full justify-center text-xs sm:text-sm py-2.5">
+              Pitch Leaderboard
+            </Button>
+          </Link>
 
-        {/* Actions */}
-        <div className="flex gap-3 pt-2">
           {isTeamLive ? (
             <Link to="/live" className="flex-1">
-              <Button size="md" icon={<Radio size={15} />} className="w-full justify-center bg-zinc-950 text-white">
-                Invest Live Now — Round Open
+              <Button size="md" icon={<Radio size={15} />} className="w-full justify-center bg-zinc-950 text-white text-xs sm:text-sm py-2.5">
+                Score Live Now
               </Button>
             </Link>
           ) : (
-            <Button variant="secondary" onClick={onClose} className="w-full justify-center">
+            <Button variant="ghost" onClick={onClose} className="sm:flex-none justify-center text-xs sm:text-sm py-2.5 text-zinc-500 hover:text-zinc-900">
               Close Overview
             </Button>
           )}
@@ -118,6 +130,13 @@ export function HomePage() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'active' | 'completed'>('all')
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
+
+  // Real-time background sync for startup lineup scores & stage indicators
+  useEffect(() => {
+    syncLiveState()
+    const timer = setInterval(syncLiveState, 3000)
+    return () => clearInterval(timer)
+  }, [])
 
   const isLive = activeRound?.status === 'investment_open'
   const totalInvested = teams.reduce((acc, t) => acc + t.totalInvestment, 0)
@@ -171,7 +190,7 @@ export function HomePage() {
               {event?.name && event.name !== 'Pitch Arena 2025' ? event.name : 'THE BIG PITCH'}
             </h1>
             <p className="text-zinc-600 text-base sm:text-lg leading-relaxed">
-              {event?.tagline ?? 'Discover ambitious student startup founders, evaluate live pitches, and deploy your investment points.'}
+              {event?.tagline ?? 'Discover ambitious student startup founders, evaluate live pitches, and deploy your audience scoring points.'}
             </p>
           </div>
 
@@ -215,7 +234,7 @@ export function HomePage() {
             ) : isLive ? (
               <Link to="/live">
                 <Button size="lg" icon={<Radio size={16} />} className="w-full justify-center bg-zinc-950 text-white font-bold py-3 text-sm shadow-md">
-                  Active Pitch Round Live — Join & Invest Now
+                  Active Pitch Round Live — Join & Score Now
                 </Button>
               </Link>
             ) : (
@@ -251,7 +270,7 @@ export function HomePage() {
         <Link to="/live" className="p-4 rounded-2xl bg-white border border-zinc-200/90 hover:border-zinc-300 transition-all shadow-xs group">
           <div className="flex items-center gap-2.5 mb-1.5">
             <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white text-xs font-black flex items-center justify-center font-mono">2</span>
-            <h3 className="font-bold text-zinc-950 text-sm group-hover:text-zinc-800">Watch Live & Invest</h3>
+            <h3 className="font-bold text-zinc-950 text-sm group-hover:text-zinc-800">Watch Live & Back</h3>
           </div>
           <p className="text-zinc-500 text-xs leading-relaxed">
             Head to the <strong>Live Pitch</strong> tab. When a team pitches on stage, the timer opens for point backing!
@@ -287,7 +306,7 @@ export function HomePage() {
               </div>
             </div>
             <Button size="sm" className="bg-zinc-950 text-white flex-shrink-0 font-bold px-3 py-1.5">
-              Invest Now →
+              Score This Pitch →
             </Button>
           </div>
         </Link>

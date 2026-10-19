@@ -21,6 +21,11 @@ import { supabase, TABLES } from '@/lib/supabase'
 import type { TeamInvestorStanding } from '@/types'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  broadcastInvestmentMade,
+  STANDINGS_INVALIDATE_EVENT,
+  syncLiveState,
+} from '@/lib/realtimeSync'
 
 const QUICK_AMOUNTS = [10, 25, 50, 100, 200]
 
@@ -75,7 +80,7 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
         })
 
         if (!res.success) {
-          toast.error(res.error || 'Investment could not be processed.')
+          toast.error(res.error || 'Scoring points could not be processed.')
           setLoading(false)
           return
         }
@@ -99,25 +104,30 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
 
       // Update team total
       const team = teams.find(t => t.id === teamId)
+      const newTotal = (team?.totalInvestment ?? 0) + amount
+      const newBackers = (team?.uniqueBackers ?? 0) + 1
       if (team) {
-        updateTeamInvestment(teamId, amount, team.uniqueBackers + 1)
+        updateTeamInvestment(teamId, amount, newBackers)
       }
 
       // Add activity feed item
       addActivity({
         id: generateId(),
         type: 'investment',
-        message: `Investor deployed ${amount} pts into ${team?.name ?? 'the startup'}`,
+        message: `Attendee backed ${team?.name ?? 'the startup'} with ${amount} pts`,
         timestamp: new Date().toISOString(),
       })
 
-      toast.success(`Invested ${amount} points successfully!`)
+      // Broadcast investment in real time to all audience & projector devices
+      broadcastInvestmentMade(teamId, amount, newTotal, newBackers, user.id)
+
+      toast.success(`Backed with ${amount} points successfully!`)
       setJustInvested(true)
       setSelected(null)
       setCustom('')
       setTimeout(() => setJustInvested(false), 3000)
     } catch {
-      toast.error('Investment could not be completed. Please try again.')
+      toast.error('Points could not be deployed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -142,7 +152,7 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
         <div className="text-center py-5 space-y-3">
           <p className="text-zinc-500 text-sm">Sign in to deploy your allocation points</p>
           <Link to="/auth">
-            <Button size="md" className="bg-zinc-950 text-white">Sign In to Invest</Button>
+            <Button size="md" className="bg-zinc-950 text-white">Sign In to Score</Button>
           </Link>
         </div>
       ) : justInvested ? (
@@ -154,7 +164,7 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
           <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto mb-2">
             <CheckCircle2 size={20} />
           </div>
-          <p className="text-zinc-950 font-bold text-base">Investment Confirmed</p>
+          <p className="text-zinc-950 font-bold text-base">Score Confirmed</p>
           <p className="text-zinc-500 text-xs font-mono">+{amount} points deployed</p>
         </motion.div>
       ) : (
@@ -194,11 +204,11 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
             <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-medium">pts</span>
           </div>
 
-          {/* Confirm/Invest button */}
+          {/* Confirm/Score button */}
           {confirming ? (
             <div className="space-y-2">
               <div className="p-3.5 rounded-xl border border-zinc-200 bg-zinc-50 text-center">
-                <p className="text-zinc-600 text-xs font-semibold">Confirm Investment</p>
+                <p className="text-zinc-600 text-xs font-semibold">Confirm Backing</p>
                 <p className="text-zinc-950 text-2xl font-black font-mono mt-0.5">{amount} points</p>
                 <p className="text-zinc-400 text-[11px] mt-0.5">Points are committed for this round</p>
               </div>
@@ -218,7 +228,7 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
               loading={loading}
               className="w-full justify-center bg-zinc-950 text-white py-2.5"
             >
-              {amount > 0 ? `Invest ${amount} Points` : 'Select Points to Invest'}
+              {amount > 0 ? `Deploy ${amount} Points` : 'Select Points to Deploy'}
             </Button>
           )}
 
@@ -238,9 +248,30 @@ export function LivePitchPage() {
   const { event, activeRound, livePitch, updateLivePitch, teams } = useEventStore()
   const { user } = useAuthStore()
   const { investments: localInvestments } = useWalletStore()
-  const team = activeRound?.team
+  const team = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
   const [timeLeft, setTimeLeft] = useState(livePitch.timeRemainingSeconds)
   const [teamStandings, setTeamStandings] = useState<TeamInvestorStanding[]>([])
+
+  // Fast polling heartbeat on LivePitchPage: guarantees attendee screen updates automatically
+  // even if they were waiting on "No Active Pitch" before admin called the startup
+  useEffect(() => {
+    syncLiveState()
+    const timer = setInterval(() => {
+      syncLiveState()
+    }, 2000)
+
+    const handleInvalidate = (e: any) => {
+      if (!team || !e.detail?.teamId || e.detail.teamId === team.id) {
+        syncLiveState()
+      }
+    }
+
+    window.addEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidate)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidate)
+    }
+  }, [team?.id])
 
   // Live standings subscriber for current team on attendee device
   useEffect(() => {
@@ -277,7 +308,14 @@ export function LivePitchPage() {
     }
 
     loadStandings()
-    const timer = setInterval(loadStandings, 3000)
+    const timer = setInterval(loadStandings, 2500)
+
+    const handleInvalidateStandings = (e: any) => {
+      if (!e.detail?.teamId || e.detail.teamId === team.id) {
+        loadStandings()
+      }
+    }
+    window.addEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidateStandings)
 
     let channel: any = null
     if (supabase) {
@@ -296,6 +334,7 @@ export function LivePitchPage() {
     return () => {
       isMounted = false
       clearInterval(timer)
+      window.removeEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidateStandings)
       if (channel && supabase) {
         supabase.removeChannel(channel)
       }
@@ -375,7 +414,7 @@ export function LivePitchPage() {
         <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
           <h3 className="font-bold text-zinc-950 text-sm flex items-center gap-2">
             <Radio size={16} className="text-emerald-600" />
-            How Live Pitch Investing Works
+            How Live Pitch Scoring Works
           </h3>
           <div className="space-y-2 text-xs text-zinc-600">
             <div className="flex items-start gap-2.5">
@@ -384,7 +423,7 @@ export function LivePitchPage() {
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-md bg-zinc-100 font-mono font-bold text-zinc-900 flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">2</span>
-              <p><strong className="text-zinc-900">Deploy Points:</strong> The investment buttons unlock. Select or enter how many points to back them with.</p>
+              <p><strong className="text-zinc-900">Deploy Points:</strong> The scoring buttons unlock. Select or enter how many points to back them with.</p>
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-md bg-zinc-100 font-mono font-bold text-zinc-900 flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">3</span>
@@ -425,29 +464,29 @@ export function LivePitchPage() {
         <div className="p-4 rounded-2xl bg-white border border-blue-400/80 shadow-sm flex items-center gap-3">
           <LiveIndicator label="STAGE PITCHING" />
           <p className="text-zinc-700 text-xs sm:text-sm flex-1 leading-snug">
-            <strong className="text-zinc-950">{team.name}</strong> is presenting live on stage! Investment window will open following their pitch.
+            <strong className="text-zinc-950">{team.name}</strong> is presenting live on stage! Audience scoring window will open following their pitch.
           </p>
         </div>
       )}
 
       {isInvestmentOpen && (
         <div className="p-4 rounded-2xl bg-white border border-emerald-500/80 shadow-sm flex items-center gap-3">
-          <LiveIndicator label="INVESTING OPEN" />
+          <LiveIndicator label="SCORING OPEN" />
           <p className="text-zinc-700 text-xs sm:text-sm flex-1 leading-snug">
-            Audience investment window is live for <strong className="text-zinc-950">{team.name}</strong>! Deploy your points before the deadline.
+            Audience scoring window is live for <strong className="text-zinc-950">{team.name}</strong>! Deploy your points before the deadline.
           </p>
         </div>
       )}
 
       {isPaused && (
         <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-center">
-          <p className="text-amber-900 font-semibold text-xs">⏸️ Investment Round Temporarily Paused by Admin</p>
+          <p className="text-amber-900 font-semibold text-xs">⏸️ Scoring Round Temporarily Paused by Admin</p>
         </div>
       )}
 
       {isClosed && (
         <div className="p-3.5 rounded-2xl bg-zinc-100 border border-zinc-200 text-center">
-          <p className="text-zinc-700 font-semibold text-xs">Investment Window Closed for this Round</p>
+          <p className="text-zinc-700 font-semibold text-xs">Scoring Window Closed for this Round</p>
         </div>
       )}
 
@@ -500,7 +539,7 @@ export function LivePitchPage() {
           </div>
         </div>
         <p className="text-[11px] text-zinc-400 text-center pt-1 italic">
-          *Audience investment activity only. Official competition rankings are judged independently.
+          *Audience scoring & gamification activity only. Official competition rankings are judged independently.
         </p>
       </Card>
 
@@ -510,7 +549,7 @@ export function LivePitchPage() {
           <div className="flex items-center justify-center gap-2 mb-1 text-zinc-500 text-xs font-semibold uppercase tracking-wider">
             <Clock size={14} className={isUrgent ? 'text-rose-600' : 'text-zinc-400'} />
             <span>
-              {isPitchPhase ? 'Pitch Presentation Countdown' : 'Investment Window Remaining'}
+              {isPitchPhase ? 'Pitch Presentation Countdown' : 'Scoring Window Remaining'}
             </span>
           </div>
           <Countdown seconds={timeLeft} size="xl" className="my-2" />
@@ -527,7 +566,7 @@ export function LivePitchPage() {
         <Card className="p-5 text-center border-zinc-200 bg-zinc-50 shadow-sm space-y-2">
           <p className="text-zinc-900 font-bold text-sm">Startup Presentation in Progress</p>
           <p className="text-zinc-500 text-xs max-w-sm mx-auto">
-            Listen closely to the founders pitch their business. The investment window will open as soon as their presentation concludes!
+            Listen closely to the founders pitch their business. The scoring window will open as soon as their presentation concludes!
           </p>
         </Card>
       )}
@@ -549,7 +588,7 @@ export function LivePitchPage() {
                   <div className="flex items-center gap-2">
                     <Trophy size={18} className={myStanding.rank === 1 ? 'text-amber-400' : 'text-zinc-400'} />
                     <span className="font-bold text-xs uppercase tracking-wider text-zinc-300">
-                      Your Investor Standing
+                      Your Backer Standing
                     </span>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-black ${
@@ -563,7 +602,7 @@ export function LivePitchPage() {
 
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <div className="p-3 rounded-xl bg-white/10 border border-white/10 text-center">
-                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">Your Capital</p>
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">Your Points</p>
                     <p className="text-xl font-black font-mono text-white mt-0.5">{formatPoints(myStanding.amount)}</p>
                   </div>
                   <div className="p-3 rounded-xl bg-white/10 border border-white/10 text-center">
@@ -589,7 +628,7 @@ export function LivePitchPage() {
             <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-center space-y-1">
               <p className="text-zinc-950 font-bold text-xs">Audience Competition for {team.name}</p>
               <p className="text-zinc-500 text-[11px]">
-                The investor who deploys the highest points in the least time wins. Deploy points above to see your live ranking!
+                The attendee who deploys the highest points in the least time wins. Deploy points above to see your live ranking!
               </p>
             </div>
           )
@@ -598,13 +637,13 @@ export function LivePitchPage() {
         {/* Top 5 Standings Table */}
         <div className="space-y-2 pt-1">
           <div className="flex items-center justify-between text-xs font-bold text-zinc-500 uppercase tracking-wider px-1">
-            <span>Top 5 Investors for {team.name}</span>
+            <span>Top 5 Backers for {team.name}</span>
             <span>Speed (ms)</span>
           </div>
 
           {teamStandings.length === 0 ? (
             <div className="p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 text-center text-xs text-zinc-400">
-              No audience investments recorded yet for this round.
+              No audience scores recorded yet for this round.
             </div>
           ) : (
             <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200/80 overflow-hidden bg-white">
@@ -674,7 +713,7 @@ export function LivePitchPage() {
             ))}
           </AnimatePresence>
           {livePitch.recentActivity.length === 0 && (
-            <p className="text-zinc-400 text-xs text-center py-2">No investments recorded yet for this round</p>
+            <p className="text-zinc-400 text-xs text-center py-2">No scores recorded yet for this round</p>
           )}
         </div>
       </Card>

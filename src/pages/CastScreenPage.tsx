@@ -16,6 +16,7 @@ import { useEventStore, useWalletStore, useAuthStore } from '@/store'
 import { formatPoints, formatRelativeTime, formatMilliseconds, formatExactMs } from '@/lib/utils'
 import { getTeamAudienceStandings } from '@/lib/supabaseApi'
 import { supabase, TABLES } from '@/lib/supabase'
+import { STANDINGS_INVALIDATE_EVENT, syncLiveState } from '@/lib/realtimeSync'
 import type { TeamInvestorStanding } from '@/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { StatusBadge, LiveIndicator } from '@/components/ui'
@@ -183,7 +184,14 @@ export function CastScreenPage() {
     }
 
     loadStandings()
-    const timer = setInterval(loadStandings, 3000)
+    const timer = setInterval(loadStandings, 2500)
+
+    const handleInvalidate = (e: any) => {
+      if (!e.detail?.teamId || e.detail.teamId === activeSelectedTeam.id) {
+        loadStandings()
+      }
+    }
+    window.addEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidate)
 
     let channel: any = null
     if (supabase) {
@@ -202,11 +210,19 @@ export function CastScreenPage() {
     return () => {
       isMounted = false
       clearInterval(timer)
+      window.removeEventListener(STANDINGS_INVALIDATE_EVENT, handleInvalidate)
       if (channel && supabase) {
         supabase.removeChannel(channel)
       }
     }
   }, [activeSelectedTeam?.id, localInvestments.length, user?.id, user?.displayName, user?.email])
+
+  // Automated background stage poller for projector screen
+  useEffect(() => {
+    syncLiveState()
+    const timer = setInterval(syncLiveState, 2000)
+    return () => clearInterval(timer)
+  }, [])
 
   return (
     <div className={`bg-[#FAFAFA] text-zinc-950 flex flex-col font-sans select-none antialiased ${isFullscreen ? 'h-screen w-screen overflow-hidden' : 'min-h-screen overflow-x-hidden'}`}>

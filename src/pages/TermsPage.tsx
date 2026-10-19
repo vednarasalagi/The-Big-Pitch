@@ -2,18 +2,19 @@
 // TermsPage.tsx — Terms & Conditions (Consolidated Legal Policy)
 // Contains Terms of Use, Cancellation & Refund, Shipping & Delivery, and Merchant Contact
 // Compliant with Razorpay E-Commerce merchant onboarding standards
+// Platform: Live Event Gamification & Audience Engagement (Digital Goods)
 // ============================================================
 
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { LegalLayout } from '@/components/legal/LegalLayout'
-import { CheckCircle2, Building2, Mail, MapPin, Clock, RotateCcw, Truck, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Building2, Mail, MapPin, Clock, RotateCcw, Truck, ShieldCheck, AlertTriangle } from 'lucide-react'
 
 export function TermsPage() {
   return (
     <LegalLayout
       title="Terms and Conditions"
-      subtitle="Complete platform rules, digital goods policy, cancellation & refund terms, delivery timeline, and merchant contact details."
+      subtitle="Complete platform rules, digital event goods policy, cancellation & refund terms, delivery timeline, and merchant contact details."
       lastUpdated="October 19, 2026"
     >
       {/* Electronic Contract Notice */}
@@ -23,33 +24,56 @@ export function TermsPage() {
         </p>
       </div>
 
+      {/* ── PROMINENT DISCLAIMER — Must appear before all other sections ── */}
+      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed flex gap-3">
+        <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="font-bold text-amber-900 uppercase tracking-wide text-[11px]">Important Disclaimer — Not a Financial Platform</p>
+          <p>
+            <strong>THE BIG PITCH is NOT a financial investment platform, stock exchange, crowdfunding portal, or securities marketplace.</strong> This website is a live event gamification tool used exclusively at the Sphinx 2026 college fest. Users purchase virtual digital event tokens ("Participation Points") solely to participate in an interactive real-time scoring game during a live startup pitch competition. No actual money is invested in any startup. No equity, returns, dividends, or financial instruments of any kind are offered or implied. Purchased points have <strong>zero monetary redemption value</strong> and cannot be withdrawn as cash.
+          </p>
+        </div>
+      </div>
+
       {/* 1. Platform Introduction */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
           1. Platform Introduction & Entity Details
         </h2>
         <p>
-          <strong>THE BIG PITCH</strong> (&ldquo;Platform&rdquo;, &ldquo;Website&rdquo;, &ldquo;We&rdquo;, &ldquo;Us&rdquo;, or &ldquo;Our&rdquo;) is an interactive live startup pitch competition and audience investment simulation platform organized by <strong>Sphinx 2026</strong> and the <strong>Entrepreneurship Cell (E-Cell)</strong> at <strong>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</strong>.
+          <strong>THE BIG PITCH</strong> (&ldquo;Platform&rdquo;, &ldquo;Website&rdquo;, &ldquo;We&rdquo;, &ldquo;Us&rdquo;, or &ldquo;Our&rdquo;) is a <strong>live event gamification and interactive audience engagement platform</strong> organized exclusively for attendees of <strong>Sphinx 2026</strong> — the annual technical and cultural festival of the <strong>Entrepreneurship Cell (E-Cell)</strong> at <strong>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</strong>.
         </p>
         <p>
-          By creating an account, browsing, or purchasing digital points on this platform, you (&ldquo;User&rdquo;, &ldquo;Attendee&rdquo;, &ldquo;Participant&rdquo;) accept and agree to these Terms and Conditions and our <Link to="/privacy" className="text-zinc-950 font-bold underline">Privacy Policy</Link>.
+          The platform enables fest attendees to purchase <strong>digital event participation tokens</strong> (&ldquo;Points&rdquo;) and use them as an interactive scoring mechanism to rank and cheer for startup teams presenting at the live pitch competition on stage — similar to live polling or audience participation at entertainment shows.
+        </p>
+        <p>
+          By creating an account, browsing, or purchasing digital event points on this platform, you (&ldquo;User&rdquo;, &ldquo;Attendee&rdquo;, &ldquo;Participant&rdquo;) accept and agree to these Terms and Conditions and our <Link to="/privacy" className="text-zinc-950 font-bold underline">Privacy Policy</Link>.
         </p>
       </section>
 
-      {/* 2. Nature of Services & Digital Simulation Goods */}
+      {/* 2. Nature of Services & Digital Event Goods */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
-          2. Nature of Services & Digital Simulation Points
+          2. Nature of Service — Digital Event Participation Goods
         </h2>
         <p>
-          For regulatory and payment gateway classification purposes under our <strong>E-Commerce business category</strong>:
+          For regulatory and payment gateway classification purposes, this platform operates in the <strong>E-Commerce — Digital Goods & Online Event Services</strong> category:
         </p>
-        <ul className="list-disc pl-5 space-y-1.5 text-zinc-700">
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
           <li>
-            <strong>Digital Goods:</strong> We provide virtual simulation points (&ldquo;Allocation Points&rdquo;) for attendees to interactively score, rank, and allocate simulated support to student and early-stage startup pitches presented live on stage.
+            <strong>Product Type — Digital Event Tokens:</strong> We sell virtual non-financial digital tokens called &ldquo;Participation Points&rdquo; or &ldquo;Event Points.&rdquo; These are the equivalent of digital game credits or interactive show audience-vote tokens used to engage with a live college fest event.
           </li>
           <li>
-            <strong>No Cash or Equity Value:</strong> Purchased points are strictly intangible digital gaming/event goods. They possess <strong>no cash-out value, no redemption value in fiat currency, and do not represent equity shares or securities</strong> in any startup. Points cannot be traded, withdrawn, or transferred outside the platform.
+            <strong>Purpose — Audience Scoring & Gamification:</strong> Attendees use Points to score, rank, and show audience support for student startup teams pitching live on stage. This is a gamified engagement tool — comparable to voting on a reality TV show or a live quiz event — not a financial transaction of any kind.
+          </li>
+          <li>
+            <strong>No Financial Instrument or Investment:</strong> Purchased points are strictly <strong>intangible digital event goods</strong>. They possess <strong>no cash-out value, no redemption value in fiat currency, do not represent equity shares, securities, or any financial instrument</strong> in any startup or organization. Points cannot be traded, withdrawn, or transferred outside the platform.
+          </li>
+          <li>
+            <strong>No Profit or Return:</strong> Users receive no financial return, dividend, profit share, interest, or any monetary benefit from purchasing or using Points. Points expire at the conclusion of the Sphinx 2026 event.
+          </li>
+          <li>
+            <strong>Audience Scores Are Non-Binding:</strong> Audience point allocations do not determine, influence, or tie-break official competition results. The official winner is independently determined by a jury of judges.
           </li>
         </ul>
       </section>
@@ -64,13 +88,13 @@ export function TermsPage() {
         </p>
       </section>
 
-      {/* 4. Pricing & Payment Processing via Razorpay */}
+      {/* 4. Pricing & Payment */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
           4. Pricing & Payment Gateway (Razorpay)
         </h2>
         <p>
-          All point package prices are quoted in <strong>Indian Rupees (INR ₹)</strong> and are inclusive of all applicable taxes.
+          All event point package prices are quoted in <strong>Indian Rupees (INR ₹)</strong> and are inclusive of all applicable taxes. Purchases are for <strong>non-refundable digital event participation tokens</strong> (except in cases of failed delivery or duplicate charges as described in Section 5).
         </p>
         <p>
           All electronic transactions are processed securely through <strong>Razorpay Software Private Limited</strong> (&ldquo;Razorpay&rdquo;), an RBI-authorized payment aggregator. We support:
@@ -85,7 +109,7 @@ export function TermsPage() {
         </p>
       </section>
 
-      {/* 5. Cancellation & Refund Policy (Integrated Razorpay Section) */}
+      {/* 5. Cancellation & Refund Policy */}
       <section id="refunds" className="space-y-3 pt-2">
         <div className="flex items-center gap-2">
           <RotateCcw size={16} className="text-zinc-950" />
@@ -94,11 +118,11 @@ export function TermsPage() {
           </h2>
         </div>
         <p>
-          Because points are digital goods provisioned immediately to your wallet upon payment confirmation, standard physical return policies do not apply:
+          Because event participation points are digital goods provisioned immediately to your wallet upon payment confirmation, standard physical return policies do not apply:
         </p>
         <ul className="list-disc pl-5 space-y-2 text-zinc-700">
           <li>
-            <strong>Cancellation:</strong> You may cancel an order anytime before completing the payment in the Razorpay checkout window. Once points are credited to your active wallet and utilized to invest in a live pitching round, orders cannot be cancelled.
+            <strong>Cancellation:</strong> You may cancel an order anytime before completing the payment in the Razorpay checkout window. Once event points are credited to your active wallet and used to score a live pitch, orders cannot be cancelled.
           </li>
           <li>
             <strong>Refund Eligibility (Failed Credit / Duplicate Debits):</strong> If an amount was deducted from your bank account, card, or UPI, but points were not credited to your wallet due to a network timeout or system glitch, or if you were accidentally charged twice for a single order, you are entitled to a <strong>100% full refund</strong>.
@@ -122,10 +146,10 @@ export function TermsPage() {
         </div>
         <ul className="list-disc pl-5 space-y-2 text-zinc-700">
           <li>
-            <strong>Mode of Delivery:</strong> All purchases on this platform are <strong>100% digital goods and virtual services</strong>. No physical products are shipped, and no courier or postal logistics are involved.
+            <strong>Mode of Delivery:</strong> All purchases on this platform are <strong>100% digital goods and virtual event services</strong>. No physical products are shipped, and no courier or postal logistics are involved.
           </li>
           <li>
-            <strong>Delivery Mechanism:</strong> Purchased points are automatically and electronically credited to your registered attendee wallet balance immediately upon receipt of successful payment confirmation from Razorpay.
+            <strong>Delivery Mechanism:</strong> Purchased event points are automatically and electronically credited to your registered attendee wallet balance immediately upon receipt of successful payment confirmation from Razorpay.
           </li>
           <li>
             <strong>Delivery Timeline:</strong> Instantaneous (typically within <strong>30 to 60 seconds</strong>; maximum up to 24 hours under rare telecommunications or banking network latency).
@@ -145,7 +169,7 @@ export function TermsPage() {
           7. Code of Conduct & Fair Play
         </h2>
         <p>
-          Attendees agree not to deploy bots, scripts, or automated macros to manipulate pitch voting, not to create duplicate accounts to bypass purchase caps, and not to reverse engineer or tamper with platform APIs. Violations may result in disqualification and account termination.
+          Attendees agree not to deploy bots, scripts, or automated macros to manipulate pitch scoring, not to create duplicate accounts to bypass purchase caps, and not to reverse engineer or tamper with platform APIs. Violations may result in disqualification and account termination.
         </p>
       </section>
 
@@ -169,24 +193,34 @@ export function TermsPage() {
         </p>
       </section>
 
-      {/* 10. Official Contact Details */}
+      {/* 10. Official Contact Details — anchored as #contact AND #contactdetails for Razorpay */}
       <section id="contact" className="space-y-3 pt-2">
+        <div id="contactdetails" />
         <div className="flex items-center gap-2">
           <Building2 size={16} className="text-zinc-950" />
           <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
-            10. Official Contact Information
+            10. Merchant & Official Contact Information
           </h2>
         </div>
         <p>
           For customer support, order inquiries, refund requests, or general questions:
         </p>
 
-        <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50/60 text-xs space-y-2">
+        <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50/60 text-xs space-y-3">
+          {/* Merchant Description Box */}
+          <div className="p-3 rounded-lg bg-white border border-zinc-200 text-xs text-zinc-700 leading-relaxed">
+            <p className="font-bold text-zinc-900 mb-1 text-[11px] uppercase tracking-wide">About This Merchant</p>
+            <p>
+              <strong>THE BIG PITCH</strong> is a <strong>live college event gamification tool</strong> — not a financial, investment, or crowdfunding platform. The website sells <strong>virtual digital event participation tokens</strong> (non-financial digital goods) used by attendees to interactively score startup pitches at the Sphinx 2026 college fest hosted at MNIT Jaipur. The organizing body is a student-run Entrepreneurship Cell at a government technical university (MNIT Jaipur), a Centrally Funded Technical Institution (CFTI) established by an Act of Parliament.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <span className="font-bold text-zinc-400 uppercase text-[10px] block">Operating Organization</span>
-              <span className="font-bold text-zinc-950">THE BIG PITCH</span>
-              <p className="text-zinc-600">Sphinx 2026 / Entrepreneurship Cell (E-Cell)</p>
+              <span className="font-bold text-zinc-950">THE BIG PITCH — Sphinx 2026</span>
+              <p className="text-zinc-600">Entrepreneurship Cell (E-Cell), MNIT Jaipur</p>
+              <p className="text-zinc-500 mt-1">Category: Student-Run College Event / Digital Event Goods</p>
             </div>
 
             <div>
@@ -201,7 +235,10 @@ export function TermsPage() {
             <div className="sm:col-span-2">
               <span className="font-bold text-zinc-400 uppercase text-[10px] block">Official Address</span>
               <p className="text-zinc-700 leading-snug">
-                Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India
+                Entrepreneurship Cell (E-Cell), Sphinx 2026 Organizing Committee<br />
+                Malaviya National Institute of Technology (MNIT),<br />
+                JLN Marg, Jaipur, Rajasthan — 302017, India<br />
+                <span className="text-zinc-500">Website: https://the-big-pitch.vercel.app</span>
               </p>
             </div>
           </div>

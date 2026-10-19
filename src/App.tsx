@@ -92,7 +92,13 @@ function NotFoundPage() {
   )
 }
 
-// ── Realtime Sync (Supabase) ───────────────────────────────
+import {
+  getRealtimeChannel,
+  syncLiveState,
+  invalidateStandings,
+} from '@/lib/realtimeSync'
+
+// ── Realtime Sync Engine (Supabase Broadcast + CDC + Heartbeat) ──
 function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { setTeams, setActiveRound } = useEventStore()
   const { user } = useAuthStore()
@@ -102,57 +108,102 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!supabase) return
 
-    // 1. Subscribe to team score changes
-    const teamChannel = supabase
-      .channel('teams-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, async () => {
-        const teams = await getTeams(event?.id)
-        setTeams(teams)
-      })
-      .subscribe()
-
-    // 2. Subscribe to pitch round status changes
-    const roundChannel = supabase
-      .channel('rounds-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pitch_rounds' }, async () => {
-        const round = await getActivePitchRound(event?.id)
-        setActiveRound(round)
-      })
-      .subscribe()
-
-    // 3. Subscribe to event configuration changes (points per rupee, purchase caps, etc.)
-    const configChannel = supabase
-      .channel('config-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_config' }, async () => {
-        const activeEvent = await getActiveEvent()
-        if (activeEvent) {
-          useEventStore.getState().setEvent(activeEvent)
-        }
-      })
-      .subscribe()
-
-    // 4. Subscribe to user's wallet updates
-    let walletChannel: any = null
-    if (user && event) {
-      walletChannel = supabase
-        .channel(`wallet-${user.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${user.id}`,
-        }, async () => {
-          const w = await getOrCreateWallet(user.id, event.id)
-          if (w) setWallet(w)
+    // 1. Singleton Broadcast Channel (0ms peer-to-peer stage push)
+    const broadcastChannel = getRealtimeChannel()
+    if (broadcastChannel) {
+      broadcastChannel
+        .on('broadcast', { event: 'ROUND_UPDATE' }, ({ payload }) => {
+          if (payload && 'round' in payload) {
+            setActiveRound(payload.round)
+          }
+        })
+        .on('broadcast', { event: 'TEAMS_UPDATE' }, ({ payload }) => {
+          if (payload?.teams) {
+            setTeams(payload.teams)
+          }
+        })
+        .on('broadcast', { event: 'INVESTMENT_MADE' }, ({ payload }) => {
+          if (payload?.teamId && typeof payload?.amount === 'number') {
+            useEventStore.getState().updateTeamInvestment(
+              payload.teamId,
+              payload.amount,
+              payload.uniqueBackers ?? 0
+            )
+            invalidateStandings(payload.teamId)
+          }
         })
         .subscribe()
     }
 
+    // 2. Postgres CDC Channel (Replication tables)
+    const cdcChannel = supabase
+      .channel('app-postgres-cdc')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, async () => {
+        const teams = await getTeams(event?.id)
+        if (teams.length > 0) setTeams(teams)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pitch_rounds' }, async () => {
+        const round = await getActivePitchRound(event?.id)
+        setActiveRound(round)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_config' }, async () => {
+        const activeEvent = await getActiveEvent()
+        if (activeEvent) useEventStore.getState().setEvent(activeEvent)
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'investments' }, (payload: any) => {
+        if (payload?.new?.team_id) {
+          invalidateStandings(payload.new.team_id)
+        }
+      })
+      .subscribe()
+
+    // 3. User Wallet CDC Subscription
+    let walletChannel: any = null
+    if (user && event) {
+      walletChannel = supabase
+        .channel(`wallet-cdc-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'wallets',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            const w = await getOrCreateWallet(user.id, event.id)
+            if (w) setWallet(w)
+          }
+        )
+        .subscribe()
+    }
+
+    // 4. Resilient Polling Heartbeat (every 2.5s)
+    // Ensures state updates even if websockets disconnect, throttle, or sleep
+    const heartbeatTimer = setInterval(() => {
+      syncLiveState()
+    }, 2500)
+
+    // 5. Wakeup & Tab Focus Listener
+    // Instantly syncs the live stage when user returns to tab or unlocks phone
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncLiveState()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    window.addEventListener('online', handleVisibilityOrFocus)
+
     return () => {
-      teamChannel.unsubscribe()
-      roundChannel.unsubscribe()
-      configChannel.unsubscribe()
-      if (walletChannel) walletChannel.unsubscribe()
+      clearInterval(heartbeatTimer)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+      window.removeEventListener('online', handleVisibilityOrFocus)
+
+      if (cdcChannel && supabase) supabase.removeChannel(cdcChannel)
+      if (walletChannel && supabase) supabase.removeChannel(walletChannel)
     }
   }, [event?.id, user?.id])
 

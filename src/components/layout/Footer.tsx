@@ -56,11 +56,11 @@ export function Footer() {
           {/* Col 1: Brand & Organizer (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
             <Link to="/" className="inline-block">
-              <BrandLogo size={24} subtitle="Audience Investment Platform" />
+              <BrandLogo size={24} subtitle="Audience Scoring Arena" />
             </Link>
 
             <p className="text-zinc-500 text-xs leading-relaxed max-w-sm">
-              <strong>The Big Pitch</strong> is an interactive startup pitching competition and live audience allocation platform organized under <strong>Sphinx 2026</strong> and the <strong>Entrepreneurship Cell (E-Cell)</strong> at MNIT Jaipur.
+              <strong>The Big Pitch</strong> is an interactive college startup pitching competition and live audience scoring arena organized under <strong>Sphinx 2026</strong> and the <strong>Entrepreneurship Cell (E-Cell)</strong> at MNIT Jaipur.
             </p>
 
             <div className="space-y-1.5 text-[11px] text-zinc-500 pt-1">
