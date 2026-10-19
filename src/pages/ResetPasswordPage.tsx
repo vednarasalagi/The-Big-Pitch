@@ -67,7 +67,12 @@ export function ResetPasswordPage() {
       })
 
       if (error) {
-        setErrorMessage(toUserFriendlyError(error, 'Unable to send reset code. Please check your email and try again.'))
+        const msg = error.message.toLowerCase()
+        if (msg.includes('error sending')) {
+          setErrorMessage('Supabase SMTP Error: Could not dispatch email. Please ensure Port is set to 587 (instead of 465) in Supabase SMTP settings, and Password is a 16-character Google App Password.')
+        } else {
+          setErrorMessage(toUserFriendlyError(error, 'Unable to send reset code. Please check your email and try again.'))
+        }
         setLoading(false)
         return
       }

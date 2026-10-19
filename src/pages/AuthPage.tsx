@@ -171,23 +171,42 @@ export function AuthPage() {
           return
         }
 
-        // Check if confirmation OTP is required (Supabase default)
-        if (data.user && !data.session) {
-          toast.success(`Verification code sent to ${cleanEmail}!`)
-          setMode('verify-otp')
-          startCooldown(45)
-          setSubmitting(false)
-          return
-        }
-
-        // Direct login if email confirmation is turned off in Supabase project
-        if (data.user) {
+        // 1. Direct login if email confirmation is turned off in Supabase project
+        if (data.session && data.user) {
           toast.success('Welcome! Your account has been created.')
           handleSuccessfulAuth(
             data.user.email ?? cleanEmail,
             fullName.trim() || cleanEmail.split('@')[0],
             data.user.id
           )
+          return
+        }
+
+        // 2. Email confirmation is required: prompt for 6-digit verification code
+        if (data.user) {
+          // If the user was already created previously in auth.users (identities is empty),
+          // Supabase does not re-dispatch confirmation emails on signUp().
+          // We explicitly trigger resend() so the 6-digit OTP code is actually sent!
+          if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+            const resendCheck = await supabase.auth.resend({
+              type: 'signup',
+              email: cleanEmail,
+            })
+            if (resendCheck.error) {
+              const resendMsg = resendCheck.error.message.toLowerCase()
+              if (resendMsg.includes('error sending')) {
+                setErrorMessage('Supabase SMTP error: Could not dispatch email. In Supabase SMTP settings, ensure Port is 587 (not 465) and Password is a 16-character Google App Password.')
+                setSubmitting(false)
+                return
+              }
+            }
+          }
+
+          toast.success(`6-digit verification code sent to ${cleanEmail}!`)
+          setMode('verify-otp')
+          startCooldown(45)
+          setSubmitting(false)
+          return
         }
       }
     } catch (err: any) {
@@ -295,7 +314,12 @@ export function AuthPage() {
       })
 
       if (error) {
-        setErrorMessage(toUserFriendlyError(error, 'Could not resend code. Please wait a moment before trying again.'))
+        const msg = error.message.toLowerCase()
+        if (msg.includes('error sending')) {
+          setErrorMessage('Supabase SMTP Error: Could not dispatch email. Please change Port to 587 (instead of 465) in Supabase SMTP settings, and ensure you are using a 16-character Google App Password.')
+        } else {
+          setErrorMessage(toUserFriendlyError(error, 'Could not resend code. Please wait a moment before trying again.'))
+        }
       } else {
         toast.success(`A fresh 6-digit verification code has been sent to ${cleanEmail}`)
         startCooldown(45)
@@ -563,10 +587,18 @@ export function AuthPage() {
             </div>
           )}
 
-          {/* Security Note */}
-          <div className="flex items-center gap-1.5 justify-center pt-1 text-zinc-400 text-xs border-t border-zinc-100">
-            <ShieldCheck size={13} className="text-emerald-600" />
-            <span>Secure Supabase Authentication & OTP</span>
+          {/* Compliance & Security Note */}
+          <div className="pt-2 border-t border-zinc-100 text-center space-y-1.5">
+            <p className="text-[11px] text-zinc-500">
+              By continuing, you agree to our{' '}
+              <Link to="/terms" className="text-zinc-950 font-bold hover:underline">Terms & Conditions</Link>
+              {' '}and{' '}
+              <Link to="/privacy" className="text-zinc-950 font-bold hover:underline">Privacy Policy</Link>.
+            </p>
+            <div className="flex items-center gap-1.5 justify-center text-zinc-400 text-xs">
+              <ShieldCheck size={13} className="text-emerald-600" />
+              <span>Secure Supabase Authentication & OTP</span>
+            </div>
           </div>
         </div>
 

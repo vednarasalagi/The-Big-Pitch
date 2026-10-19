@@ -5,17 +5,17 @@
 // audit logs, and secure Admin Email Allowlist management.
 // ============================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   LayoutDashboard, Settings, Radio, Users, CreditCard,
-  Gift, FileText, Shield, ChevronRight, Play, Pause,
+  Gift, FileText, Shield, ChevronRight, ChevronLeft, Play, Pause,
   Square, SkipForward, Clock, TrendingUp, Activity,
   AlertTriangle, CheckCircle2, Download, Eye, Edit3,
   Plus, RefreshCw, Wifi, Bell, ShieldCheck, UserPlus,
   Trash2, Mail, ExternalLink, Search, Filter, Lock,
   Tv, ArrowUp, ArrowDown, Sparkles, X, Check, Award,
-  Sliders, Database, Terminal, Trophy, Zap
+  Sliders, Database, Terminal, Trophy, Zap, LayoutGrid
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore, useAdminStore } from '@/store'
 import {
@@ -52,19 +52,114 @@ import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { Team, OfficialResult } from '@/types'
 
-// ── Admin Navigation Tabs ──────────────────────────────────
-const ADMIN_TABS = [
-  { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
-  { id: 'control', icon: Radio, label: 'Live Control' },
-  { id: 'timer', icon: Clock, label: 'Pitch Timer & Window' },
-  { id: 'teams', icon: Users, label: 'Pre-listed Teams' },
-  { id: 'judging', icon: Trophy, label: 'Official Judging' },
-  { id: 'cast', icon: Tv, label: 'Stage Cast' },
-  { id: 'allowlist', icon: ShieldCheck, label: 'Admin Access' },
-  { id: 'payments', icon: CreditCard, label: 'Payments' },
-  { id: 'rewards', icon: Gift, label: 'Rewards' },
-  { id: 'settings', icon: Settings, label: 'Settings' },
-  { id: 'logs', icon: FileText, label: 'Audit Logs' },
+// ── Admin Navigation Tabs & Categorization ───────────────────
+export interface AdminTabItem {
+  id: string
+  label: string
+  shortLabel: string
+  description: string
+  category: 'live' | 'competition' | 'system'
+  icon: any
+  badge?: string
+}
+
+export const ADMIN_CATEGORIES = [
+  { id: 'all', label: 'All Controls', count: 11, icon: LayoutGrid },
+  { id: 'live', label: 'Live Stage', count: 4, icon: Radio },
+  { id: 'competition', label: 'Startups & Jury', count: 2, icon: Trophy },
+  { id: 'system', label: 'Config & Access', count: 5, icon: Settings },
+] as const
+
+export const ADMIN_TABS: AdminTabItem[] = [
+  {
+    id: 'overview',
+    icon: LayoutDashboard,
+    label: 'Overview & Telemetry',
+    shortLabel: 'Overview',
+    description: 'Live tournament status, active backers & audience telemetry',
+    category: 'live',
+  },
+  {
+    id: 'control',
+    icon: Radio,
+    label: 'Live Stage Control',
+    shortLabel: 'Live Control',
+    description: 'Start pitches, open/pause/resume/close investment windows',
+    category: 'live',
+    badge: 'Live',
+  },
+  {
+    id: 'timer',
+    icon: Clock,
+    label: 'Pitch Timers & Duration',
+    shortLabel: 'Timers',
+    description: 'Adjust pitch durations and live investment countdown windows',
+    category: 'live',
+  },
+  {
+    id: 'cast',
+    icon: Tv,
+    label: 'Stage Projector Cast',
+    shortLabel: 'Stage Cast',
+    description: 'Auditorium presentation view for stage projectors & big screens',
+    category: 'live',
+  },
+  {
+    id: 'teams',
+    icon: Users,
+    label: 'Startup Lineup',
+    shortLabel: 'Startups',
+    description: 'Add, edit, reorder pitching teams, founders & categories',
+    category: 'competition',
+  },
+  {
+    id: 'judging',
+    icon: Trophy,
+    label: 'Official Jury Scores',
+    shortLabel: 'Jury Scores',
+    description: 'Record judge ranks, official scores, awards & jury feedback',
+    category: 'competition',
+  },
+  {
+    id: 'allowlist',
+    icon: ShieldCheck,
+    label: 'Admin Access Control',
+    shortLabel: 'Admin Access',
+    description: 'Delegate admin privileges & manage authorized admin allowlist',
+    category: 'system',
+  },
+  {
+    id: 'payments',
+    icon: CreditCard,
+    label: 'Payments & Ledger',
+    shortLabel: 'Payments',
+    description: 'Razorpay payment orders & audience point transactions',
+    category: 'system',
+  },
+  {
+    id: 'rewards',
+    icon: Gift,
+    label: 'Rewards & Prizes',
+    shortLabel: 'Rewards',
+    description: 'Audience prizes, champion badges & claim code verification',
+    category: 'system',
+  },
+  {
+    id: 'settings',
+    icon: Settings,
+    label: 'Event Configuration',
+    shortLabel: 'Event Rules',
+    description: 'Welcome bonus points, investment caps & email domains',
+    category: 'system',
+  },
+  {
+    id: 'logs',
+    icon: FileText,
+    label: 'Audit Trail Logs',
+    shortLabel: 'Audit Logs',
+    description: 'Complete chronological history of all admin stage actions',
+    category: 'system',
+  },
 ]
 
 // ── 1. Overview Tab ─────────────────────────────────────────
@@ -2248,61 +2343,181 @@ function SettingsTab() {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Re-sync if event config loads or changes
+  useEffect(() => {
+    if (event?.config) {
+      setConfig(event.config)
+    }
+  }, [event?.config])
+
   const handleSave = async () => {
     if (!config) return
     setLoading(true)
-    setEventConfig(config)
-    if (event) {
-      setEvent({ ...event, config })
+
+    const updatedConfig: typeof config = {
+      ...config,
+      maxPaidPoints: config.maxPaidPurchaseRupees * config.pointsPerRupee,
     }
-    const eventId = event?.id || 'event-pitch-arena-2025'
-    const ok = await updateEventConfig(eventId, config)
+
+    setEventConfig(updatedConfig)
+    if (event) {
+      setEvent({ ...event, config: updatedConfig })
+    }
+
+    const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
+    const ok = await updateEventConfig(eventId, updatedConfig)
     setLoading(false)
 
     if (ok) {
       setSaved(true)
-      toast.success('Event configuration saved and synced to Supabase database!')
-      setTimeout(() => setSaved(false), 2000)
+      toast.success('Event rules & buying rates saved and synced to database!')
+      setTimeout(() => setSaved(false), 2500)
     } else {
-      toast.error('Failed to sync configuration to database.')
+      toast.error('Failed to sync configuration to database. Check connection.')
     }
   }
 
   if (!config) return null
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Competition Rules & Thresholds" subtitle="Configuration parameters update dynamically and persist to database" />
-      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
-        {[
-          { label: 'Free Points Allocation', key: 'freePointsAllocation', suffix: 'pts' },
-          { label: 'Points per ₹1', key: 'pointsPerRupee', suffix: 'pts/₹' },
-          { label: 'Max Paid Purchase', key: 'maxPaidPurchaseRupees', suffix: '₹' },
-          { label: 'Min Investment Amount', key: 'minInvestmentAmount', suffix: 'pts' },
-          { label: 'Max Investment Amount', key: 'maxInvestmentAmount', suffix: 'pts' },
-        ].map(({ label, key, suffix }) => (
-          <div key={key} className="space-y-1">
-            <label className="text-zinc-700 text-xs font-bold">{label}</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={(config as any)[key]}
-                onChange={e => setConfig({ ...config, [key]: parseInt(e.target.value) || 0 })}
-                className="w-full px-3.5 py-2.5 pr-12 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none font-mono"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono">{suffix}</span>
-            </div>
-          </div>
-        ))}
+  const ppr = Math.max(1, config.pointsPerRupee || 10)
+  const maxCap = Math.max(5, config.maxPaidPurchaseRupees || 100)
 
-        <Button
-          loading={loading}
-          onClick={handleSave}
-          className="w-full justify-center mt-3 bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
-          icon={saved ? <CheckCircle2 size={14} /> : undefined}
-        >
-          {saved ? 'Saved & Synced!' : 'Save Configuration'}
-        </Button>
+  // Live preview tiers based on active form values
+  const previewTiers = [
+    { rupees: 5, label: 'Starter Pack', points: 5 * ppr },
+    { rupees: 10, label: 'Standard Pack (Popular)', points: 10 * ppr },
+    { rupees: 20, label: 'Growth Pack', points: 20 * ppr },
+    { rupees: 50, label: 'Venture Pack', points: 50 * ppr },
+    { rupees: 100, label: 'Angel Tier', points: 100 * ppr },
+  ].filter(t => t.rupees <= maxCap)
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <SectionHeader
+        title="Competition Rules & Purchase Thresholds"
+        subtitle="Values update attendee wallet rates, live limits, and payment packages dynamically."
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Form Inputs */}
+        <div className="lg:col-span-7 p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+          <h3 className="text-zinc-950 font-bold text-sm border-b border-zinc-100 pb-2 flex items-center gap-2">
+            <Sliders size={16} />
+            Config Parameters
+          </h3>
+
+          {[
+            {
+              label: 'Free Points Allocation (Welcome Bonus)',
+              key: 'freePointsAllocation',
+              suffix: 'pts',
+              desc: 'Given to each attendee upon signing up.',
+            },
+            {
+              label: 'Points per ₹1 Conversion Rate',
+              key: 'pointsPerRupee',
+              suffix: 'pts / ₹1',
+              desc: 'Determines how many points users receive when buying packages.',
+            },
+            {
+              label: 'Max Paid Purchase Allowance',
+              key: 'maxPaidPurchaseRupees',
+              suffix: '₹ max',
+              desc: 'Upper monetary limit an individual attendee can spend.',
+            },
+            {
+              label: 'Min Investment Amount per Pitch',
+              key: 'minInvestmentAmount',
+              suffix: 'pts min',
+              desc: 'Smallest point amount allowed in a single investment.',
+            },
+            {
+              label: 'Max Investment Amount per Pitch',
+              key: 'maxInvestmentAmount',
+              suffix: 'pts max',
+              desc: 'Cap on how many points one attendee can invest in a single team.',
+            },
+          ].map(({ label, key, suffix, desc }) => (
+            <div key={key} className="space-y-1">
+              <div className="flex items-baseline justify-between">
+                <label className="text-zinc-900 text-xs font-bold">{label}</label>
+                <span className="text-zinc-400 text-[10px]">{desc}</span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  value={(config as any)[key]}
+                  onChange={e => setConfig({ ...config, [key]: Math.max(1, parseInt(e.target.value) || 0) })}
+                  className="w-full px-3.5 py-2.5 pr-20 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none font-mono font-bold transition-colors"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-mono font-medium">
+                  {suffix}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          <Button
+            loading={loading}
+            onClick={handleSave}
+            className="w-full justify-center mt-3 bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm py-2.5 font-bold"
+            icon={saved ? <CheckCircle2 size={15} /> : <Check size={15} />}
+          >
+            {saved ? 'Saved & Synced to Live Arena!' : 'Save & Publish Rules'}
+          </Button>
+        </div>
+
+        {/* Live Impact Preview Card */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="p-5 rounded-2xl bg-zinc-950 text-white shadow-md space-y-4 border border-zinc-800">
+            <div className="flex items-center justify-between">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-200 border border-zinc-700">
+                Live Audience Preview
+              </span>
+              <span className="text-emerald-400 text-xs font-bold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Dynamic
+              </span>
+            </div>
+
+            <div>
+              <p className="text-zinc-400 text-xs font-medium">Active Exchange Rate</p>
+              <p className="text-2xl font-black font-mono tracking-tight text-white mt-0.5">
+                ₹1 = {ppr} Points
+              </p>
+              <p className="text-zinc-400 text-xs mt-1">
+                Max Attendee Allowance: <strong className="text-white font-mono">₹{maxCap}</strong> ({formatPoints(maxCap * ppr)})
+              </p>
+            </div>
+
+            <div className="border-t border-zinc-800 pt-3 space-y-2">
+              <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-wider">
+                Packages Attendees Will See in Wallet:
+              </p>
+              <div className="space-y-1.5">
+                {previewTiers.map((tier) => (
+                  <div
+                    key={tier.rupees}
+                    className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs font-mono"
+                  >
+                    <div>
+                      <span className="font-bold text-white block">{tier.label}</span>
+                      <span className="text-zinc-400 text-[10px]">Costs {formatRupees(tier.rupees)}</span>
+                    </div>
+                    <span className="text-emerald-400 font-black text-sm">
+                      +{formatPoints(tier.points)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-zinc-400 text-[11px] leading-relaxed italic border-t border-zinc-800 pt-2">
+              Whenever you hit <strong>Save & Publish Rules</strong>, attendees' wallets and point top-up modals update in real-time.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -2358,6 +2573,25 @@ function LogsTab() {
 export function AdminDashboard() {
   const { user } = useAuthStore()
   const { selectedTab, setSelectedTab } = useAdminStore()
+  const [activeCategory, setActiveCategory] = useState<'all' | 'live' | 'competition' | 'system'>('all')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const isSuper = isSuperAdmin(user?.email)
+  const currentTab = ADMIN_TABS.find((t) => t.id === selectedTab) || ADMIN_TABS[0]
+
+  // Filter tabs by category if one is active
+  const displayedTabs =
+    activeCategory === 'all'
+      ? ADMIN_TABS
+      : ADMIN_TABS.filter((t) => t.category === activeCategory)
+
+  // Smooth scroll left/right for desktop tab bar
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const offset = direction === 'left' ? -240 : 240
+      scrollRef.current.scrollBy({ left: offset, behavior: 'smooth' })
+    }
+  }
 
   const tabContent: Record<string, React.ReactNode> = {
     overview: <OverviewTab />,
@@ -2374,63 +2608,264 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 animate-fade-in text-zinc-900">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-fade-in text-zinc-900">
       {/* Header Banner */}
-      <div className="bg-white border border-zinc-200/90 shadow-sm p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-zinc-200/90 shadow-sm p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-zinc-950 text-white flex items-center justify-center shadow-sm flex-shrink-0">
-            <Shield size={20} />
+          <div className="w-12 h-12 rounded-2xl bg-zinc-950 text-white flex items-center justify-center shadow-md flex-shrink-0">
+            <Shield size={22} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-zinc-950 font-black text-xl tracking-tight">Admin Control Room</h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
-                Verified Admin
-              </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-zinc-950 font-black text-xl sm:text-2xl tracking-tight">
+                Admin Control Room
+              </h1>
+              {isSuper ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-zinc-950 text-white">
+                  Super Admin
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
+                  Event Admin
+                </span>
+              )}
             </div>
-            <p className="text-zinc-500 text-xs mt-0.5 font-mono">
-              Signed in: {user?.email}
+            <p className="text-zinc-500 text-xs mt-0.5 font-mono truncate">
+              Signed in: <span className="text-zinc-900 font-semibold">{user?.email}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        {/* Quick Launch Buttons */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Link
+            to="/cast"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-xl bg-zinc-950 text-white hover:bg-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+            title="Open stage presentation in new tab"
+          >
+            <Tv size={13} />
+            Stage Projector
+          </Link>
           <Link
             to="/"
-            className="px-3.5 py-1.5 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 border border-zinc-200/80 text-zinc-700 hover:text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors"
           >
             <ExternalLink size={13} />
-            Public Arena
+            Public View
           </Link>
           <LiveIndicator label="STAGE LIVE" />
         </div>
       </div>
 
-      {/* Modern Navigation Tabs */}
-      <div className="scroll-x pb-1 -mx-2 px-2">
-        <div className="flex gap-1.5 min-w-max p-1.5 rounded-2xl bg-zinc-100/80 border border-zinc-200/80">
-          {ADMIN_TABS.map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => setSelectedTab(id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedTab === id
-                  ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/90 font-bold'
-                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-white/50'
-              }`}
+      {/* Navigation Suite */}
+      <div className="space-y-3">
+        {/* Category Pill Filters (Desktop & Tablet) */}
+        <div className="hidden sm:flex items-center justify-between gap-3 border-b border-zinc-200/80 pb-3">
+          <div className="flex items-center gap-1.5 bg-zinc-100/90 p-1 rounded-2xl border border-zinc-200/70">
+            {ADMIN_CATEGORIES.map((cat) => {
+              const active = activeCategory === cat.id
+              const Icon = cat.icon
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id as any)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    active
+                      ? 'bg-white text-zinc-950 shadow-xs border border-zinc-200'
+                      : 'text-zinc-500 hover:text-zinc-900 hover:bg-white/50'
+                  }`}
+                >
+                  <Icon size={13} />
+                  <span>{cat.label}</span>
+                  <span
+                    className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      active ? 'bg-zinc-950 text-white' : 'bg-zinc-200/80 text-zinc-600'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <span className="text-zinc-400 text-xs font-medium hidden md:inline">
+            Showing {displayedTabs.length} of {ADMIN_TABS.length} controls
+          </span>
+        </div>
+
+        {/* Mobile Dropdown Switcher (Zero Overflow on Small Screens) */}
+        <div className="sm:hidden bg-white p-3.5 rounded-2xl border border-zinc-200/90 shadow-sm space-y-2">
+          <div className="flex items-center justify-between text-xs text-zinc-500 font-semibold px-0.5">
+            <span className="flex items-center gap-1.5 text-zinc-700 font-bold">
+              <Sliders size={13} />
+              Jump to Admin Section
+            </span>
+            <span className="font-mono text-[11px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-700 border border-zinc-200">
+              {ADMIN_TABS.findIndex((t) => t.id === selectedTab) + 1} / {ADMIN_TABS.length}
+            </span>
+          </div>
+          <div className="relative">
+            <select
+              value={selectedTab}
+              onChange={(e) => {
+                const tab = ADMIN_TABS.find((t) => t.id === e.target.value)
+                if (tab) {
+                  setSelectedTab(tab.id)
+                  if (activeCategory !== 'all' && tab.category !== activeCategory) {
+                    setActiveCategory('all')
+                  }
+                }
+              }}
+              className="w-full appearance-none bg-zinc-50 border border-zinc-300 text-zinc-950 text-sm font-bold py-3 pl-3.5 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-950 transition-all cursor-pointer shadow-xs"
             >
-              <Icon size={14} strokeWidth={selectedTab === id ? 2 : 1.75} />
-              {label}
-              {id === 'allowlist' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
-              )}
-            </button>
-          ))}
+              <optgroup label="⚡ Live Stage Operations">
+                {ADMIN_TABS.filter((t) => t.category === 'live').map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="🏆 Startups & Judging">
+                {ADMIN_TABS.filter((t) => t.category === 'competition').map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="⚙️ Config, Payments & Access">
+                {ADMIN_TABS.filter((t) => t.category === 'system').map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-zinc-500">
+              <ChevronRight size={16} className="rotate-90" />
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Buttons Strip (Responsive with Scroll Controls & Visual Boundaries) */}
+        <div className="relative group hidden sm:block">
+          {/* Scroll Left Button */}
+          <button
+            onClick={() => scrollTabs('left')}
+            className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-zinc-300 shadow-md text-zinc-700 hover:text-zinc-950 hover:scale-105 flex items-center justify-center transition-all opacity-80 hover:opacity-100"
+            title="Scroll left"
+            aria-label="Scroll tabs left"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          {/* Scrollable Container with Subtle Padding */}
+          <div
+            ref={scrollRef}
+            className="overflow-x-auto no-scrollbar scroll-smooth px-1 py-1"
+          >
+            <div className="flex gap-2 min-w-max p-1.5 rounded-2xl bg-zinc-100/80 border border-zinc-200/80">
+              {displayedTabs.map(({ id, icon: Icon, label, shortLabel, category }) => {
+                const active = selectedTab === id
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setSelectedTab(id)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 ${
+                      active
+                        ? 'bg-zinc-950 text-white shadow-sm ring-1 ring-zinc-950 font-bold scale-[1.01]'
+                        : 'bg-white/80 hover:bg-white text-zinc-600 hover:text-zinc-950 border border-zinc-200/70 shadow-xs'
+                    }`}
+                  >
+                    <Icon size={14} strokeWidth={active ? 2.2 : 1.8} className={active ? 'text-white' : 'text-zinc-500'} />
+                    <span>{shortLabel || label}</span>
+                    {id === 'control' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    )}
+                    {id === 'allowlist' && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-200 text-zinc-800 font-mono">
+                        Security
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Scroll Right Button */}
+          <button
+            onClick={() => scrollTabs('right')}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-zinc-300 shadow-md text-zinc-700 hover:text-zinc-950 hover:scale-105 flex items-center justify-center transition-all opacity-80 hover:opacity-100"
+            title="Scroll right"
+            aria-label="Scroll tabs right"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       </div>
 
-      {/* Main Tab View */}
-      {tabContent[selectedTab]}
+      {/* Active Section Context Banner — Explains What This Screen Does */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 flex items-center justify-center flex-shrink-0">
+            {currentTab?.icon && <currentTab.icon size={19} />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 font-mono">
+                {currentTab?.category === 'live'
+                  ? 'Stage Operations'
+                  : currentTab?.category === 'competition'
+                  ? 'Competition & Judging'
+                  : 'Event Administration'}
+              </span>
+              <span className="text-zinc-300">·</span>
+              <span className="text-zinc-900 font-black text-sm">{currentTab?.label}</span>
+            </div>
+            <p className="text-zinc-500 text-xs mt-0.5 leading-relaxed">
+              {currentTab?.description}
+            </p>
+          </div>
+        </div>
+
+        {/* Dynamic Context Action Buttons */}
+        <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+          {selectedTab === 'control' && (
+            <Link
+              to="/cast"
+              target="_blank"
+              className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-bold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <Tv size={13} />
+              Open Cast Projector
+            </Link>
+          )}
+          {selectedTab === 'teams' && (
+            <button
+              onClick={() => setSelectedTab('judging')}
+              className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-bold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <Trophy size={13} />
+              Switch to Jury Scores
+            </button>
+          )}
+          {selectedTab === 'timer' && (
+            <button
+              onClick={() => setSelectedTab('control')}
+              className="px-3 py-1.5 rounded-xl bg-zinc-950 text-white hover:bg-zinc-800 font-bold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <Radio size={13} />
+              Go to Live Control
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Tab View Content */}
+      <div className="min-w-0">{tabContent[selectedTab]}</div>
     </div>
   )
 }

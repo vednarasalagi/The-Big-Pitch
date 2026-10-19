@@ -222,7 +222,7 @@ export function HomePage() {
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <Link to="/live" className="flex-1">
                   <Button size="md" icon={<Radio size={14} />} className="w-full justify-center bg-zinc-950 text-white font-semibold">
-                    Go to Live Pitch Arena
+                    Go to Live Stage
                   </Button>
                 </Link>
                 <Link to="/scoreboard" className="flex-1">

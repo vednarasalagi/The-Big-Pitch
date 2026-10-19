@@ -3,12 +3,13 @@
 // Minimalist, high contrast, clean white and black theme
 // ============================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Wallet, TrendingUp, ShoppingCart, ArrowUpRight,
   ArrowDownLeft, Gift, Shield, CreditCard, AlertCircle,
-  CheckCircle2, Lock, X, ShieldCheck, ShoppingBag
+  CheckCircle2, Lock, X, ShieldCheck, ShoppingBag,
+  Zap, Sparkles, Plus, ArrowRight, Check
 } from 'lucide-react'
 import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, StatCard, ProgressBar, Badge, SectionHeader, EmptyState } from '@/components/ui'
@@ -19,13 +20,13 @@ import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { LedgerType } from '@/types'
 
-const PURCHASE_PACKAGES = [
-  { points: 50, rupees: 5, label: 'Starter' },
-  { points: 100, rupees: 10, label: 'Standard', popular: true },
-  { points: 200, rupees: 20, label: 'Growth' },
-  { points: 500, rupees: 50, label: 'Investor' },
-  { points: 1000, rupees: 100, label: 'Principal' },
-]
+export interface PurchasePackage {
+  points: number
+  rupees: number
+  label: string
+  popular?: boolean
+  badge?: string
+}
 
 const ledgerIcon: Record<LedgerType, React.ReactNode> = {
   free_grant: <Gift size={14} className="text-zinc-900" />,
@@ -327,6 +328,15 @@ function RazorpayCheckoutModal({
           </Button>
         </div>
 
+        {/* Legal & Compliance Notice */}
+        <p className="text-[11px] text-zinc-400 text-center leading-relaxed px-1">
+          By proceeding, you agree to our{' '}
+          <Link to="/terms" target="_blank" className="text-zinc-700 hover:text-zinc-950 font-bold underline">Terms & Conditions</Link>
+          {' '}and{' '}
+          <Link to="/terms#refunds" target="_blank" className="text-zinc-700 hover:text-zinc-950 font-bold underline">Refund Policy</Link>.
+          Digital simulation points are delivered instantly.
+        </p>
+
         {/* Trust Seal */}
         <div className="pt-2 border-t border-zinc-100 flex items-center justify-center gap-3 text-[10px] text-zinc-400">
           <span className="flex items-center gap-1">
@@ -346,7 +356,39 @@ export function WalletPage() {
   const { user } = useAuthStore()
   const { wallet, ledger, investments, setWallet } = useWalletStore()
   const { event } = useEventStore()
-  const [buyModal, setBuyModal] = useState<typeof PURCHASE_PACKAGES[0] | null>(null)
+  const [buyModal, setBuyModal] = useState<PurchasePackage | null>(null)
+  const [customRupeesInput, setCustomRupeesInput] = useState<string>('')
+
+  const config = event?.config
+  const pointsPerRupee = Math.max(1, config?.pointsPerRupee ?? 10)
+  const maxPaid = Math.max(5, config?.maxPaidPurchaseRupees ?? 100)
+  const spentRupees = wallet?.totalPaidRupees ?? 0
+  const remainingAllowance = Math.max(0, maxPaid - spentRupees)
+  const available = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
+
+  // Dynamically generate packages according to active event config
+  const purchasePackages = useMemo<PurchasePackage[]>(() => {
+    const baseTiers = [
+      { rupees: 5, label: 'Starter', popular: false, badge: 'Budget' },
+      { rupees: 10, label: 'Standard', popular: true, badge: 'Most Popular' },
+      { rupees: 20, label: 'Growth', popular: false, badge: 'Value Pack' },
+      { rupees: 50, label: 'Venture', popular: false, badge: 'High Impact' },
+      { rupees: 100, label: 'Principal', popular: false, badge: 'Power Backer' },
+      { rupees: 200, label: 'Angel Tier', popular: false, badge: 'Angel' },
+      { rupees: 500, label: 'Syndicate', popular: false, badge: 'Syndicate' },
+    ]
+
+    const filtered = baseTiers.filter(t => t.rupees <= maxPaid)
+    const tiersToUse = filtered.length >= 2 ? filtered : baseTiers.slice(0, 3)
+
+    return tiersToUse.map(t => ({
+      points: t.rupees * pointsPerRupee,
+      rupees: t.rupees,
+      label: t.label,
+      popular: t.popular,
+      badge: t.badge,
+    }))
+  }, [pointsPerRupee, maxPaid])
 
   if (!user) {
     return (
@@ -361,11 +403,23 @@ export function WalletPage() {
     )
   }
 
-  const config = event?.config
-  const maxPaid = config?.maxPaidPurchaseRupees ?? 100
-  const spentRupees = wallet?.totalPaidRupees ?? 0
-  const remainingAllowance = Math.max(0, maxPaid - spentRupees)
-  const available = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
+  const handleCustomBuy = () => {
+    const val = parseInt(customRupeesInput) || 0
+    if (val <= 0) {
+      toast.error('Please enter an amount of at least ₹1')
+      return
+    }
+    if (val > remainingAllowance) {
+      toast.error(`Maximum remaining purchase limit is ₹${remainingAllowance}`)
+      return
+    }
+    setBuyModal({
+      rupees: val,
+      points: val * pointsPerRupee,
+      label: 'Custom Top-Up',
+      popular: false,
+    })
+  }
 
   const handlePurchaseSuccess = async (points: number, rupees: number, paymentId?: string) => {
     const newPurchased = (wallet?.purchasedPoints ?? 0) + points
@@ -410,34 +464,285 @@ export function WalletPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6 animate-fade-in text-zinc-900">
-      <SectionHeader
-        title="My Allocation Wallet"
-        subtitle={`Event: ${event?.name ?? 'The Big Pitch'}`}
-      />
-
-      {/* Balance Overview */}
-      <div className="rounded-3xl bg-white border border-zinc-200/90 shadow-sm p-5 sm:p-8 space-y-4 sm:space-y-5">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-7 animate-fade-in text-zinc-900">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <p className="text-zinc-500 text-xs uppercase tracking-wider font-semibold mb-1">Total Available Points</p>
-          <p className="text-4xl sm:text-5xl font-black font-mono text-zinc-950 tracking-tight">{formatPoints(available)}</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight">
+            My Allocation Wallet
+          </h1>
+          <p className="text-zinc-500 text-xs sm:text-sm mt-0.5">
+            Event: <span className="font-semibold text-zinc-900">{event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}</span> • Live Investment Balance
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1">
-          <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80">
-            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold mb-1">
-              <Gift size={13} className="text-zinc-900 flex-shrink-0" />
-              <span className="truncate">Free Grant</span>
-            </div>
-            <p className="text-zinc-950 font-bold font-mono text-base sm:text-lg">{formatPoints(wallet?.freePoints ?? 0)} pts</p>
+        {/* Quick jump to buy points button */}
+        {remainingAllowance > 0 && (
+          <a
+            href="#buy-points"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold transition-all shadow-sm w-fit"
+          >
+            <Plus size={14} />
+            <span>Buy Extra Points</span>
+          </a>
+        )}
+      </div>
+
+      {/* Balance Overview Card */}
+      <div className="rounded-3xl bg-white border border-zinc-200/90 shadow-sm p-6 sm:p-8 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold mb-1">
+              Total Available Investment Points
+            </p>
+            <p className="text-4xl sm:text-6xl font-black font-mono text-zinc-950 tracking-tight">
+              {formatPoints(available)}
+            </p>
           </div>
-          <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/80">
-            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold mb-1">
-              <CreditCard size={13} className="text-zinc-900 flex-shrink-0" />
-              <span className="truncate">Purchased Extra</span>
-            </div>
-            <p className="text-zinc-950 font-bold font-mono text-base sm:text-lg">{formatPoints(wallet?.purchasedPoints ?? 0)} pts</p>
+
+          <div className="flex items-center gap-2 sm:self-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live Deployment Ready
+            </span>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-1">
+            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold">
+              <Gift size={14} className="text-zinc-900" />
+              <span>Free Welcome Grant</span>
+            </div>
+            <p className="text-zinc-950 font-bold font-mono text-xl">
+              {formatPoints(wallet?.freePoints ?? 0)}
+            </p>
+            <p className="text-[11px] text-zinc-400">Granted to you upon joining the arena</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-1">
+            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold">
+              <CreditCard size={14} className="text-zinc-900" />
+              <span>Purchased Extra Points</span>
+            </div>
+            <p className="text-zinc-950 font-bold font-mono text-xl">
+              {formatPoints(wallet?.purchasedPoints ?? 0)}
+            </p>
+            <p className="text-[11px] text-zinc-400">Acquired via secure Razorpay checkout</p>
+          </div>
+        </div>
+      </div>
+
+      {/* FEATURED: POINTS BUYING SECTION — HIGH VISIBILITY */}
+      <div id="buy-points" className="scroll-mt-20">
+        <div className="rounded-3xl bg-white border-2 border-zinc-950 p-6 sm:p-8 shadow-md space-y-6 relative overflow-hidden">
+          {/* Top Pill & Headline */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-zinc-950 text-white flex items-center gap-1.5 shadow-xs">
+                  <Zap size={13} className="text-amber-400 fill-amber-400" />
+                  Active Rate: ₹1 = {pointsPerRupee} Points
+                </span>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Instant Wallet Credit
+                </span>
+              </div>
+              <h2 className="text-2xl font-black text-zinc-950 tracking-tight pt-1">
+                Acquire Extra Points
+              </h2>
+              <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed max-w-xl">
+                Deploy heavier allocations into promising student startups during live rounds. All packages are instant and verified through official payment channels.
+              </p>
+            </div>
+
+            {/* Spending Allowance Status Pill */}
+            <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200 text-left sm:text-right min-w-[180px]">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block">
+                Your Remaining Allowance
+              </span>
+              <span className="text-lg font-black font-mono text-zinc-950">
+                ₹{remainingAllowance} / ₹{maxPaid}
+              </span>
+              <span className="text-[11px] text-zinc-500 block">
+                {remainingAllowance > 0
+                  ? `Can acquire up to ${formatPoints(remainingAllowance * pointsPerRupee)}`
+                  : 'Event maximum cap reached'}
+              </span>
+            </div>
+          </div>
+
+          {/* Progress Bar of Event Allowance */}
+          <div className="space-y-1.5 bg-zinc-50/80 p-3.5 rounded-2xl border border-zinc-200/70">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-zinc-700">Attendee Event Cap</span>
+              <span className="font-mono font-bold text-zinc-900">
+                {formatRupees(spentRupees)} spent of {formatRupees(maxPaid)} limit
+              </span>
+            </div>
+            <ProgressBar
+              value={spentRupees}
+              max={maxPaid}
+              showLabel={false}
+            />
+          </div>
+
+          {remainingAllowance > 0 ? (
+            <div className="space-y-5">
+              {/* Dynamic Package Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {purchasePackages.map((pkg) => {
+                  const isAvailable = pkg.rupees <= remainingAllowance
+                  return (
+                    <div
+                      key={pkg.rupees}
+                      className={`relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl border transition-all ${
+                        pkg.popular
+                          ? 'border-zinc-950 ring-2 ring-zinc-950/20 bg-zinc-50/50 shadow-sm'
+                          : 'border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-xs'
+                      } ${!isAvailable ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      {pkg.popular && (
+                        <span className="absolute -top-2.5 right-4 bg-zinc-950 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
+                          Most Popular
+                        </span>
+                      )}
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                            {pkg.label}
+                          </span>
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            ₹1 = {pointsPerRupee} pts
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-950 tracking-tight">
+                            +{formatPoints(pkg.points)}
+                          </p>
+                          <p className="text-zinc-500 text-xs">
+                            Instant points added to wallet
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 mt-2 border-t border-zinc-100 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] text-zinc-400 uppercase font-bold block">Cost</span>
+                          <span className="font-mono font-black text-lg text-zinc-950">
+                            {formatRupees(pkg.rupees)}
+                          </span>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={() => setBuyModal(pkg)}
+                          className={`px-4 py-2 font-bold text-xs shadow-xs justify-center ${
+                            pkg.popular
+                              ? 'bg-zinc-950 text-white hover:bg-zinc-800'
+                              : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                          }`}
+                        >
+                          Buy with UPI
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Custom Rupee Top-Up Calculator */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-zinc-950" />
+                    Custom Top-Up Calculator (Enter any amount)
+                  </span>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    Max: ₹{remainingAllowance}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={remainingAllowance}
+                      placeholder={`Enter amount (1 - ${remainingAllowance})`}
+                      value={customRupeesInput}
+                      onChange={(e) => setCustomRupeesInput(e.target.value)}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-300 text-sm font-mono font-bold text-zinc-950 focus:outline-none focus:border-zinc-950"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-start gap-3">
+                    <span className="text-xs text-zinc-600 font-mono font-bold whitespace-nowrap">
+                      = {formatPoints((parseInt(customRupeesInput) || 0) * pointsPerRupee)}
+                    </span>
+
+                    <Button
+                      size="sm"
+                      onClick={handleCustomBuy}
+                      disabled={!customRupeesInput || (parseInt(customRupeesInput) || 0) <= 0 || (parseInt(customRupeesInput) || 0) > remainingAllowance}
+                      className="bg-zinc-950 text-white hover:bg-zinc-800 font-bold text-xs px-5 py-2.5"
+                    >
+                      Buy Custom
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Methods Banner */}
+              <div className="pt-2 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-zinc-500">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-zinc-700">Supported Payment Methods:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                    UPI (Google Pay, PhonePe, Paytm, QR)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                    Cards (Visa, RuPay, Mastercard)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                    NetBanking
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-semibold text-emerald-700">
+                  <CheckCircle2 size={13} />
+                  <span>Official Razorpay Gateway</span>
+                </div>
+              </div>
+
+              {/* E-Commerce Compliance & Policies Reference */}
+              <div className="pt-2 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-emerald-600" />
+                  <span>Digital Goods Delivery • Free Shipping (₹0.00) • 100% Secure via Razorpay</span>
+                </span>
+                <div className="flex items-center gap-3 text-zinc-600 font-semibold">
+                  <Link to="/terms" className="hover:text-zinc-950 underline">Terms & Conditions</Link>
+                  <Link to="/privacy" className="hover:text-zinc-950 underline">Privacy Policy</Link>
+                  <Link to="/terms#refunds" className="hover:text-zinc-950 underline">Refunds</Link>
+                  <Link to="/terms#delivery" className="hover:text-zinc-950 underline">Delivery</Link>
+                  <Link to="/terms#contact" className="hover:text-zinc-950 underline">Contact</Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-200 text-center space-y-1">
+              <p className="font-bold text-zinc-900 text-sm">
+                Maximum Event Purchase Allowance Reached
+              </p>
+              <p className="text-zinc-500 text-xs">
+                To keep the pitch tournament fair for all founders, you have reached the maximum allowed limit of {formatRupees(maxPaid)}.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -455,64 +760,6 @@ export function WalletPage() {
           icon={<ArrowUpRight size={18} />}
         />
       </div>
-
-      {/* Purchase Allowance */}
-      <Card className="p-5 space-y-3 border-zinc-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between">
-          <p className="text-zinc-950 font-bold text-sm">Attendee Extra Purchase Limit</p>
-          <Badge variant={remainingAllowance === 0 ? 'rose' : 'blue'}>
-            {remainingAllowance === 0 ? 'Allowance Reached' : `₹${remainingAllowance} remaining`}
-          </Badge>
-        </div>
-        <ProgressBar
-          value={spentRupees}
-          max={maxPaid}
-          showLabel
-          label={`${formatRupees(spentRupees)} of ${formatRupees(maxPaid)} allocated cap`}
-        />
-        <p className="text-zinc-500 text-xs leading-relaxed">
-          To maintain fair play, each attendee can purchase up to {formatRupees(maxPaid)} worth of extra points per event.
-          {config?.pointsPerRupee && ` Conversion rate: ${config.pointsPerRupee} points per ₹1.`}
-        </p>
-      </Card>
-
-      {/* Buy More Points */}
-      {remainingAllowance > 0 && (
-        <div className="space-y-3">
-          <SectionHeader
-            title="Acquire Extra Points"
-            subtitle={`${config?.pointsPerRupee ?? 10} points per ₹1`}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {PURCHASE_PACKAGES.filter(p => p.rupees <= remainingAllowance).map(pkg => (
-              <button
-                key={pkg.points}
-                onClick={() => setBuyModal(pkg)}
-                className={`
-                  relative flex items-center justify-between p-4 rounded-2xl bg-white border transition-all text-left shadow-sm
-                  ${pkg.popular
-                    ? 'border-zinc-950 ring-1 ring-zinc-950/20 hover:shadow-md'
-                    : 'border-zinc-200 hover:border-zinc-400 hover:shadow-sm'}
-                `}
-              >
-                {pkg.popular && (
-                  <span className="absolute -top-2 right-4 bg-zinc-950 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    POPULAR
-                  </span>
-                )}
-                <div>
-                  <p className="text-zinc-950 font-bold font-mono text-lg">{formatPoints(pkg.points)} pts</p>
-                  <p className="text-zinc-500 text-xs font-medium">{pkg.label} Package</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-950 font-bold font-mono text-sm">{formatRupees(pkg.rupees)}</span>
-                  <ShoppingCart size={15} className="text-zinc-400" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Transaction History */}
       <div className="space-y-3">
@@ -550,8 +797,8 @@ export function WalletPage() {
         <RazorpayCheckoutModal
           pkg={buyModal}
           user={user}
-          eventId={event?.id || 'default'}
-          eventName={event?.name || 'THE BIG PITCH'}
+          eventId={event?.id || '11111111-0000-0000-0000-000000000001'}
+          eventName={event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}
           onClose={() => setBuyModal(null)}
           onSuccess={handlePurchaseSuccess}
         />

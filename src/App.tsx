@@ -14,6 +14,8 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AdminDashboard } from '@/pages/AdminDashboard'
 import { CastScreenPage } from '@/pages/CastScreenPage'
 import { AccessDeniedPage } from '@/pages/AccessDeniedPage'
+import { TermsPage } from '@/pages/TermsPage'
+import { PrivacyPage } from '@/pages/PrivacyPage'
 import { AdminGuard }     from '@/components/auth/AdminGuard'
 import { useAuthStore, useEventStore, useWalletStore } from '@/store'
 import { useEffect, useState } from 'react'
@@ -118,7 +120,18 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe()
 
-    // 3. Subscribe to user's wallet updates
+    // 3. Subscribe to event configuration changes (points per rupee, purchase caps, etc.)
+    const configChannel = supabase
+      .channel('config-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_config' }, async () => {
+        const activeEvent = await getActiveEvent()
+        if (activeEvent) {
+          useEventStore.getState().setEvent(activeEvent)
+        }
+      })
+      .subscribe()
+
+    // 4. Subscribe to user's wallet updates
     let walletChannel: any = null
     if (user && event) {
       walletChannel = supabase
@@ -138,6 +151,7 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       teamChannel.unsubscribe()
       roundChannel.unsubscribe()
+      configChannel.unsubscribe()
       if (walletChannel) walletChannel.unsubscribe()
     }
   }, [event?.id, user?.id])
@@ -169,6 +183,8 @@ export default function App() {
           updatedAt:   new Date().toISOString(),
           isVerified:  !!session.user.email_confirmed_at,
         })
+      } else {
+        setUser(null)
       }
       setLoading(false)
     })
@@ -260,6 +276,19 @@ export default function App() {
               <AdminDashboard />
             </AdminGuard>
           } />
+          {/* Legal Compliance Routes — Consolidated into Terms and Privacy */}
+          <Route path="/terms"                 element={<TermsPage />} />
+          <Route path="/terms-and-conditions"  element={<TermsPage />} />
+          <Route path="/privacy"               element={<PrivacyPage />} />
+          <Route path="/privacy-policy"        element={<PrivacyPage />} />
+          <Route path="/refund-policy"         element={<TermsPage />} />
+          <Route path="/cancellation-refund"   element={<TermsPage />} />
+          <Route path="/cancellation-and-refund" element={<TermsPage />} />
+          <Route path="/shipping-policy"       element={<TermsPage />} />
+          <Route path="/delivery-policy"       element={<TermsPage />} />
+          <Route path="/contact"               element={<TermsPage />} />
+          <Route path="/contact-us"            element={<TermsPage />} />
+
           <Route path="/cast"          element={<CastScreenPage />} />
           <Route path="/projector"     element={<CastScreenPage />} />
           <Route path="*"              element={<NotFoundPage />} />

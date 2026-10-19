@@ -57,7 +57,7 @@ export async function getActiveEvent(): Promise<Event | null> {
 
     return {
       id: eventData.id,
-      name: eventData.name,
+      name: (eventData.name && !eventData.name.toLowerCase().includes('pitch arena')) ? eventData.name : 'THE BIG PITCH',
       tagline: eventData.tagline,
       logoUrl: eventData.logo_url,
       bannerUrl: eventData.banner_url,
@@ -1083,13 +1083,18 @@ export async function closeInvestmentWindow(roundId: string): Promise<boolean> {
  * Update event configuration in Supabase database.
  */
 export async function updateEventConfig(eventId: string, configUpdates: Partial<EventConfig>): Promise<boolean> {
-  if (!supabase || !eventId) return false
+  if (!supabase) return false
+  const validEventId = (eventId && eventId.length === 36) ? eventId : '11111111-0000-0000-0000-000000000001'
   try {
     const payload: any = {}
     if (configUpdates.freePointsAllocation !== undefined) payload.free_points_allocation = configUpdates.freePointsAllocation
     if (configUpdates.pointsPerRupee !== undefined) payload.points_per_rupee = configUpdates.pointsPerRupee
     if (configUpdates.maxPaidPurchaseRupees !== undefined) payload.max_paid_purchase_rupees = configUpdates.maxPaidPurchaseRupees
-    if (configUpdates.maxPaidPoints !== undefined) payload.max_paid_points = configUpdates.maxPaidPoints
+    if (configUpdates.maxPaidPoints !== undefined) {
+      payload.max_paid_points = configUpdates.maxPaidPoints
+    } else if (configUpdates.maxPaidPurchaseRupees !== undefined && configUpdates.pointsPerRupee !== undefined) {
+      payload.max_paid_points = configUpdates.maxPaidPurchaseRupees * configUpdates.pointsPerRupee
+    }
     if (configUpdates.minInvestmentAmount !== undefined) payload.min_investment_amount = configUpdates.minInvestmentAmount
     if (configUpdates.maxInvestmentAmount !== undefined) payload.max_investment_amount = configUpdates.maxInvestmentAmount
     if (configUpdates.allowMultipleInvestments !== undefined) payload.allow_multiple_investments = configUpdates.allowMultipleInvestments
@@ -1103,7 +1108,7 @@ export async function updateEventConfig(eventId: string, configUpdates: Partial<
     const { error } = await supabase
       .from(TABLES.EVENT_CONFIG)
       .update(payload)
-      .eq('event_id', eventId)
+      .eq('event_id', validEventId)
 
     if (error) {
       console.error('Error updating event_config in Supabase:', error)

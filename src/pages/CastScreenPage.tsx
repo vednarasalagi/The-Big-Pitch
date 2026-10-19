@@ -229,7 +229,9 @@ export function CastScreenPage() {
               <BrandLogo size={24} />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-zinc-950 text-sm sm:text-base tracking-tight">{event?.name || 'The Big Pitch'}</span>
+                  <span className="font-black text-zinc-950 text-sm sm:text-base tracking-tight">
+                    {event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}
+                  </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-zinc-100 text-zinc-800 border border-zinc-200">
                     Stage Projection
                   </span>

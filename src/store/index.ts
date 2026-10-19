@@ -11,6 +11,7 @@ import type {
   LivePitchState, EventConfig, ActivityItem,
 } from '@/types'
 import { resolveUserRole } from '@/lib/adminConfig'
+import { supabase } from '@/lib/supabase'
 
 // ── 1. Auth Store ──────────────────────────────────────────
 interface AuthState {
@@ -18,7 +19,7 @@ interface AuthState {
   isLoading: boolean
   setUser: (user: UserProfile | null) => void
   setLoading: (loading: boolean) => void
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -35,7 +36,34 @@ export const useAuthStore = create<AuthState>()(
         set({ user: { ...user, role: verifiedRole } })
       },
       setLoading: (isLoading) => set({ isLoading }),
-      logout: () => set({ user: null }),
+      logout: async () => {
+        try {
+          if (supabase) {
+            await supabase.auth.signOut()
+          }
+        } catch (err) {
+          console.error('Supabase sign-out error:', err)
+        } finally {
+          // Clear Zustand user & wallet stores
+          set({ user: null })
+          useWalletStore.getState().setWallet(null)
+          useWalletStore.getState().setLedger([])
+          useWalletStore.getState().setInvestments([])
+          useWalletStore.getState().setRewards([])
+
+          // Remove any Supabase session tokens from localStorage as a failsafe
+          try {
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                localStorage.removeItem(key)
+              }
+            })
+            localStorage.removeItem('pitch-arena-auth')
+          } catch {
+            // ignore
+          }
+        }
+      },
     }),
     { name: 'pitch-arena-auth' }
   )

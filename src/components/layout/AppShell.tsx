@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuthStore, useEventStore, useNotificationStore, useWalletStore } from '@/store'
 import { Avatar, LiveIndicator, BrandLogo } from '@/components/ui'
+import { Footer } from '@/components/layout/Footer'
 import { formatPoints } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -38,9 +39,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === 'admin'
   const totalPoints = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
 
-  const handleLogout = () => {
-    logout()
-    toast.success('Signed out successfully')
+  const handleLogout = async () => {
+    setMenuOpen(false)
+    try {
+      await logout()
+      toast.success('Signed out successfully')
+    } catch {
+      toast.error('Sign out error. Please try again.')
+    }
     navigate('/')
   }
 
@@ -204,7 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
               >
                 <Radio size={16} className="text-zinc-500" />
-                <span>Live Pitch Arena</span>
+                <span>Live Pitch Stage</span>
                 {isLive && <span className="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
               </button>
 
@@ -250,6 +256,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}>
         {children}
       </main>
+
+      {/* Enterprise Compliance Footer */}
+      <Footer />
 
       {/* Mobile Bottom Navigation Bar (Ultra-clean, touch-friendly, high contrast) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden backdrop-blur-2xl bg-white/95 border-t border-zinc-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[max(0.35rem,env(safe-area-inset-bottom,0px))]">

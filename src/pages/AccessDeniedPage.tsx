@@ -19,8 +19,8 @@ export function AccessDeniedPage({ userEmail }: AccessDeniedPageProps) {
 
   const currentEmail = userEmail || user?.email || 'Unknown Account'
 
-  const handleSignOutAndSwitch = () => {
-    logout()
+  const handleSignOutAndSwitch = async () => {
+    await logout()
     toast.info('Signed out. Please sign in with an authorized administrator account.')
     navigate('/auth?redirect=/admin')
   }
