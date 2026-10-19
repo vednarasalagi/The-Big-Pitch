@@ -190,13 +190,13 @@ export function ResetPasswordPage() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-white p-7 sm:p-8 space-y-5 border border-zinc-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.05)] rounded-2xl relative">
+        <div className="skeuo-surface p-7 sm:p-8 space-y-5 rounded-2xl relative">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-800 text-[11px] font-bold mb-2">
+            <div className="skeuo-token inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-zinc-800 text-[11px] font-bold mb-2">
               <KeyRound size={12} className="text-zinc-900" />
               <span>Password Recovery</span>
             </div>
-            <h2 className="text-xl font-black text-zinc-950 tracking-tight">
+            <h2 className="text-xl font-black text-zinc-950 tracking-tight skeuo-text-emboss">
               {step === 'request' ? 'Reset Your Password' : 'Enter Verification Code'}
             </h2>
             <p className="text-zinc-500 text-xs mt-1">
@@ -230,18 +230,19 @@ export function ResetPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="arena-input pl-3 w-full text-sm"
+                  className="arena-input pl-3.5 pr-3 py-2.5 w-full text-sm rounded-xl border border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                 />
               </div>
 
-              <Button
+              <button
                 type="submit"
-                loading={loading}
-                className="w-full justify-center bg-zinc-950 text-white font-bold py-2.5 text-sm shadow-sm"
-                icon={<ArrowRight size={15} />}
+                disabled={loading}
+                className="skeuo-btn-primary rounded-xl w-full justify-center font-bold py-3 text-sm flex items-center gap-2 disabled:opacity-50"
               >
-                Send Reset Code
-              </Button>
+                {loading && <RefreshCw size={14} className="animate-spin" />}
+                <span>Send Reset Code</span>
+                {!loading && <ArrowRight size={15} />}
+              </button>
 
               <div className="text-center pt-2">
                 <Link
@@ -282,7 +283,7 @@ export function ResetPasswordPage() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                   placeholder="123456"
-                  className="arena-input text-center text-xl font-mono font-black tracking-widest w-full py-2.5"
+                  className="skeuo-sunken text-center text-2xl font-mono font-black tracking-widest w-full py-3.5 text-zinc-950 rounded-2xl"
                 />
               </div>
 
@@ -299,7 +300,7 @@ export function ResetPasswordPage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="arena-input pl-3 pr-10 w-full text-sm font-mono"
+                    className="arena-input pl-3.5 pr-10 py-2.5 w-full text-sm font-mono rounded-xl border border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                   />
                   <button
                     type="button"
@@ -324,18 +325,19 @@ export function ResetPasswordPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="arena-input pl-3 w-full text-sm font-mono"
+                  className="arena-input pl-3.5 pr-10 py-2.5 w-full text-sm font-mono rounded-xl border border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                 />
               </div>
 
-              <Button
+              <button
                 type="submit"
-                loading={loading}
-                className="w-full justify-center bg-zinc-950 text-white font-bold py-2.5 text-sm shadow-sm"
-                icon={<CheckCircle2 size={15} />}
+                disabled={loading}
+                className="skeuo-btn-primary rounded-xl w-full justify-center font-bold py-3 text-sm flex items-center gap-2 disabled:opacity-50"
               >
-                Set New Password & Sign In
-              </Button>
+                {loading && <RefreshCw size={14} className="animate-spin" />}
+                <CheckCircle2 size={15} />
+                <span>Set New Password & Sign In</span>
+              </button>
 
               <div className="flex items-center justify-between text-xs pt-1">
                 <button

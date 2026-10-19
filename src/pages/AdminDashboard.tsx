@@ -207,11 +207,14 @@ function OverviewTab() {
       </div>
 
       {/* Active round status banner */}
+      {/* Active round status banner */}
       {activeRound && (
-        <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm relative overflow-hidden">
+        <div className="skeuo-surface p-6 rounded-2xl relative overflow-hidden">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="skeuo-led-bezel">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse block shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              </div>
               <h3 className="text-zinc-950 font-black text-base tracking-tight">Active Pitch Round</h3>
             </div>
             <StatusBadge status={activeRound.status} />
@@ -227,7 +230,7 @@ function OverviewTab() {
             </div>
             <Link
               to="/live"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-950 text-white font-semibold text-xs hover:bg-zinc-800 transition-colors w-fit shadow-sm"
+              className="skeuo-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold w-fit"
             >
               <Eye size={14} />
               Open Live Stream
@@ -239,14 +242,14 @@ function OverviewTab() {
       {/* Two columns: Team rankings preview + Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Team Leaderboard Preview */}
-        <div className="bg-white border border-zinc-200/90 rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="skeuo-surface rounded-2xl p-5 space-y-4">
           <div className="flex items-center justify-between">
             <SectionHeader title="Team Rankings" subtitle="Real-time leaderboard" />
             <Link to="/scoreboard" className="text-xs font-bold text-zinc-900 hover:underline">View All →</Link>
           </div>
           <div className="space-y-2">
             {teams.slice(0, 4).map((t, i) => (
-              <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+              <div key={t.id} className="skeuo-sunken flex items-center justify-between p-3 rounded-xl">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono font-bold text-zinc-400 w-5">#{i + 1}</span>
                   <div>
@@ -264,15 +267,15 @@ function OverviewTab() {
         </div>
 
         {/* Recent Audit Log */}
-        <div className="bg-white border border-zinc-200/90 rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="skeuo-surface rounded-2xl p-5 space-y-4">
           <SectionHeader title="Recent Activity" subtitle="Real-time administrative events" />
           <div className="space-y-2">
             {recentLogs.length === 0 ? (
               <p className="text-zinc-400 text-xs py-6 text-center">No security actions recorded yet.</p>
             ) : (
               recentLogs.map((log: any) => (
-                <div key={log.id} className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 border border-zinc-100">
-                  <div className="w-7 h-7 rounded-lg bg-zinc-200 text-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div key={log.id} className="skeuo-sunken flex items-start gap-3 p-3 rounded-xl">
+                  <div className="skeuo-token w-7 h-7 rounded-lg text-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Activity size={12} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2900,9 +2903,9 @@ export function AdminDashboard() {
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6 animate-fade-in text-zinc-900">
       {/* Header Banner */}
-      <div className="bg-white border border-zinc-200/90 shadow-sm p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="skeuo-surface p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-950 text-white flex items-center justify-center shadow-md flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl skeuo-token-dark text-white flex items-center justify-center flex-shrink-0">
             <Shield size={22} />
           </div>
           <div className="min-w-0">
@@ -2911,11 +2914,11 @@ export function AdminDashboard() {
                 Admin Control Room
               </h1>
               {isSuper ? (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-zinc-950 text-white">
+                <span className="skeuo-token-dark px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white">
                   Super Admin
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
+                <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[10px] font-bold text-zinc-800">
                   Event Admin
                 </span>
               )}
@@ -2932,7 +2935,7 @@ export function AdminDashboard() {
             to="/cast"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-xl bg-zinc-950 text-white hover:bg-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+            className="skeuo-btn-primary px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
             title="Open stage presentation in new tab"
           >
             <Tv size={13} />
@@ -2940,7 +2943,7 @@ export function AdminDashboard() {
           </Link>
           <Link
             to="/"
-            className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 border border-zinc-200/80 text-zinc-700 hover:text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="skeuo-btn-secondary px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
           >
             <ExternalLink size={13} />
             Public View
@@ -2953,7 +2956,7 @@ export function AdminDashboard() {
       <div className="space-y-3">
         {/* Category Pill Filters (Desktop & Tablet) */}
         <div className="hidden sm:flex items-center justify-between gap-3 border-b border-zinc-200/80 pb-3">
-          <div className="flex items-center gap-1.5 bg-zinc-100/90 p-1 rounded-2xl border border-zinc-200/70">
+          <div className="skeuo-pill-track p-1 flex items-center gap-1">
             {ADMIN_CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id
               const Icon = cat.icon
@@ -2961,17 +2964,17 @@ export function AdminDashboard() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id as any)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     active
-                      ? 'bg-white text-zinc-950 shadow-xs border border-zinc-200'
-                      : 'text-zinc-500 hover:text-zinc-900 hover:bg-white/50'
+                      ? 'skeuo-pill-active'
+                      : 'skeuo-pill-inactive'
                   }`}
                 >
                   <Icon size={13} />
                   <span>{cat.label}</span>
                   <span
                     className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      active ? 'bg-zinc-950 text-white' : 'bg-zinc-200/80 text-zinc-600'
+                      active ? 'bg-zinc-950 text-white' : 'bg-zinc-200/80 text-zinc-700'
                     }`}
                   >
                     {cat.count}
@@ -2987,13 +2990,13 @@ export function AdminDashboard() {
         </div>
 
         {/* Mobile Dropdown Switcher (Zero Overflow on Small Screens) */}
-        <div className="sm:hidden bg-white p-3.5 rounded-2xl border border-zinc-200/90 shadow-sm space-y-2">
+        <div className="sm:hidden skeuo-surface p-3.5 rounded-2xl space-y-2">
           <div className="flex items-center justify-between text-xs text-zinc-500 font-semibold px-0.5">
             <span className="flex items-center gap-1.5 text-zinc-700 font-bold">
               <Sliders size={13} />
               Jump to Admin Section
             </span>
-            <span className="font-mono text-[11px] bg-zinc-100 px-2 py-0.5 rounded-full text-zinc-700 border border-zinc-200">
+            <span className="skeuo-token font-mono text-[11px] px-2 py-0.5 rounded-full text-zinc-700">
               {ADMIN_TABS.findIndex((t) => t.id === selectedTab) + 1} / {ADMIN_TABS.length}
             </span>
           </div>
@@ -3044,7 +3047,7 @@ export function AdminDashboard() {
           {/* Scroll Left Button */}
           <button
             onClick={() => scrollTabs('left')}
-            className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-zinc-300 shadow-md text-zinc-700 hover:text-zinc-950 hover:scale-105 flex items-center justify-center transition-all opacity-80 hover:opacity-100"
+            className="skeuo-btn-secondary absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center p-0 text-zinc-700"
             title="Scroll left"
             aria-label="Scroll tabs left"
           >
@@ -3056,23 +3059,23 @@ export function AdminDashboard() {
             ref={scrollRef}
             className="overflow-x-auto no-scrollbar scroll-smooth px-1 py-1"
           >
-            <div className="flex gap-2 min-w-max p-1.5 rounded-2xl bg-zinc-100/80 border border-zinc-200/80">
+            <div className="skeuo-pill-track flex gap-2 min-w-max p-1.5 rounded-2xl">
               {displayedTabs.map(({ id, icon: Icon, label, shortLabel, category }) => {
                 const active = selectedTab === id
                 return (
                   <button
                     key={id}
                     onClick={() => setSelectedTab(id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 ${
+                    className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 ${
                       active
-                        ? 'bg-zinc-950 text-white shadow-sm ring-1 ring-zinc-950 font-bold scale-[1.01]'
-                        : 'bg-white/80 hover:bg-white text-zinc-600 hover:text-zinc-950 border border-zinc-200/70 shadow-xs'
+                        ? 'skeuo-pill-active'
+                        : 'skeuo-pill-inactive'
                     }`}
                   >
-                    <Icon size={14} strokeWidth={active ? 2.2 : 1.8} className={active ? 'text-white' : 'text-zinc-500'} />
+                    <Icon size={14} strokeWidth={active ? 2.2 : 1.8} className={active ? 'text-zinc-950' : 'text-zinc-500'} />
                     <span>{shortLabel || label}</span>
                     {id === 'control' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     )}
                     {id === 'allowlist' && (
                       <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-zinc-200 text-zinc-800 font-mono">
@@ -3088,7 +3091,7 @@ export function AdminDashboard() {
           {/* Scroll Right Button */}
           <button
             onClick={() => scrollTabs('right')}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-zinc-300 shadow-md text-zinc-700 hover:text-zinc-950 hover:scale-105 flex items-center justify-center transition-all opacity-80 hover:opacity-100"
+            className="skeuo-btn-secondary absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full flex items-center justify-center p-0 text-zinc-700"
             title="Scroll right"
             aria-label="Scroll tabs right"
           >
@@ -3098,9 +3101,9 @@ export function AdminDashboard() {
       </div>
 
       {/* Active Section Context Banner — Explains What This Screen Does */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="skeuo-surface p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 flex items-center justify-center flex-shrink-0">
+          <div className="skeuo-token w-10 h-10 rounded-xl text-zinc-900 flex items-center justify-center flex-shrink-0">
             {currentTab?.icon && <currentTab.icon size={19} />}
           </div>
           <div>
@@ -3127,7 +3130,7 @@ export function AdminDashboard() {
             <Link
               to="/cast"
               target="_blank"
-              className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-bold text-xs flex items-center gap-1.5 transition-colors"
+              className="skeuo-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
             >
               <Tv size={13} />
               Open Cast Projector
@@ -3136,7 +3139,7 @@ export function AdminDashboard() {
           {selectedTab === 'teams' && (
             <button
               onClick={() => setSelectedTab('judging')}
-              className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-bold text-xs flex items-center gap-1.5 transition-colors"
+              className="skeuo-btn-secondary px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
             >
               <Trophy size={13} />
               Switch to Jury Scores
@@ -3145,7 +3148,7 @@ export function AdminDashboard() {
           {selectedTab === 'timer' && (
             <button
               onClick={() => setSelectedTab('control')}
-              className="px-3 py-1.5 rounded-xl bg-zinc-950 text-white hover:bg-zinc-800 font-bold text-xs flex items-center gap-1.5 transition-colors"
+              className="skeuo-btn-primary px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
             >
               <Radio size={13} />
               Go to Live Control

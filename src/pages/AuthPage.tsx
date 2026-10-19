@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
   Zap, Shield, Gift, Users, CheckCircle2, AlertCircle,
   Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft,
@@ -369,30 +370,44 @@ export function AuthPage() {
         </div>
 
         {/* Main Authentication Card */}
-        <div className="bg-white p-7 sm:p-8 space-y-5 border border-zinc-200/90 shadow-[0_4px_20px_rgba(0,0,0,0.05)] rounded-2xl relative">
-          {/* Mode Switcher Tabs (Only shown when not verifying OTP) */}
+        <div className="skeuo-surface p-7 sm:p-8 space-y-5 rounded-2xl relative">
+          {/* Mode Switcher Tabs with fluid sliding rocker (Only shown when not verifying OTP) */}
           {mode !== 'verify-otp' && (
-            <div className="flex p-1 rounded-xl bg-zinc-100 border border-zinc-200/60">
+            <div className="skeuo-pill-track p-1 flex relative rounded-2xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => { setMode('signin'); setErrorMessage(null) }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-colors duration-150 select-none z-10 ${
                   mode === 'signin'
-                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
-                    : 'text-zinc-500 hover:text-zinc-900'
+                    ? 'text-white font-bold'
+                    : 'text-zinc-600 hover:text-zinc-950'
                 }`}
               >
+                {mode === 'signin' && (
+                  <motion.div
+                    layoutId="auth-mode-active-pill"
+                    className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 32, mass: 0.75 }}
+                  />
+                )}
                 Sign In
               </button>
               <button
                 type="button"
                 onClick={() => { setMode('signup'); setErrorMessage(null) }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                className={`relative flex-1 py-2 text-xs font-semibold rounded-xl transition-colors duration-150 select-none z-10 ${
                   mode === 'signup'
-                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200/80 font-bold'
-                    : 'text-zinc-500 hover:text-zinc-900'
+                    ? 'text-white font-bold'
+                    : 'text-zinc-600 hover:text-zinc-950'
                 }`}
               >
+                {mode === 'signup' && (
+                  <motion.div
+                    layoutId="auth-mode-active-pill"
+                    className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 32, mass: 0.75 }}
+                  />
+                )}
                 Create Account
               </button>
             </div>
@@ -425,7 +440,7 @@ export function AuthPage() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="e.g. Alex Morgan"
-                        className="arena-input pl-3 w-full text-sm"
+                        className="arena-input pl-3 w-full text-sm rounded-xl border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                       />
                     </div>
                   </div>
@@ -444,7 +459,7 @@ export function AuthPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
-                      className="arena-input pl-3 w-full text-sm"
+                      className="arena-input pl-3 w-full text-sm rounded-xl border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                     />
                   </div>
                 </div>
@@ -472,7 +487,7 @@ export function AuthPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="arena-input pl-3 pr-10 w-full text-sm font-mono"
+                      className="arena-input pl-3 pr-10 w-full text-sm font-mono rounded-xl border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
                     />
                     <button
                       type="button"
@@ -486,14 +501,15 @@ export function AuthPage() {
                 </div>
 
                 {/* Submit Button */}
-                <Button
+                <button
                   type="submit"
-                  className="w-full justify-center text-sm py-2.5 font-bold bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
-                  loading={submitting}
-                  icon={<ArrowRight size={15} />}
+                  disabled={submitting}
+                  className="skeuo-btn-primary rounded-xl w-full justify-center text-sm py-3 font-bold flex items-center gap-2 disabled:opacity-50"
                 >
-                  {mode === 'signin' ? 'Sign In' : 'Create Account & Send Code'}
-                </Button>
+                  {submitting && <RefreshCw size={14} className="animate-spin" />}
+                  <span>{mode === 'signin' ? 'Sign In' : 'Create Account & Send Code'}</span>
+                  {!submitting && <ArrowRight size={15} />}
+                </button>
               </form>
 
               {/* Divider */}
@@ -505,22 +521,19 @@ export function AuthPage() {
               </div>
 
               {/* Google OAuth Button */}
-              <Button
+              <button
                 type="button"
-                variant="secondary"
                 onClick={handleGoogleSignIn}
-                className="w-full justify-center gap-3 border-zinc-200 hover:bg-zinc-50 text-zinc-800 text-xs font-semibold py-2.5 shadow-sm"
-                icon={
-                  <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
-                    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                }
+                className="skeuo-btn-secondary rounded-xl w-full justify-center gap-3 text-zinc-800 text-xs font-semibold py-3 flex items-center"
               >
+                <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                </svg>
                 Continue with Google
-              </Button>
+              </button>
             </>
           ) : (
             /* ──────────────────────────────────────────────────────── */
@@ -528,7 +541,7 @@ export function AuthPage() {
             /* ──────────────────────────────────────────────────────── */
             <div className="space-y-5 animate-fade-in">
               <div className="text-center space-y-1">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center mx-auto text-zinc-900 mb-2">
+                <div className="skeuo-token rounded-2xl w-14 h-14 mx-auto mb-2 text-zinc-900 flex items-center justify-center">
                   <Mail size={22} />
                 </div>
                 <h2 className="text-lg font-black text-zinc-950">Verify Your Email Address</h2>
@@ -560,18 +573,19 @@ export function AuthPage() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     placeholder="123456"
-                    className="arena-input text-center text-2xl font-mono font-black tracking-widest w-full py-3"
+                    className="skeuo-sunken text-center text-2xl font-mono font-black tracking-widest w-full py-3.5 text-zinc-950 rounded-2xl"
                   />
                 </div>
 
-                <Button
+                <button
                   type="submit"
-                  loading={submitting}
-                  className="w-full justify-center bg-zinc-950 text-white font-bold py-2.5 text-sm shadow-sm"
-                  icon={<CheckCircle2 size={15} />}
+                  disabled={submitting}
+                  className="skeuo-btn-primary rounded-xl w-full justify-center font-bold py-3 text-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Verify Code & Continue
-                </Button>
+                  {submitting && <RefreshCw size={14} className="animate-spin" />}
+                  <CheckCircle2 size={15} />
+                  <span>Verify Code & Continue</span>
+                </button>
 
                 <div className="text-center pt-2">
                   <button
@@ -605,9 +619,11 @@ export function AuthPage() {
         {/* Benefits List */}
         <div className="grid grid-cols-2 gap-2.5 pt-1">
           {BENEFITS.map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-zinc-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-              <Icon size={14} className="flex-shrink-0 text-zinc-900" />
-              <p className="text-zinc-600 text-xs font-medium">{text}</p>
+            <div key={text} className="skeuo-surface p-3 rounded-2xl flex items-center gap-2.5">
+              <div className="skeuo-token rounded-xl w-7 h-7 flex-shrink-0 flex items-center justify-center text-zinc-800">
+                <Icon size={13} />
+              </div>
+              <p className="text-zinc-700 text-xs font-semibold leading-tight">{text}</p>
             </div>
           ))}
         </div>

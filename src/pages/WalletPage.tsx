@@ -191,67 +191,69 @@ function RazorpayCheckoutModal({
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        className="bg-white border border-zinc-200/90 shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden text-zinc-900 my-auto"
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        className="skeuo-surface rounded-3xl w-full max-w-sm overflow-hidden text-zinc-900 my-auto shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35),inset_0_1px_0_#FFF]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-zinc-100 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-zinc-200/80 bg-gradient-to-b from-white to-zinc-50/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-zinc-950 text-white flex items-center justify-center shadow-sm flex-shrink-0">
-              <ShoppingBag size={15} />
+            <div className="w-8 h-8 rounded-xl skeuo-token-dark flex items-center justify-center flex-shrink-0">
+              <ShoppingBag size={14} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-zinc-950 font-black text-base tracking-tight leading-none truncate">Checkout</h3>
-              <p className="text-zinc-400 text-[11px] mt-1 truncate">{eventName}</p>
+              <h3 className="text-zinc-950 font-black text-base tracking-tight leading-none truncate skeuo-text-emboss">Checkout</h3>
+              <p className="text-zinc-500 text-[11px] mt-1 truncate font-medium">{eventName}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close Checkout"
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-colors flex-shrink-0"
+            className="skeuo-btn-secondary p-1.5 rounded-xl text-zinc-600 hover:text-zinc-950 transition-colors flex-shrink-0"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Content Body */}
         <div className="p-4 sm:p-5 space-y-4">
-          {/* Order Details Card */}
-          <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3.5 space-y-2.5">
+          {/* Order Details Card — Sunken Slot */}
+          <div className="rounded-2xl skeuo-sunken p-4 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <span className="font-bold text-zinc-950 text-sm block truncate">{pkg.label} Package</span>
-                <span className="text-zinc-500 text-xs">+{formatPoints(pkg.points)} Event Participation Points</span>
+                <span className="font-extrabold text-zinc-950 text-sm block truncate skeuo-text-emboss">{pkg.label} Package</span>
+                <span className="text-zinc-600 text-xs font-semibold">+{formatPoints(pkg.points)} Event Participation Points</span>
               </div>
               <span className="font-mono font-black text-xl text-zinc-950 flex-shrink-0">{formatRupees(pkg.rupees)}</span>
             </div>
 
-            <div className="border-t border-zinc-200/60 pt-2 flex items-center justify-between text-[11px] text-zinc-500">
+            <div className="border-t border-zinc-300/60 pt-2 flex items-center justify-between text-[11px] text-zinc-600 font-medium">
               <span>Attendee</span>
-              <span className="font-medium text-zinc-800 truncate max-w-[180px] text-right">
+              <span className="font-bold text-zinc-900 truncate max-w-[180px] text-right">
                 {user.displayName || user.email}
               </span>
             </div>
           </div>
 
           {/* Secure Payment Note */}
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 px-0.5">
-            <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-              <ShieldCheck size={13} className="text-emerald-600 flex-shrink-0" />
+          <div className="flex items-center justify-between text-[11px] text-zinc-500 px-0.5 font-medium">
+            <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
+              <span className="skeuo-led-bezel w-3.5 h-3.5">
+                <span className="skeuo-led-emerald" />
+              </span>
               <span>Razorpay Secure</span>
             </span>
-            <span className="text-zinc-400 text-[10px]">UPI • Cards • NetBanking</span>
+            <span className="text-zinc-500 text-[10px] font-mono">UPI • Cards • NetBanking</span>
           </div>
 
           {/* Error Notice */}
           {errorMsg && (
-            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
-              <AlertCircle size={14} className="text-rose-600 flex-shrink-0 mt-0.5" />
-              <p className="text-[11px] text-rose-800 flex-1">{errorMsg}</p>
+            <div className="p-3 rounded-2xl skeuo-sunken border border-rose-300 text-rose-900 text-xs flex items-start gap-2">
+              <AlertCircle size={15} className="text-rose-600 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-rose-800 font-semibold flex-1">{errorMsg}</p>
             </div>
           )}
 
@@ -260,7 +262,7 @@ function RazorpayCheckoutModal({
             <Button
               onClick={handleProceedToRazorpay}
               loading={loading}
-              className="w-full justify-center bg-zinc-950 text-white hover:bg-zinc-800 py-3 font-bold text-sm shadow-sm"
+              className="w-full justify-center skeuo-btn-primary py-3.5 font-black text-sm shadow-md"
               icon={<Lock size={14} />}
             >
               {loading ? 'Initializing Razorpay...' : `Pay ${formatRupees(pkg.rupees)} via Razorpay`}
@@ -270,7 +272,7 @@ function RazorpayCheckoutModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="w-full text-center text-xs text-zinc-400 hover:text-zinc-800 font-semibold py-1 transition-colors"
+              className="w-full text-center text-xs text-zinc-500 hover:text-zinc-950 font-bold py-1 transition-colors"
             >
               Cancel & Return
             </button>
@@ -279,9 +281,9 @@ function RazorpayCheckoutModal({
           {/* Legal Notice */}
           <p className="text-[10px] text-zinc-400 text-center leading-normal px-1">
             You are purchasing <strong>virtual event participation tokens</strong> (digital goods) for audience scoring at a live college fest. No financial investment is made in any startup.{' '}
-            <Link to="/terms" target="_blank" className="text-zinc-600 font-semibold hover:underline">Terms</Link>
+            <Link to="/terms" target="_blank" className="text-zinc-600 font-bold hover:underline">Terms</Link>
             {' '}&{' '}
-            <Link to="/terms#refunds" target="_blank" className="text-zinc-600 font-semibold hover:underline">Refund Policy</Link>.
+            <Link to="/terms#refunds" target="_blank" className="text-zinc-600 font-bold hover:underline">Refund Policy</Link>.
           </p>
         </div>
       </motion.div>
@@ -330,12 +332,19 @@ export function WalletPage() {
 
   if (!user) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 text-zinc-900">
+      <div className="max-w-2xl mx-auto px-4 py-12 text-zinc-900 animate-fade-in">
         <EmptyState
-          icon={<Wallet size={40} className="text-zinc-400" />}
+          icon={<Wallet size={32} className="text-zinc-800" />}
           title="Sign in to view your allocation wallet"
           description={`Every attendee receives ${event?.config.freePointsAllocation ?? 500} free points upon sign in to back live pitching startups.`}
-          action={<Link to="/auth"><Button className="bg-zinc-950 text-white">Sign In to Continue</Button></Link>}
+          action={
+            <Link
+              to="/auth?redirect=/wallet"
+              className="skeuo-btn-primary px-6 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center gap-2"
+            >
+              Sign In to Continue
+            </Link>
+          }
         />
       </div>
     )
@@ -406,10 +415,10 @@ export function WalletPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight skeuo-text-emboss">
             My Allocation Wallet
           </h1>
-          <p className="text-zinc-500 text-xs sm:text-sm mt-0.5">
+          <p className="text-zinc-500 text-xs sm:text-sm mt-0.5 font-medium">
             Event: <span className="font-semibold text-zinc-900">{event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}</span> • Event Participation Points Wallet
           </p>
         </div>
@@ -418,7 +427,7 @@ export function WalletPage() {
         {remainingAllowance > 0 && (
           <a
             href="#buy-points"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold transition-all shadow-sm w-fit"
+            className="skeuo-btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold w-fit"
           >
             <Plus size={14} />
             <span>Buy Extra Points</span>
@@ -426,83 +435,86 @@ export function WalletPage() {
         )}
       </div>
 
-      {/* Balance Overview Card */}
-      <div className="rounded-3xl bg-white border border-zinc-200/90 shadow-sm p-6 sm:p-8 space-y-5">
+      {/* Balance Overview Console — Tactile Instrument Vault */}
+      <div className="skeuo-surface rounded-3xl p-6 sm:p-8 space-y-5 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold mb-1">
+            <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold mb-1 skeuo-text-emboss">
               Available Event Participation Points
             </p>
-            <p className="text-4xl sm:text-6xl font-black font-mono text-zinc-950 tracking-tight">
+            <p className="text-4xl sm:text-6xl font-black font-mono text-zinc-950 tracking-tight skeuo-text-emboss">
               {formatPoints(available)}
             </p>
           </div>
 
           <div className="flex items-center gap-2 sm:self-center">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Live Deployment Ready
+            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white border border-emerald-300 text-emerald-950 shadow-[inset_0_1px_0_#FFF,0_1px_3px_rgba(16,185,129,0.15)]">
+              <span className="skeuo-led-bezel">
+                <span className="skeuo-led-emerald animate-pulse" />
+              </span>
+              <span className="font-extrabold uppercase tracking-wide text-[11px]">Live Deployment Ready</span>
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold">
+        {/* CNC-Milled Sunken Grants & Purchases Wells */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="p-4 rounded-2xl skeuo-sunken space-y-1">
+            <div className="flex items-center gap-1.5 text-zinc-700 text-xs font-bold uppercase tracking-wider">
               <Gift size={14} className="text-zinc-900" />
-              <span>Free Welcome Grant</span>
+              <span className="skeuo-text-emboss">Free Welcome Grant</span>
             </div>
-            <p className="text-zinc-950 font-bold font-mono text-xl">
+            <p className="text-zinc-950 font-black font-mono text-2xl">
               {formatPoints(wallet?.freePoints ?? 0)}
             </p>
-            <p className="text-[11px] text-zinc-400">Granted to you upon joining the arena</p>
+            <p className="text-[11px] text-zinc-500 font-medium">Granted to you upon joining the arena</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-1">
-            <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-semibold">
+          <div className="p-4 rounded-2xl skeuo-sunken space-y-1">
+            <div className="flex items-center gap-1.5 text-zinc-700 text-xs font-bold uppercase tracking-wider">
               <CreditCard size={14} className="text-zinc-900" />
-              <span>Purchased Extra Points</span>
+              <span className="skeuo-text-emboss">Purchased Extra Points</span>
             </div>
-            <p className="text-zinc-950 font-bold font-mono text-xl">
+            <p className="text-zinc-950 font-black font-mono text-2xl">
               {formatPoints(wallet?.purchasedPoints ?? 0)}
             </p>
-            <p className="text-[11px] text-zinc-400">Acquired via secure Razorpay checkout</p>
+            <p className="text-[11px] text-zinc-500 font-medium">Acquired via secure Razorpay checkout</p>
           </div>
         </div>
       </div>
 
       {/* FEATURED: POINTS BUYING SECTION — HIGH VISIBILITY */}
       <div id="buy-points" className="scroll-mt-20">
-        <div className="rounded-3xl bg-white border-2 border-zinc-950 p-6 sm:p-8 shadow-md space-y-6 relative overflow-hidden">
+        <div className="skeuo-surface rounded-3xl p-6 sm:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.08),inset_0_1px_0_#FFF] space-y-6 relative overflow-hidden border border-zinc-300/80">
           {/* Top Pill & Headline */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-zinc-950 text-white flex items-center gap-1.5 shadow-xs">
+                <span className="skeuo-token-dark px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
                   <Zap size={13} className="text-amber-400 fill-amber-400" />
                   Active Rate: ₹1 = {pointsPerRupee} Points
                 </span>
-                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="skeuo-token px-2.5 py-1 rounded-xl text-[11px] font-bold text-emerald-800">
                   Instant Wallet Credit
                 </span>
               </div>
-              <h2 className="text-2xl font-black text-zinc-950 tracking-tight pt-1">
+              <h2 className="text-2xl font-black text-zinc-950 tracking-tight pt-1 skeuo-text-emboss">
                 Acquire Extra Points
               </h2>
-              <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed max-w-xl">
+              <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed max-w-xl font-normal">
                 Deploy heavier allocations into promising student startups during live rounds. All packages are instant and verified through official payment channels.
               </p>
             </div>
 
             {/* Spending Allowance Status Pill */}
-            <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200 text-left sm:text-right min-w-[180px]">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block">
+            <div className="p-3.5 rounded-2xl skeuo-sunken text-left sm:text-right min-w-[180px]">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 block skeuo-text-emboss">
                 Your Remaining Allowance
               </span>
               <span className="text-lg font-black font-mono text-zinc-950">
                 ₹{remainingAllowance} / ₹{maxPaid}
               </span>
-              <span className="text-[11px] text-zinc-500 block">
+              <span className="text-[11px] text-zinc-500 block font-medium">
                 {remainingAllowance > 0
                   ? `Can acquire up to ${formatPoints(remainingAllowance * pointsPerRupee)}`
                   : 'Event maximum cap reached'}
@@ -510,48 +522,49 @@ export function WalletPage() {
             </div>
           </div>
 
-          {/* Progress Bar of Event Allowance */}
-          <div className="space-y-1.5 bg-zinc-50/80 p-3.5 rounded-2xl border border-zinc-200/70">
+          {/* Sunken Meter Track of Event Allowance */}
+          <div className="space-y-1.5 skeuo-sunken p-3.5 rounded-2xl">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-zinc-700">Attendee Event Cap</span>
-              <span className="font-mono font-bold text-zinc-900">
+              <span className="font-bold text-zinc-800 skeuo-text-emboss">Attendee Event Cap</span>
+              <span className="font-mono font-black text-zinc-950">
                 {formatRupees(spentRupees)} spent of {formatRupees(maxPaid)} limit
               </span>
             </div>
-            <ProgressBar
-              value={spentRupees}
-              max={maxPaid}
-              showLabel={false}
-            />
+            <div className="skeuo-meter-track h-2.5 rounded-full overflow-hidden p-0.5">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-zinc-800 to-zinc-950 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, (spentRupees / maxPaid) * 100))}%` }}
+              />
+            </div>
           </div>
 
           {remainingAllowance > 0 ? (
             <div className="space-y-5">
-              {/* Dynamic Package Cards Grid */}
+              {/* Dynamic Tactile Voucher Package Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {purchasePackages.map((pkg) => {
                   const isAvailable = pkg.rupees <= remainingAllowance
                   return (
                     <div
                       key={pkg.rupees}
-                      className={`relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl border transition-all ${
+                      className={`relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl transition-all ${
                         pkg.popular
-                          ? 'border-zinc-950 ring-2 ring-zinc-950/20 bg-zinc-50/50 shadow-sm'
-                          : 'border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-xs'
+                          ? 'skeuo-surface border-2 border-zinc-950 shadow-md ring-1 ring-zinc-950/20'
+                          : 'skeuo-surface-interactive'
                       } ${!isAvailable ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                       {pkg.popular && (
-                        <span className="absolute -top-2.5 right-4 bg-zinc-950 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
+                        <span className="absolute -top-2.5 right-4 skeuo-token-gold text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs">
                           Most Popular
                         </span>
                       )}
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider skeuo-text-emboss">
                             {pkg.label}
                           </span>
-                          <span className="text-[11px] font-mono text-zinc-400">
+                          <span className="text-[11px] font-mono font-bold text-zinc-400">
                             ₹1 = {pointsPerRupee} pts
                           </span>
                         </div>
@@ -560,16 +573,16 @@ export function WalletPage() {
                           <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-950 tracking-tight">
                             +{formatPoints(pkg.points)}
                           </p>
-                          <p className="text-zinc-500 text-xs">
+                          <p className="text-zinc-500 text-xs font-medium">
                             Instant points added to wallet
                           </p>
                         </div>
                       </div>
 
-                      <div className="pt-4 mt-2 border-t border-zinc-100 flex items-center justify-between gap-3">
-                        <div>
-                          <span className="text-[10px] text-zinc-400 uppercase font-bold block">Cost</span>
-                          <span className="font-mono font-black text-lg text-zinc-950">
+                      <div className="pt-4 mt-2 border-t border-zinc-200/80 flex items-center justify-between gap-3">
+                        <div className="skeuo-sunken px-2.5 py-1 rounded-xl">
+                          <span className="text-[9px] text-zinc-500 uppercase font-bold block skeuo-text-emboss">Cost</span>
+                          <span className="font-mono font-black text-base text-zinc-950 leading-tight">
                             {formatRupees(pkg.rupees)}
                           </span>
                         </div>
@@ -577,10 +590,10 @@ export function WalletPage() {
                         <Button
                           size="sm"
                           onClick={() => setBuyModal(pkg)}
-                          className={`px-4 py-2 font-bold text-xs shadow-xs justify-center ${
+                          className={`px-4 py-2 font-black text-xs justify-center ${
                             pkg.popular
-                              ? 'bg-zinc-950 text-white hover:bg-zinc-800'
-                              : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                              ? 'skeuo-btn-emerald'
+                              : 'skeuo-btn-primary'
                           }`}
                         >
                           Buy with UPI
@@ -592,20 +605,20 @@ export function WalletPage() {
               </div>
 
               {/* Custom Rupee Top-Up Calculator */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-zinc-50 border border-zinc-200/80 space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl skeuo-sunken space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5 skeuo-text-emboss">
                     <Sparkles size={14} className="text-zinc-950" />
                     Custom Top-Up Calculator (Enter any amount)
                   </span>
-                  <span className="text-xs text-zinc-500 font-mono">
+                  <span className="text-xs text-zinc-500 font-mono font-bold">
                     Max: ₹{remainingAllowance}
                   </span>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">
+                  <div className="relative flex-1 skeuo-surface rounded-xl p-0.5 flex items-center border border-zinc-300">
+                    <span className="pl-3.5 font-bold text-zinc-500 text-sm">
                       ₹
                     </span>
                     <input
@@ -615,12 +628,12 @@ export function WalletPage() {
                       placeholder={`Enter amount (1 - ${remainingAllowance})`}
                       value={customRupeesInput}
                       onChange={(e) => setCustomRupeesInput(e.target.value)}
-                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-300 text-sm font-mono font-bold text-zinc-950 focus:outline-none focus:border-zinc-950"
+                      className="w-full pl-2 pr-3.5 py-2.5 bg-transparent text-sm font-mono font-black text-zinc-950 placeholder-zinc-400 focus:outline-none"
                     />
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-start gap-3">
-                    <span className="text-xs text-zinc-600 font-mono font-bold whitespace-nowrap">
+                    <span className="text-xs text-zinc-700 font-mono font-black whitespace-nowrap skeuo-sunken px-3 py-2 rounded-xl">
                       = {formatPoints((parseInt(customRupeesInput) || 0) * pointsPerRupee)}
                     </span>
 
@@ -628,7 +641,7 @@ export function WalletPage() {
                       size="sm"
                       onClick={handleCustomBuy}
                       disabled={!customRupeesInput || (parseInt(customRupeesInput) || 0) <= 0 || (parseInt(customRupeesInput) || 0) > remainingAllowance}
-                      className="bg-zinc-950 text-white hover:bg-zinc-800 font-bold text-xs px-5 py-2.5"
+                      className="skeuo-btn-primary font-black text-xs px-5 py-2.5"
                     >
                       Buy Custom
                     </Button>
@@ -637,32 +650,34 @@ export function WalletPage() {
               </div>
 
               {/* Payment Methods Banner */}
-              <div className="pt-2 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-zinc-500">
+              <div className="pt-2 border-t border-zinc-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-zinc-500">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-zinc-700">Supported Payment Methods:</span>
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                  <span className="font-bold text-zinc-700 skeuo-text-emboss">Supported Payment Methods:</span>
+                  <span className="px-2 py-0.5 rounded-lg skeuo-token text-zinc-800 text-[11px] font-bold">
                     UPI (Google Pay, PhonePe, Paytm, QR)
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                  <span className="px-2 py-0.5 rounded-lg skeuo-token text-zinc-800 text-[11px] font-bold">
                     Cards (Visa, RuPay, Mastercard)
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 font-medium text-zinc-800">
+                  <span className="px-2 py-0.5 rounded-lg skeuo-token text-zinc-800 text-[11px] font-bold">
                     NetBanking
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 font-semibold text-emerald-700">
-                  <CheckCircle2 size={13} />
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                  <span className="skeuo-led-bezel w-3.5 h-3.5">
+                    <span className="skeuo-led-emerald" />
+                  </span>
                   <span>Official Razorpay Gateway</span>
                 </div>
               </div>
 
               {/* E-Commerce Compliance & Policies Reference */}
-              <div className="pt-2 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400">
-                <span className="flex items-center gap-1.5">
+              <div className="pt-2 border-t border-zinc-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500">
+                <span className="flex items-center gap-1.5 font-medium">
                   <ShieldCheck size={12} className="text-emerald-600" />
                   <span>Digital Goods Delivery • Free Shipping (₹0.00) • 100% Secure via Razorpay</span>
                 </span>
-                <div className="flex items-center gap-3 text-zinc-600 font-semibold">
+                <div className="flex items-center gap-3 text-zinc-700 font-bold">
                   <Link to="/terms" className="hover:text-zinc-950 underline">Terms & Conditions</Link>
                   <Link to="/privacy" className="hover:text-zinc-950 underline">Privacy Policy</Link>
                   <Link to="/terms#refunds" className="hover:text-zinc-950 underline">Refunds</Link>
@@ -672,11 +687,11 @@ export function WalletPage() {
               </div>
             </div>
           ) : (
-            <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-200 text-center space-y-1">
-              <p className="font-bold text-zinc-900 text-sm">
+            <div className="p-6 rounded-2xl skeuo-sunken text-center space-y-1">
+              <p className="font-black text-zinc-900 text-sm skeuo-text-emboss">
                 Maximum Event Purchase Allowance Reached
               </p>
-              <p className="text-zinc-500 text-xs">
+              <p className="text-zinc-500 text-xs font-medium">
                 To keep the pitch tournament fair for all founders, you have reached the maximum allowed limit of {formatRupees(maxPaid)}.
               </p>
             </div>
@@ -699,35 +714,35 @@ export function WalletPage() {
         />
       </div>
 
-      {/* Transaction History */}
+      {/* Transaction History / Ledger Console */}
       <div className="space-y-3">
         <SectionHeader title="Transaction Ledger" subtitle={`${ledger.length} records`} />
-        <Card className="divide-y divide-zinc-100 border-zinc-200 bg-white shadow-sm overflow-hidden p-0">
+        <div className="skeuo-surface rounded-3xl overflow-hidden p-0 shadow-sm divide-y divide-zinc-200/70">
           {ledger.length === 0 && (
-            <div className="p-8 text-center text-zinc-400 text-xs">
+            <div className="p-8 text-center text-zinc-500 text-xs font-medium">
               No transactions recorded yet in your allocation history.
             </div>
           )}
           {[...ledger].reverse().map(entry => (
-            <div key={entry.id} className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center flex-shrink-0">
+            <div key={entry.id} className="p-4 sm:p-4.5 flex items-center justify-between hover:bg-zinc-50/70 transition-colors">
+              <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                <div className="w-9 h-9 rounded-xl skeuo-token flex items-center justify-center flex-shrink-0">
                   {ledgerIcon[entry.type]}
                 </div>
-                <div>
-                  <p className="text-zinc-900 text-sm font-semibold">{entry.description}</p>
-                  <p className="text-zinc-400 text-xs font-mono">{formatRelativeTime(entry.createdAt)}</p>
+                <div className="min-w-0">
+                  <p className="text-zinc-950 text-xs sm:text-sm font-bold truncate skeuo-text-emboss">{entry.description}</p>
+                  <p className="text-zinc-500 text-[11px] font-mono">{formatRelativeTime(entry.createdAt)}</p>
                 </div>
               </div>
-              <div className="text-right flex-shrink-0 ml-4 font-mono">
-                <p className={`font-bold text-sm ${ledgerColor[entry.type]}`}>
+              <div className="text-right flex-shrink-0 ml-3 font-mono">
+                <p className={`font-black text-xs sm:text-sm ${ledgerColor[entry.type]}`}>
                   {entry.amount > 0 ? '+' : ''}{entry.amount} pts
                 </p>
-                <p className="text-zinc-400 text-[11px]">{formatPoints(entry.balanceAfter)} bal</p>
+                <p className="text-zinc-500 text-[10px] font-bold">{formatPoints(entry.balanceAfter)} bal</p>
               </div>
             </div>
           ))}
-        </Card>
+        </div>
       </div>
 
       {/* Checkout Modal */}

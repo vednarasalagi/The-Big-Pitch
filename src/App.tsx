@@ -2,7 +2,8 @@
 // App.tsx — Production Router with Supabase Live Data Sync
 // ============================================================
 
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { AppShell } from '@/components/layout/AppShell'
 import { HomePage }       from '@/pages/HomePage'
 import { LivePitchPage }  from '@/pages/LivePitchPage'
@@ -212,6 +213,7 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
 // ── Main App ───────────────────────────────────────────────
 export default function App() {
+  const location = useLocation()
   const { setUser, setLoading, user } = useAuthStore()
   const { setEvent, setTeams, setActiveRound, event } = useEventStore()
   const { setWallet, setInvestments, setLedger, setRewards } = useWalletStore()
@@ -312,38 +314,49 @@ export default function App() {
   return (
     <RealtimeProvider>
       <AppShell>
-        <Routes>
-          <Route path="/"              element={<HomePage />} />
-          <Route path="/live"          element={<LivePitchPage />} />
-          <Route path="/scoreboard"    element={<ScoreboardPage />} />
-          <Route path="/wallet"        element={<WalletPage />} />
-          <Route path="/rewards"       element={<Navigate to="/" replace />} />
-          <Route path="/auth"          element={<AuthPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/access-denied" element={<AccessDeniedPage />} />
-          <Route path="/admin"         element={
-            <AdminGuard>
-              <AdminDashboard />
-            </AdminGuard>
-          } />
-          {/* Legal Compliance Routes — Consolidated into Terms and Privacy */}
-          <Route path="/terms"                 element={<TermsPage />} />
-          <Route path="/terms-and-conditions"  element={<TermsPage />} />
-          <Route path="/privacy"               element={<PrivacyPage />} />
-          <Route path="/privacy-policy"        element={<PrivacyPage />} />
-          <Route path="/refund-policy"         element={<TermsPage />} />
-          <Route path="/cancellation-refund"   element={<TermsPage />} />
-          <Route path="/cancellation-and-refund" element={<TermsPage />} />
-          <Route path="/shipping-policy"       element={<TermsPage />} />
-          <Route path="/delivery-policy"       element={<TermsPage />} />
-          <Route path="/contact"               element={<TermsPage />} />
-          <Route path="/contact-us"            element={<TermsPage />} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 7 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full flex-1"
+          >
+            <Routes location={location}>
+              <Route path="/"              element={<HomePage />} />
+              <Route path="/live"          element={<LivePitchPage />} />
+              <Route path="/scoreboard"    element={<ScoreboardPage />} />
+              <Route path="/wallet"        element={<WalletPage />} />
+              <Route path="/rewards"       element={<Navigate to="/" replace />} />
+              <Route path="/auth"          element={<AuthPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/access-denied" element={<AccessDeniedPage />} />
+              <Route path="/admin"         element={
+                <AdminGuard>
+                  <AdminDashboard />
+                </AdminGuard>
+              } />
+              {/* Legal Compliance Routes — Consolidated into Terms and Privacy */}
+              <Route path="/terms"                 element={<TermsPage />} />
+              <Route path="/terms-and-conditions"  element={<TermsPage />} />
+              <Route path="/privacy"               element={<PrivacyPage />} />
+              <Route path="/privacy-policy"        element={<PrivacyPage />} />
+              <Route path="/refund-policy"         element={<TermsPage />} />
+              <Route path="/cancellation-refund"   element={<TermsPage />} />
+              <Route path="/cancellation-and-refund" element={<TermsPage />} />
+              <Route path="/shipping-policy"       element={<TermsPage />} />
+              <Route path="/delivery-policy"       element={<TermsPage />} />
+              <Route path="/contact"               element={<TermsPage />} />
+              <Route path="/contact-us"            element={<TermsPage />} />
 
-          <Route path="/cast"          element={<CastScreenPage />} />
-          <Route path="/projector"     element={<CastScreenPage />} />
-          <Route path="*"              element={<NotFoundPage />} />
-        </Routes>
+              <Route path="/cast"          element={<CastScreenPage />} />
+              <Route path="/projector"     element={<CastScreenPage />} />
+              <Route path="*"              element={<NotFoundPage />} />
+            </Routes>
+          </motion.div>
+        </AnimatePresence>
       </AppShell>
     </RealtimeProvider>
   )

@@ -225,17 +225,17 @@ export function CastScreenPage() {
   }, [])
 
   return (
-    <div className={`bg-[#FAFAFA] text-zinc-950 flex flex-col font-sans select-none antialiased ${isFullscreen ? 'h-screen w-screen overflow-hidden' : 'min-h-screen overflow-x-hidden'}`}>
+    <div className={`bg-[#F4F4F6] text-zinc-950 flex flex-col font-sans select-none antialiased ${isFullscreen ? 'h-screen w-screen overflow-hidden' : 'min-h-screen overflow-x-hidden'}`}>
       {/* Stage Cast Header Bar (Hidden in Fullscreen) */}
       {!isFullscreen && (
-        <header className="h-16 px-6 sm:px-8 border-b border-zinc-200/90 bg-white/95 backdrop-blur-md flex items-center justify-between sticky top-0 z-40">
+        <header className="h-16 px-6 sm:px-8 border-b border-zinc-200/90 bg-white/95 backdrop-blur-md flex items-center justify-between sticky top-0 z-40 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="flex items-center gap-4">
             <Link
               to="/admin"
-              className="text-zinc-500 hover:text-zinc-950 transition-colors p-2 rounded-xl hover:bg-zinc-100 text-xs flex items-center gap-1.5 font-medium border border-transparent hover:border-zinc-200"
+              className="skeuo-btn-secondary text-xs flex items-center gap-1.5 px-3 py-1.5 font-bold"
               title="Return to Admin Control"
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
               <span className="hidden sm:inline">Admin</span>
             </Link>
 
@@ -248,7 +248,7 @@ export function CastScreenPage() {
                   <span className="font-black text-zinc-950 text-sm sm:text-base tracking-tight">
                     {event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-zinc-100 text-zinc-800 border border-zinc-200">
+                  <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase text-zinc-800">
                     Stage Projection
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export function CastScreenPage() {
           <div className="flex items-center gap-3 sm:gap-6">
             <div className="hidden lg:flex items-center gap-6 text-xs text-zinc-600 border-r border-zinc-200 pr-6">
               <div>
-                <span className="text-zinc-400 uppercase text-[10px] tracking-wider block font-semibold">Total Raised</span>
+                <span className="text-zinc-400 uppercase text-[10px] tracking-wider block font-semibold">Total Backed</span>
                 <span className="text-zinc-950 font-black text-sm">{formatPoints(totalEventInvested)}</span>
               </div>
               <div>
@@ -274,14 +274,14 @@ export function CastScreenPage() {
             </div>
 
             {/* View Toggles */}
-            <div className="flex items-center p-1 rounded-xl bg-zinc-100 border border-zinc-200">
+            <div className="skeuo-pill-track p-1 flex items-center gap-1">
               <button
                 onClick={() => {
                   setSelectedTeamId(null)
                   setSearchParams({})
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  !selectedTeamId ? 'bg-zinc-950 text-white shadow-sm' : 'text-zinc-600 hover:text-zinc-950'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                  !selectedTeamId ? 'skeuo-pill-active' : 'skeuo-pill-inactive'
                 }`}
               >
                 <LayoutGrid size={13} />
@@ -301,8 +301,8 @@ export function CastScreenPage() {
                       setSearchParams({})
                     }
                   }}
-                  className={`bg-transparent text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer outline-none transition-all ${
-                    selectedTeamId ? 'bg-zinc-950 text-white' : 'text-zinc-600 hover:text-zinc-950'
+                  className={`bg-transparent text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer outline-none transition-all ${
+                    selectedTeamId ? 'skeuo-pill-active' : 'skeuo-pill-inactive'
                   }`}
                 >
                   <option value="" className="bg-white text-zinc-950">Team Results View...</option>
@@ -318,7 +318,7 @@ export function CastScreenPage() {
             {/* Fullscreen Button */}
             <button
               onClick={toggleFullscreen}
-              className="p-2.5 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-950 transition-colors shadow-sm"
+              className="skeuo-btn-secondary p-2.5 rounded-xl text-zinc-700"
               title="Toggle Stage Fullscreen (F11 or Press F)"
             >
               {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -346,13 +346,13 @@ export function CastScreenPage() {
               {/* Main Side-by-Side 2-Column Grid */}
               <div className={`grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 items-stretch ${isFullscreen ? 'h-full' : ''}`}>
                 {/* ── LEFT COLUMN (5 cols): STARTUP DETAILS & METRICS ── */}
-                <div className="lg:col-span-5 rounded-3xl bg-white border border-zinc-200/90 p-6 lg:p-7 shadow-sm flex flex-col justify-between gap-4">
+                <div className="lg:col-span-5 skeuo-surface rounded-3xl p-6 lg:p-7 flex flex-col justify-between gap-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-zinc-100 text-zinc-900 border border-zinc-200">
+                      <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-900">
                         Pitch #{activeSelectedTeam.pitchOrder}
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-700 border border-zinc-200">
+                      <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider text-zinc-700">
                         {activeSelectedTeam.category}
                       </span>
                       <StatusBadge status={activeSelectedTeam.status} />
@@ -381,8 +381,8 @@ export function CastScreenPage() {
                   </div>
 
                   {/* Dual Podiums (Rank + Capital) */}
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-100">
-                    <div className="p-4 text-center border border-zinc-200/90 bg-zinc-50 rounded-2xl shadow-sm">
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-200/80">
+                    <div className="skeuo-sunken p-4 text-center rounded-2xl">
                       <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">Tournament Rank</p>
                       <p className="text-3xl lg:text-4xl font-black text-zinc-950 font-mono mt-0.5">
                         #{selectedTeamRank}
@@ -390,7 +390,7 @@ export function CastScreenPage() {
                       <p className="text-zinc-400 text-[10px] mt-0.5 font-medium">of {teams.length} Startups</p>
                     </div>
 
-                    <div className="p-4 text-center border border-zinc-200/90 bg-zinc-950 text-white rounded-2xl shadow-sm">
+                    <div className="skeuo-surface-dark p-4 text-center rounded-2xl text-white">
                       <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">Audience Capital</p>
                       <p className="text-2xl lg:text-3xl font-black text-white font-mono mt-0.5">
                         {formatPoints(activeSelectedTeam.totalInvestment)}
@@ -401,10 +401,10 @@ export function CastScreenPage() {
                 </div>
 
                 {/* ── RIGHT COLUMN (7 cols): AUDIENCE WINNER & TOP 5 BACKERS ── */}
-                <div className="lg:col-span-7 rounded-3xl bg-white border border-zinc-200/90 p-6 lg:p-7 shadow-sm flex flex-col justify-between gap-4">
+                <div className="lg:col-span-7 skeuo-surface rounded-3xl p-6 lg:p-7 flex flex-col justify-between gap-4">
                   <div className="space-y-3.5">
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
+                    <div className="flex items-center justify-between pb-1 border-b border-zinc-200/80">
                       <div className="flex items-center gap-2">
                         <Trophy size={20} className="text-amber-500 flex-shrink-0" />
                         <div>
@@ -416,7 +416,7 @@ export function CastScreenPage() {
                           </p>
                         </div>
                       </div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-100 text-zinc-800 border border-zinc-200">
+                      <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold text-zinc-800">
                         Top 5 Podium
                       </span>
                     </div>
@@ -424,10 +424,10 @@ export function CastScreenPage() {
                     {teamStandings.length > 0 ? (
                       <div className="space-y-3">
                         {/* #1 Winner Showcase Podium Banner */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white p-4 sm:p-5 border border-zinc-800 shadow-md">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black text-white p-5 border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.15)]">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
                             <div className="space-y-1">
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black tracking-wider uppercase">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-black tracking-wider uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
                                 <Crown size={12} className="text-amber-400" />
                                 <span>#1 Audience Champion</span>
                               </div>
@@ -440,13 +440,13 @@ export function CastScreenPage() {
                             </div>
 
                             <div className="flex items-center gap-2.5 flex-shrink-0">
-                              <div className="p-2.5 px-3 rounded-xl bg-white/10 border border-white/10 text-center backdrop-blur-sm min-w-[100px]">
+                              <div className="p-2.5 px-3.5 rounded-xl bg-white/[0.08] border border-white/15 text-center backdrop-blur-sm min-w-[100px] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
                                 <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-bold">Capital</p>
                                 <p className="text-xl font-black text-white font-mono mt-0.5">
                                   {formatPoints(teamStandings[0].amount)}
                                 </p>
                               </div>
-                              <div className="p-2.5 px-3 rounded-xl bg-amber-400/10 border border-amber-400/20 text-center backdrop-blur-sm min-w-[120px]">
+                              <div className="p-2.5 px-3.5 rounded-xl bg-amber-400/[0.12] border border-amber-400/30 text-center backdrop-blur-sm min-w-[120px] shadow-[inset_0_1px_0_rgba(251,191,36,0.3)]">
                                 <p className="text-[9px] text-amber-300 uppercase tracking-widest font-bold flex items-center justify-center gap-1">
                                   <Zap size={10} className="text-amber-400" /> Speed (ms)
                                 </p>
@@ -462,8 +462,8 @@ export function CastScreenPage() {
                         </div>
 
                         {/* Top 5 Backers Table */}
-                        <div className="rounded-xl border border-zinc-200/90 bg-white overflow-hidden shadow-sm">
-                          <div className="px-3.5 py-2 bg-zinc-50/80 border-b border-zinc-100 flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                        <div className="skeuo-sunken rounded-2xl overflow-hidden p-1">
+                          <div className="px-3.5 py-2 flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                             <span>Rank & Investor</span>
                             <div className="flex gap-6">
                               <span className="w-20 text-right">Points</span>
@@ -471,23 +471,23 @@ export function CastScreenPage() {
                             </div>
                           </div>
 
-                          <div className="divide-y divide-zinc-100">
+                          <div className="divide-y divide-zinc-200/70 bg-white/70 rounded-xl overflow-hidden">
                             {teamStandings.slice(0, 5).map((standing) => (
                               <div
                                 key={standing.userId}
-                                className={`px-3.5 py-2 flex items-center justify-between transition-colors ${
-                                  standing.rank === 1 ? 'bg-amber-50/30' : 'hover:bg-zinc-50/50'
+                                className={`px-3.5 py-2.5 flex items-center justify-between transition-colors ${
+                                  standing.rank === 1 ? 'bg-amber-50/50' : 'hover:bg-zinc-50/70'
                                 }`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <div className={`w-6 h-6 rounded-lg font-black font-mono flex items-center justify-center text-[10px] ${
                                     standing.rank === 1
-                                      ? 'bg-amber-400 text-zinc-950 font-black shadow-sm'
+                                      ? 'skeuo-token-gold'
                                       : standing.rank === 2
-                                      ? 'bg-zinc-200 text-zinc-800'
+                                      ? 'skeuo-token-silver'
                                       : standing.rank === 3
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-zinc-100 text-zinc-600'
+                                      ? 'skeuo-token-bronze'
+                                      : 'skeuo-token text-zinc-700'
                                   }`}>
                                     #{standing.rank}
                                   </div>
@@ -527,7 +527,7 @@ export function CastScreenPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="p-8 rounded-2xl border border-zinc-200 bg-zinc-50/50 text-center space-y-2">
+                      <div className="skeuo-sunken p-8 rounded-2xl text-center space-y-2">
                         <Clock size={24} className="text-zinc-400 mx-auto animate-pulse" />
                         <h3 className="font-bold text-zinc-900 text-sm">Awaiting Audience Backers</h3>
                         <p className="text-zinc-500 text-xs max-w-sm mx-auto">
@@ -553,7 +553,7 @@ export function CastScreenPage() {
                         setSearchParams({ teamId: prevTeam.id })
                       }
                     }}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 transition-colors shadow-sm"
+                    className="skeuo-btn-secondary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
                   >
                     <ChevronLeft size={14} /> Previous Startup
                   </button>
@@ -563,7 +563,7 @@ export function CastScreenPage() {
                       setSelectedTeamId(null)
                       setSearchParams({})
                     }}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm transition-colors"
+                    className="skeuo-btn-primary px-4 py-2 rounded-xl text-xs font-bold"
                   >
                     Return to Common Arena Board
                   </button>
@@ -579,7 +579,7 @@ export function CastScreenPage() {
                         setSearchParams({ teamId: nextTeam.id })
                       }
                     }}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 transition-colors shadow-sm"
+                    className="skeuo-btn-secondary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
                   >
                     Next Startup <ChevronRight size={14} />
                   </button>
@@ -601,15 +601,17 @@ export function CastScreenPage() {
               <div className="lg:col-span-7 space-y-6">
                 {isLive && currentTeam ? (
                   // Live Pitch in Progress Box
-                  <div className="relative overflow-hidden rounded-3xl bg-white border-2 border-zinc-950 p-8 lg:p-10 shadow-[0_8px_30px_rgba(0,0,0,0.06)] animate-fade-in">
+                  <div className="skeuo-surface relative overflow-hidden rounded-3xl p-8 lg:p-10 border-2 border-zinc-950 shadow-[0_8px_30px_rgba(0,0,0,0.08)] animate-fade-in">
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2.5">
-                        <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+                        <div className="skeuo-led-bezel">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse block shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                        </div>
                         <span className="font-black text-zinc-950 text-xs tracking-widest uppercase">
                           LIVE PITCH ON STAGE
                         </span>
                       </div>
-                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-zinc-100 text-zinc-900 border border-zinc-200">
+                      <span className="skeuo-token px-3 py-1 rounded-full text-xs font-mono font-bold uppercase text-zinc-900">
                         Round #{activeRound?.roundNumber || currentTeam.pitchOrder}
                       </span>
                     </div>
@@ -635,13 +637,13 @@ export function CastScreenPage() {
 
                     {/* Live Metric Display */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200/90">
+                      <div className="skeuo-sunken p-5 rounded-2xl">
                         <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold">Live Points Backed</p>
                         <p className="text-4xl font-black text-zinc-950 mt-1 font-mono">
                           {formatPoints(currentTeam.totalInvestment)}
                         </p>
                       </div>
-                      <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200/90">
+                      <div className="skeuo-sunken p-5 rounded-2xl">
                         <p className="text-zinc-500 text-xs uppercase tracking-wider font-bold">Active Backers</p>
                         <p className="text-4xl font-black text-zinc-950 mt-1 font-mono">
                           {currentTeam.uniqueBackers}
@@ -651,8 +653,8 @@ export function CastScreenPage() {
                   </div>
                 ) : (
                   // Intermission / Stage Standby Card
-                  <div className="relative overflow-hidden rounded-3xl bg-white border border-zinc-200/90 p-8 lg:p-12 text-center space-y-5 shadow-sm">
-                    <div className="w-16 h-16 rounded-2xl bg-zinc-950 text-white flex items-center justify-center mx-auto shadow-sm">
+                  <div className="skeuo-surface relative overflow-hidden rounded-3xl p-8 lg:p-12 text-center space-y-5">
+                    <div className="w-16 h-16 rounded-2xl skeuo-token-dark flex items-center justify-center mx-auto text-white">
                       <Radio size={28} className="animate-pulse" />
                     </div>
 
@@ -668,7 +670,7 @@ export function CastScreenPage() {
                     </div>
 
                     {teams.find(t => t.status === 'upcoming') && (
-                      <div className="p-5 rounded-2xl max-w-md mx-auto text-left border border-zinc-200 bg-zinc-50 shadow-sm">
+                      <div className="skeuo-sunken p-5 rounded-2xl max-w-md mx-auto text-left">
                         <span className="text-zinc-500 font-bold text-xs uppercase tracking-widest block mb-1">
                           Up Next On Deck
                         </span>
@@ -684,7 +686,7 @@ export function CastScreenPage() {
                 )}
 
                 {/* Live Activity Stream */}
-                <div className="bg-white p-6 rounded-3xl border border-zinc-200/90 space-y-3 shadow-sm">
+                <div className="skeuo-surface p-6 rounded-3xl space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
                       <Sparkles size={15} className="text-zinc-700" /> Live Investment Feed
@@ -695,7 +697,7 @@ export function CastScreenPage() {
                   <div className="space-y-2 max-h-48 overflow-hidden">
                     {livePitch.recentActivity.length > 0 ? (
                       livePitch.recentActivity.slice(0, 4).map((act, i) => (
-                        <div key={act.id || i} className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 border border-zinc-100 text-xs">
+                        <div key={act.id || i} className="skeuo-sunken flex items-center justify-between p-3 rounded-xl text-xs">
                           <span className="text-zinc-800 font-medium">{act.message}</span>
                           <span className="text-zinc-400 text-[10px] font-mono">{formatRelativeTime(act.timestamp)}</span>
                         </div>
@@ -717,7 +719,7 @@ export function CastScreenPage() {
                     </h3>
                     <p className="text-zinc-500 text-xs mt-0.5">Ranked by audience capital invested</p>
                   </div>
-                  <span className="text-xs font-mono text-zinc-900 font-bold bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">{teams.length} Startups</span>
+                  <span className="skeuo-token text-xs font-mono text-zinc-900 font-bold px-2 py-0.5 rounded-md">{teams.length} Startups</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -732,24 +734,24 @@ export function CastScreenPage() {
                           setSelectedTeamId(team.id)
                           setSearchParams({ teamId: team.id })
                         }}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 shadow-sm ${
+                        className={`p-4 rounded-2xl transition-all cursor-pointer flex items-center gap-3.5 ${
                           isTeamActive
-                            ? 'bg-zinc-950 text-white border-zinc-950'
-                            : 'bg-white hover:bg-zinc-50 border-zinc-200/90'
+                            ? 'skeuo-surface-dark text-white'
+                            : 'skeuo-surface hover:translate-y-[-1px]'
                         }`}
                       >
                         <span className={`w-8 h-8 rounded-xl font-mono text-xs font-black flex items-center justify-center flex-shrink-0 ${
                           isTeamActive
-                            ? 'bg-white text-zinc-950'
+                            ? 'bg-white text-zinc-950 shadow-sm'
                             : rank === 1
-                            ? 'bg-zinc-950 text-white'
+                            ? 'skeuo-token-gold'
                             : rank === 2
-                            ? 'bg-zinc-800 text-white'
+                            ? 'skeuo-token-silver'
                             : rank === 3
-                            ? 'bg-zinc-700 text-white'
-                            : 'bg-zinc-100 text-zinc-700 border border-zinc-200'
+                            ? 'skeuo-token-bronze'
+                            : 'skeuo-token text-zinc-700'
                         }`}>
-                          {rank}
+                          #{rank}
                         </span>
 
                         <div className="flex-1 min-w-0">

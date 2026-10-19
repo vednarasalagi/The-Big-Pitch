@@ -32,52 +32,52 @@ import type { Team, TeamInvestorStanding } from '@/types'
 function AudienceRankBadge({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
-      <span className="w-8 h-8 rounded-xl bg-zinc-950 text-white font-mono font-black text-sm flex items-center justify-center shadow-sm">
+      <span className="w-8 h-8 rounded-xl skeuo-token-gold font-mono font-black text-xs sm:text-sm flex items-center justify-center">
         1
       </span>
     )
   }
   if (rank === 2) {
     return (
-      <span className="w-8 h-8 rounded-xl bg-zinc-200 text-zinc-900 font-mono font-black text-sm flex items-center justify-center">
+      <span className="w-8 h-8 rounded-xl skeuo-token-silver font-mono font-black text-xs sm:text-sm flex items-center justify-center">
         2
       </span>
     )
   }
   if (rank === 3) {
     return (
-      <span className="w-8 h-8 rounded-xl bg-zinc-100 text-zinc-700 font-mono font-black text-sm flex items-center justify-center border border-zinc-200">
+      <span className="w-8 h-8 rounded-xl skeuo-token-bronze font-mono font-black text-xs sm:text-sm flex items-center justify-center">
         3
       </span>
     )
   }
-  return <span className="text-zinc-400 font-mono font-bold text-sm w-8 text-center">#{rank}</span>
+  return <span className="skeuo-token font-mono font-bold text-xs w-8 h-8 rounded-xl flex items-center justify-center text-zinc-600">#{rank}</span>
 }
 
 function OfficialRankBadge({ rank }: { rank?: number }) {
   if (rank === 1) {
     return (
-      <span className="w-9 h-9 rounded-xl bg-amber-500 text-white font-mono font-black text-sm flex items-center justify-center shadow-sm">
+      <span className="w-9 h-9 rounded-xl skeuo-token-gold font-mono font-black text-sm flex items-center justify-center">
         <Trophy size={16} />
       </span>
     )
   }
   if (rank === 2) {
     return (
-      <span className="w-9 h-9 rounded-xl bg-zinc-300 text-zinc-900 font-mono font-black text-sm flex items-center justify-center">
+      <span className="w-9 h-9 rounded-xl skeuo-token-silver font-mono font-black text-sm flex items-center justify-center">
         2
       </span>
     )
   }
   if (rank === 3) {
     return (
-      <span className="w-9 h-9 rounded-xl bg-amber-700/80 text-white font-mono font-black text-sm flex items-center justify-center">
+      <span className="w-9 h-9 rounded-xl skeuo-token-bronze font-mono font-black text-sm flex items-center justify-center">
         3
       </span>
     )
   }
   return (
-    <span className="text-zinc-500 font-mono font-bold text-sm w-9 text-center">
+    <span className="skeuo-token text-zinc-600 font-mono font-bold text-xs w-9 h-9 rounded-xl flex items-center justify-center">
       {rank ? `#${rank}` : '—'}
     </span>
   )
@@ -106,9 +106,12 @@ function AudienceTeamRow({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, type: 'spring', stiffness: 200 }}
       className={`
-        p-3.5 sm:p-4 rounded-2xl bg-white border transition-all flex items-center gap-3 sm:gap-4 shadow-sm
-        ${rank === 1 ? 'border-zinc-950/80 shadow-md ring-1 ring-zinc-950/10' : 'border-zinc-200/90 hover:border-zinc-300'}
-        ${team.status === 'active' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : ''}
+        p-4 sm:p-5 rounded-3xl transition-all flex items-center gap-3.5 sm:gap-4
+        ${rank === 1
+          ? 'skeuo-surface border-2 border-zinc-950/90 shadow-[0_8px_24px_rgba(0,0,0,0.08),inset_0_1px_0_#FFF] ring-1 ring-zinc-950/10'
+          : 'skeuo-surface-interactive'
+        }
+        ${team.status === 'active' ? 'border-2 border-emerald-500/90 shadow-[0_8px_24px_rgba(16,185,129,0.16)] ring-2 ring-emerald-500/10' : ''}
       `}
     >
       {/* Audience Points Rank */}
@@ -117,39 +120,44 @@ function AudienceTeamRow({
       </div>
 
       {/* Logo */}
-      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-base sm:text-lg font-black text-zinc-900 flex-shrink-0">
+      <div className="w-11 h-11 rounded-2xl skeuo-token-dark flex items-center justify-center text-base sm:text-lg font-black font-mono text-white flex-shrink-0 shadow-sm">
         {team.name[0]}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-          <span className="text-[10px] uppercase font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
+          <span className="skeuo-token text-[10px] uppercase font-bold text-zinc-700 px-2 py-0.5 rounded-lg">
             Pitch #{team.pitchOrder}
           </span>
-          <h3 className="font-bold text-zinc-950 text-xs sm:text-sm truncate">{team.name}</h3>
-          <Badge variant="blue" className="text-[10px]">{team.category}</Badge>
+          <h3 className="font-extrabold text-zinc-950 text-xs sm:text-sm truncate skeuo-text-emboss">{team.name}</h3>
+          <Badge variant="blue" className="skeuo-token text-[10px]">{team.category}</Badge>
           {team.status === 'active' && <LiveIndicator label="LIVE" />}
           <StatusBadge status={team.status} />
         </div>
-        <p className="text-zinc-500 text-[11px] sm:text-xs truncate">{team.pitchTitle}</p>
+        <p className="text-zinc-600 text-[11px] sm:text-xs truncate font-medium">{team.pitchTitle}</p>
         {!blind && (
-          <ProgressBar value={pct} max={100} size="sm" className="mt-1" />
+          <div className="skeuo-meter-track h-2 rounded-full overflow-hidden p-0.5 mt-1.5">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-zinc-800 to-zinc-950 transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+            />
+          </div>
         )}
       </div>
 
       {/* Stats & Link to pitch leaderboard */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {blind ? (
-          <div className="text-center">
-            <EyeOff size={18} className="text-zinc-300 mx-auto" />
-            <p className="text-zinc-400 text-[10px] mt-0.5">Hidden</p>
+          <div className="skeuo-sunken px-3 py-1.5 rounded-xl text-center">
+            <EyeOff size={16} className="text-zinc-400 mx-auto" />
+            <p className="text-zinc-500 text-[10px] font-bold mt-0.5 skeuo-text-emboss">Hidden</p>
           </div>
         ) : (
-          <div className="text-right">
-            <p className="font-black font-mono text-zinc-950 text-sm sm:text-base">{formatPoints(team.totalInvestment)}</p>
-            <div className="flex items-center gap-1 justify-end text-zinc-400 text-[11px] font-medium">
-              <Users size={11} />
+          <div className="skeuo-sunken px-3.5 py-1.5 rounded-xl text-right min-w-[95px] sm:min-w-[110px]">
+            <p className="font-black font-mono text-zinc-950 text-sm sm:text-base leading-tight">{formatPoints(team.totalInvestment)}</p>
+            <div className="flex items-center gap-1 justify-end text-zinc-500 text-[10px] sm:text-[11px] font-bold mt-0.5">
+              <Users size={11} className="text-zinc-600" />
               <span>{team.uniqueBackers}</span>
             </div>
           </div>
@@ -158,10 +166,10 @@ function AudienceTeamRow({
         {onSelectPitch && (
           <button
             onClick={onSelectPitch}
-            className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-zinc-950 hover:bg-zinc-100 transition-colors ml-1"
+            className="skeuo-btn-secondary p-2 rounded-xl text-zinc-600 hover:text-zinc-950 ml-1 flex-shrink-0"
             title="View Pitch Leaderboard"
           >
-            <ArrowRight size={15} />
+            <ArrowRight size={14} />
           </button>
         )}
       </div>
@@ -178,8 +186,11 @@ function OfficialTeamRow({ team }: { team: Team }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
       className={`
-        p-4 rounded-2xl bg-white border transition-all flex items-center gap-4 shadow-sm
-        ${team.officialRank === 1 ? 'border-amber-400 bg-amber-50/20 shadow-md ring-1 ring-amber-400/30' : 'border-zinc-200/90'}
+        p-4 sm:p-5 rounded-3xl transition-all flex items-center gap-4
+        ${team.officialRank === 1
+          ? 'skeuo-surface border-2 border-amber-400 shadow-[0_8px_24px_rgba(245,158,11,0.18),inset_0_1px_0_#FFF] ring-2 ring-amber-400/20'
+          : 'skeuo-surface-interactive'
+        }
       `}
     >
       {/* Official Jury Rank */}
@@ -188,23 +199,23 @@ function OfficialTeamRow({ team }: { team: Team }) {
       </div>
 
       {/* Logo */}
-      <div className="w-11 h-11 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-lg font-black text-zinc-900 flex-shrink-0">
+      <div className="w-11 h-11 rounded-2xl skeuo-token-dark flex items-center justify-center text-lg font-black font-mono text-white flex-shrink-0 shadow-sm">
         {team.name[0]}
       </div>
 
       {/* Details */}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="font-bold text-zinc-950 text-sm truncate">{team.name}</h3>
-          <Badge variant="blue" className="text-[10px]">{team.category}</Badge>
+          <h3 className="font-extrabold text-zinc-950 text-sm sm:text-base truncate skeuo-text-emboss">{team.name}</h3>
+          <Badge variant="blue" className="skeuo-token text-[10px]">{team.category}</Badge>
           {team.officialAward && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 flex items-center gap-1">
+            <span className="skeuo-token-gold px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
               <Sparkles size={10} />
               {team.officialAward}
             </span>
           )}
         </div>
-        <p className="text-zinc-500 text-xs truncate">{team.pitchTitle}</p>
+        <p className="text-zinc-600 text-xs truncate font-medium">{team.pitchTitle}</p>
         {team.officialNotes && (
           <p className="text-zinc-600 text-[11px] italic pt-0.5">
             Jury Note: "{team.officialNotes}"
@@ -215,12 +226,12 @@ function OfficialTeamRow({ team }: { team: Team }) {
       {/* Official Jury Score */}
       <div className="flex-shrink-0 text-right">
         {team.officialScore !== undefined && team.officialScore !== null ? (
-          <div>
-            <p className="font-black font-mono text-zinc-950 text-base">{team.officialScore} <span className="text-xs font-normal text-zinc-400">/ 100</span></p>
-            <p className="text-zinc-400 text-[10px] uppercase font-semibold">Jury Score</p>
+          <div className="skeuo-sunken px-3.5 py-1.5 rounded-xl text-right">
+            <p className="font-black font-mono text-zinc-950 text-base leading-tight">{team.officialScore} <span className="text-xs font-normal text-zinc-400">/ 100</span></p>
+            <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mt-0.5 skeuo-text-emboss">Jury Score</p>
           </div>
         ) : (
-          <span className="text-zinc-400 text-xs font-mono">Unscored</span>
+          <span className="skeuo-sunken px-2.5 py-1 rounded-lg text-zinc-400 text-xs font-mono font-bold">Unscored</span>
         )}
       </div>
     </motion.div>
@@ -327,27 +338,27 @@ function PitchStandingsView({
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Selected Pitch Info Card */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
+      {/* Selected Pitch Info Card — Precision Console */}
+      <div className="skeuo-surface p-6 sm:p-7 rounded-3xl space-y-5 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF]">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div className="space-y-1 min-w-0">
+          <div className="space-y-1.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-950 text-white">
+              <span className="skeuo-token-dark px-2.5 py-0.5 rounded-lg text-[11px] font-black font-mono tracking-wider">
                 Pitch #{team.pitchOrder}
               </span>
-              <Badge variant="blue" className="text-[11px]">{team.category}</Badge>
+              <Badge variant="blue" className="skeuo-token text-[11px]">{team.category}</Badge>
               <StatusBadge status={team.status} />
               {isLive && <LiveIndicator label="SCORING OPEN" />}
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-950 tracking-tight leading-tight">
+            <h2 className="text-xl sm:text-3xl font-black text-zinc-950 tracking-tight leading-tight skeuo-text-emboss">
               {team.name}
             </h2>
             <p className="text-xs sm:text-sm font-semibold text-zinc-700">
               {team.pitchTitle}
             </p>
             {team.presenters && team.presenters.length > 0 && (
-              <p className="text-[11px] text-zinc-500 pt-0.5">
-                Founders: <strong className="text-zinc-700">{team.presenters.join(', ')}</strong>
+              <p className="text-[11px] text-zinc-500 pt-0.5 font-medium">
+                Founders: <strong className="text-zinc-800">{team.presenters.join(', ')}</strong>
               </p>
             )}
           </div>
@@ -355,39 +366,39 @@ function PitchStandingsView({
           {/* Quick CTA if Live */}
           {isLive && (
             <Link to="/live" className="flex-shrink-0">
-              <Button size="sm" icon={<Radio size={14} />} className="bg-zinc-950 text-white font-bold shadow-sm">
+              <Button size="sm" icon={<Radio size={14} />} className="skeuo-btn-primary py-2.5 px-4 font-bold">
                 Score Live Now
               </Button>
             </Link>
           )}
         </div>
 
-        {/* 3 Metric Cards for this Pitch */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1 border-t border-zinc-100">
-          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
-            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block">Total Points</span>
-            <span className="text-base sm:text-xl font-black font-mono text-zinc-950 block truncate">
+        {/* 3 Metric Wells for this Pitch */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1">
+          <div className="p-3.5 rounded-2xl skeuo-sunken text-center">
+            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold block skeuo-text-emboss">Total Points</span>
+            <span className="text-base sm:text-xl font-black font-mono text-zinc-950 block truncate mt-0.5">
               {formatPoints(team.totalInvestment)}
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
-            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block">Unique Backers</span>
-            <span className="text-base sm:text-xl font-black font-mono text-zinc-950 block truncate">
+          <div className="p-3.5 rounded-2xl skeuo-sunken text-center">
+            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold block skeuo-text-emboss">Unique Backers</span>
+            <span className="text-base sm:text-xl font-black font-mono text-zinc-950 block truncate mt-0.5">
               {team.uniqueBackers}
             </span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/80 text-center">
-            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block truncate">#1 Champion</span>
+          <div className="p-3.5 rounded-2xl skeuo-sunken text-center">
+            <span className="text-zinc-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-bold block truncate skeuo-text-emboss">#1 Champion</span>
             <span className="text-xs sm:text-sm font-bold text-zinc-950 block truncate mt-1">
               {champion ? (
-                <span className="text-amber-700 flex items-center justify-center gap-1 font-mono font-bold">
-                  <Crown size={12} className="text-amber-500 flex-shrink-0" />
+                <span className="text-amber-700 flex items-center justify-center gap-1 font-mono font-black">
+                  <Crown size={13} className="text-amber-500 flex-shrink-0" />
                   <span className="truncate">{champion.displayName}</span>
                 </span>
               ) : (
-                'None'
+                <span className="text-zinc-400 font-medium">None</span>
               )}
             </span>
           </div>
@@ -395,14 +406,14 @@ function PitchStandingsView({
       </div>
 
       {/* Standings List Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Crown size={18} className="text-amber-500" />
-          <h3 className="font-black text-zinc-950 text-base">
+          <h3 className="font-black text-zinc-950 text-sm sm:text-base skeuo-text-emboss">
             Audience Backer Standings for {team.name}
           </h3>
         </div>
-        <span className="text-xs text-zinc-400 font-mono">
+        <span className="skeuo-token text-xs text-zinc-700 font-mono font-bold px-2.5 py-0.5 rounded-lg">
           {standings.length} {standings.length === 1 ? 'backer' : 'backers'}
         </span>
       </div>
@@ -411,19 +422,19 @@ function PitchStandingsView({
       {loading ? (
         <div className="space-y-2.5">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-16 rounded-2xl bg-zinc-100 animate-pulse border border-zinc-200/60" />
+            <div key={i} className="h-16 rounded-2xl skeuo-sunken animate-pulse" />
           ))}
         </div>
       ) : standings.length === 0 ? (
         /* Empty State */
-        <div className="p-8 sm:p-10 rounded-2xl bg-white border border-zinc-200 text-center space-y-3 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-400 flex items-center justify-center mx-auto">
+        <div className="p-8 sm:p-10 rounded-3xl skeuo-sunken text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl skeuo-token flex items-center justify-center mx-auto text-zinc-500">
             <Users size={22} />
           </div>
-          <div>
-            <h4 className="font-bold text-zinc-950 text-sm">No audience points scored yet for this pitch</h4>
-            <p className="text-zinc-500 text-xs mt-1 max-w-sm mx-auto">
-                {isLive
+          <div className="space-y-1">
+            <h4 className="font-bold text-zinc-950 text-sm skeuo-text-emboss">No audience points scored yet for this pitch</h4>
+            <p className="text-zinc-500 text-xs max-w-sm mx-auto font-medium">
+              {isLive
                 ? 'Scoring window is currently active! Be the first to back this team and secure the #1 Audience Champion rank.'
                 : 'No audience points were allocated to this startup during its pitch window.'}
             </p>
@@ -431,7 +442,7 @@ function PitchStandingsView({
           {isLive && (
             <div className="pt-2">
               <Link to="/live">
-                <Button size="sm" className="bg-zinc-950 text-white font-bold">
+                <Button size="sm" className="skeuo-btn-primary font-bold">
                   Score Live Now
                 </Button>
               </Link>
@@ -454,58 +465,58 @@ function PitchStandingsView({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   className={`
-                    p-3.5 sm:p-4 rounded-2xl transition-all flex items-center gap-3 sm:gap-4 shadow-sm border
+                    p-3.5 sm:p-4 rounded-3xl transition-all flex items-center gap-3.5 sm:gap-4
                     ${isChamp
-                      ? 'border-amber-400 bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-white ring-1 ring-amber-400/40'
+                      ? 'skeuo-surface border-2 border-amber-400 shadow-[0_8px_24px_rgba(245,158,11,0.18),inset_0_1px_0_#FFF] ring-2 ring-amber-400/20'
                       : isCurrentUser
-                        ? 'border-zinc-950 bg-zinc-50 ring-1 ring-zinc-950/20'
-                        : 'border-zinc-200/90 bg-white hover:border-zinc-300'
+                        ? 'skeuo-surface border-2 border-zinc-950 shadow-md ring-1 ring-zinc-950/10'
+                        : 'skeuo-surface-interactive'
                     }
                   `}
                 >
                   {/* Rank Badge */}
                   <div className="w-8 flex-shrink-0 flex justify-center">
                     {item.rank === 1 ? (
-                      <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white font-mono font-black text-sm flex items-center justify-center shadow-sm">
+                      <span className="w-8 h-8 rounded-xl skeuo-token-gold font-mono font-black text-sm flex items-center justify-center">
                         <Crown size={15} />
                       </span>
                     ) : item.rank === 2 ? (
-                      <span className="w-8 h-8 rounded-xl bg-zinc-200 text-zinc-900 font-mono font-black text-sm flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-xl skeuo-token-silver font-mono font-black text-xs sm:text-sm flex items-center justify-center">
                         2
                       </span>
                     ) : item.rank === 3 ? (
-                      <span className="w-8 h-8 rounded-xl bg-zinc-100 text-zinc-700 font-mono font-black text-sm flex items-center justify-center border border-zinc-200">
+                      <span className="w-8 h-8 rounded-xl skeuo-token-bronze font-mono font-black text-xs sm:text-sm flex items-center justify-center">
                         3
                       </span>
                     ) : (
-                      <span className="text-zinc-400 font-mono font-bold text-xs sm:text-sm w-8 text-center">
+                      <span className="skeuo-token text-zinc-600 font-mono font-bold text-xs sm:text-sm w-8 h-8 rounded-xl flex items-center justify-center">
                         #{item.rank}
                       </span>
                     )}
                   </div>
 
                   {/* Investor Info */}
-                  <div className="flex-1 min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-zinc-950 text-xs sm:text-sm truncate">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-zinc-950 text-xs sm:text-sm truncate skeuo-text-emboss">
                         {item.displayName}
                       </span>
                       {isCurrentUser && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-zinc-950 text-white">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black skeuo-token-dark">
                           YOU
                         </span>
                       )}
                       {isChamp && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-                          <Crown size={10} className="text-amber-600" />
+                        <span className="skeuo-token-gold px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                          <Crown size={11} className="text-amber-950" />
                           #1 Champion
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
-                      <span className="flex items-center gap-1 font-mono">
-                        <Zap size={11} className="text-amber-500" />
+                    <div className="flex items-center gap-2 text-zinc-500 text-[11px]">
+                      <span className="skeuo-sunken px-2 py-0.5 rounded-lg flex items-center gap-1 font-mono font-bold text-[10px]">
+                        <Zap size={10} className="text-amber-600" />
                         {formatExactMs(item.timeElapsedMs)} speed
                       </span>
                     </div>
@@ -513,12 +524,14 @@ function PitchStandingsView({
 
                   {/* Points Allocated */}
                   <div className="flex-shrink-0 text-right">
-                    <p className="font-black font-mono text-zinc-950 text-sm sm:text-base">
-                      {formatPoints(item.amount)}
-                    </p>
-                    <p className="text-zinc-400 text-[10px] uppercase font-semibold">
-                      Allocated
-                    </p>
+                    <div className="skeuo-sunken px-3.5 py-1.5 rounded-xl text-right min-w-[95px] sm:min-w-[110px]">
+                      <p className="font-black font-mono text-zinc-950 text-sm sm:text-base leading-tight">
+                        {formatPoints(item.amount)}
+                      </p>
+                      <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mt-0.5 skeuo-text-emboss">
+                        Allocated
+                      </p>
+                    </div>
                   </div>
                 </motion.div>
               )
@@ -643,9 +656,9 @@ export function ScoreboardPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Trophy size={22} className="text-zinc-950" />
-            <h1 className="text-2xl font-black text-zinc-950 tracking-tight">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Trophy size={22} className="text-zinc-950 flex-shrink-0" />
+            <h1 className="text-2xl sm:text-3xl font-black text-zinc-950 tracking-tight skeuo-text-emboss">
               {activeTab === 'pitch'
                 ? 'Startup Pitch Leaderboard'
                 : activeTab === 'overall'
@@ -654,7 +667,7 @@ export function ScoreboardPage() {
             </h1>
             {isLive && <LiveIndicator />}
           </div>
-          <p className="text-zinc-500 text-xs">
+          <p className="text-zinc-500 text-xs font-medium">
             {activeTab === 'pitch'
               ? 'Select any startup to view its individual audience backer rankings (live and post-pitch).'
               : activeTab === 'overall'
@@ -663,11 +676,11 @@ export function ScoreboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {activeTab === 'overall' && (
             <button
               onClick={() => setBlindMode(!blindMode)}
-              className="p-2.5 rounded-xl bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors shadow-sm"
+              className="skeuo-btn-secondary p-2.5 rounded-xl text-zinc-600 hover:text-zinc-950 transition-colors"
               title={blindMode ? 'Show scores' : 'Enable blind mode'}
             >
               {blindMode ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -675,7 +688,7 @@ export function ScoreboardPage() {
           )}
           <button
             onClick={toggleFullscreen}
-            className="p-2.5 rounded-xl bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors shadow-sm"
+            className="skeuo-btn-secondary p-2.5 rounded-xl text-zinc-600 hover:text-zinc-950 transition-colors"
             title="Toggle Fullscreen"
           >
             <Maximize2 size={16} />
@@ -683,19 +696,26 @@ export function ScoreboardPage() {
         </div>
       </div>
 
-      {/* 3-Way Mode Switcher: Pitch Leaderboards vs Overall Standings vs Official Jury */}
-      <div className="flex p-1.5 rounded-2xl bg-zinc-100 border border-zinc-200/80 gap-1">
+      {/* 3-Way Physical Switchboard Track: Pitch Leaderboards vs Overall Standings vs Official Jury */}
+      <div className="skeuo-pill-track p-1.5 rounded-2xl flex gap-1.5 items-center relative">
         <button
           onClick={() => {
             setActiveTab('pitch')
             if (selectedTeamId) setSearchParams({ teamId: selectedTeamId, tab: 'pitch' })
           }}
-          className={`flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`relative flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5 select-none z-10 ${
             activeTab === 'pitch'
-              ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200'
-              : 'text-zinc-500 hover:text-zinc-900'
+              ? 'text-white'
+              : 'text-zinc-600 hover:text-zinc-950'
           }`}
         >
+          {activeTab === 'pitch' && (
+            <motion.div
+              layoutId="scoreboard-mode-active-pill"
+              className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+              transition={{ type: 'spring', stiffness: 450, damping: 32, mass: 0.75 }}
+            />
+          )}
           <Target size={14} className="flex-shrink-0" />
           <span>Pitch Leaderboards</span>
         </button>
@@ -705,12 +725,19 @@ export function ScoreboardPage() {
             setActiveTab('overall')
             setSearchParams({ tab: 'overall' })
           }}
-          className={`flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`relative flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5 select-none z-10 ${
             activeTab === 'overall'
-              ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200'
-              : 'text-zinc-500 hover:text-zinc-900'
+              ? 'text-white'
+              : 'text-zinc-600 hover:text-zinc-950'
           }`}
         >
+          {activeTab === 'overall' && (
+            <motion.div
+              layoutId="scoreboard-mode-active-pill"
+              className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+              transition={{ type: 'spring', stiffness: 450, damping: 32, mass: 0.75 }}
+            />
+          )}
           <TrendingUp size={14} className="flex-shrink-0" />
           <span className="hidden sm:inline">Overall Standings</span>
           <span className="sm:hidden">Overall</span>
@@ -721,17 +748,26 @@ export function ScoreboardPage() {
             setActiveTab('official')
             setSearchParams({ tab: 'official' })
           }}
-          className={`flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+          className={`relative flex-1 py-2 sm:py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5 select-none z-10 ${
             activeTab === 'official'
-              ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200'
-              : 'text-zinc-500 hover:text-zinc-900'
+              ? 'text-white'
+              : 'text-zinc-600 hover:text-zinc-950'
           }`}
         >
+          {activeTab === 'official' && (
+            <motion.div
+              layoutId="scoreboard-mode-active-pill"
+              className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+              transition={{ type: 'spring', stiffness: 450, damping: 32, mass: 0.75 }}
+            />
+          )}
           <Award size={14} className="flex-shrink-0" />
           <span className="hidden sm:inline">Official Jury</span>
           <span className="sm:hidden">Jury</span>
           {isOfficialPublished && (
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+            <span className="skeuo-led-bezel w-3.5 h-3.5 ml-0.5">
+              <span className="skeuo-led-emerald" />
+            </span>
           )}
         </button>
       </div>
@@ -742,13 +778,15 @@ export function ScoreboardPage() {
       {activeTab === 'pitch' && (
         <div className="space-y-5 animate-fade-in">
           {/* Horizontal Startup Selector Bar */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs px-0.5">
-              <span className="font-bold text-zinc-700">Choose Startup Pitch:</span>
-              <span className="text-zinc-400">{sortedByPitchOrder.length} startups</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="font-bold text-zinc-700 uppercase tracking-wider text-[11px] skeuo-text-emboss">Choose Startup Pitch:</span>
+              <span className="skeuo-token text-[11px] font-bold font-mono px-2 py-0.5 rounded-lg text-zinc-800">
+                {sortedByPitchOrder.length} startups
+              </span>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar -mx-1 px-1">
+            <div className="skeuo-sunken p-1.5 rounded-2xl flex gap-1.5 overflow-x-auto no-scrollbar items-center">
               {sortedByPitchOrder.map(team => {
                 const isSelected = team.id === selectedTeamId
                 const isTeamActive = activeRound?.status === 'investment_open' && activeRound?.teamId === team.id
@@ -758,17 +796,19 @@ export function ScoreboardPage() {
                     key={team.id}
                     onClick={() => handleSelectPitch(team.id)}
                     className={`
-                      px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0 border
+                      px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0 select-none cursor-pointer
                       ${isSelected
-                        ? 'bg-zinc-950 text-white border-zinc-950 shadow-sm'
-                        : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                        ? 'skeuo-keypad-btn-active ring-2 ring-zinc-950/20'
+                        : 'skeuo-keypad-btn text-zinc-800'
                       }
                     `}
                   >
-                    <span>#{team.pitchOrder}</span>
+                    <span className="font-mono">#{team.pitchOrder}</span>
                     <span className="max-w-[120px] truncate">{team.name}</span>
                     {isTeamActive && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+                      <span className="skeuo-led-bezel w-3.5 h-3.5">
+                        <span className="skeuo-led-emerald animate-ping" />
+                      </span>
                     )}
                   </button>
                 )
@@ -783,8 +823,8 @@ export function ScoreboardPage() {
               isLive={activeRound?.status === 'investment_open' && activeRound?.teamId === selectedTeam.id}
             />
           ) : (
-            <div className="p-8 text-center bg-white rounded-2xl border border-zinc-200">
-              <p className="text-zinc-500 text-xs">No startups available to display.</p>
+            <div className="p-8 text-center skeuo-sunken rounded-3xl">
+              <p className="text-zinc-500 text-xs font-medium">No startups available to display.</p>
             </div>
           )}
         </div>
@@ -796,54 +836,59 @@ export function ScoreboardPage() {
       {activeTab === 'overall' && (
         <div className="space-y-6 animate-fade-in">
           {/* Audience Independence Disclaimer Notice */}
-          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs space-y-1">
-            <div className="flex items-center gap-2 font-bold text-zinc-900">
-              <ShieldCheck size={15} className="text-zinc-700" />
+          <div className="p-4 rounded-2xl skeuo-sunken text-xs space-y-1">
+            <div className="flex items-center gap-2 font-bold text-zinc-900 skeuo-text-emboss">
+              <ShieldCheck size={15} className="text-zinc-800 flex-shrink-0" />
               <span>Audience Scoring Notice</span>
             </div>
-            <p className="text-zinc-600 leading-relaxed">
+            <p className="text-zinc-600 leading-relaxed font-medium">
               This leaderboard tracks aggregate audience point allocations and crowd backing enthusiasm.
               <strong> Audience point allocations do NOT determine, influence, or tie-break official competition winners.</strong> Official results are judged independently by the official jury.
             </p>
           </div>
 
-          {/* Global stats */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="p-3 sm:p-4 rounded-2xl bg-white border border-zinc-200/90 text-center shadow-sm">
-              <p className="text-lg sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{formatPoints(totalInvested)}</p>
-              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Points Deployed</p>
+          {/* CNC-Milled Sunken Global Stats Wells */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+            <div className="p-3.5 sm:p-4 rounded-2xl skeuo-sunken text-center">
+              <p className="text-base sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{formatPoints(totalInvested)}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-bold mt-0.5 skeuo-text-emboss">Points Deployed</p>
             </div>
-            <div className="p-3 sm:p-4 rounded-2xl bg-white border border-zinc-200/90 text-center shadow-sm">
-              <p className="text-lg sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{totalBackers}</p>
-              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Backers</p>
+            <div className="p-3.5 sm:p-4 rounded-2xl skeuo-sunken text-center">
+              <p className="text-base sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{totalBackers}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-bold mt-0.5 skeuo-text-emboss">Backers</p>
             </div>
-            <div className="p-3 sm:p-4 rounded-2xl bg-white border border-zinc-200/90 text-center shadow-sm">
-              <p className="text-lg sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{teams.length}</p>
-              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-semibold mt-0.5">Startups</p>
+            <div className="p-3.5 sm:p-4 rounded-2xl skeuo-sunken text-center">
+              <p className="text-base sm:text-2xl font-black font-mono text-zinc-950 tracking-tight">{teams.length}</p>
+              <p className="text-zinc-500 text-[10px] sm:text-xs uppercase tracking-wider font-bold mt-0.5 skeuo-text-emboss">Startups</p>
             </div>
           </div>
 
           {/* Active pitch banner */}
           {isLive && activeRound?.team && (
-            <div className="p-4 rounded-2xl bg-white border-2 border-emerald-500 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-sm">
-                  <Radio size={18} className="animate-pulse" />
+            <div className="skeuo-surface border-2 border-emerald-500/90 p-4 rounded-2xl shadow-[0_6px_20px_rgba(16,185,129,0.16),inset_0_1px_0_#FFF] flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-xl skeuo-sunken text-emerald-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  <Radio size={19} className="animate-pulse" />
                 </div>
                 <div>
-                  <p className="text-emerald-700 text-xs font-bold uppercase tracking-wider">Now Pitching on Stage</p>
-                  <p className="text-zinc-950 font-black text-base">{activeRound.team.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-emerald-800 text-xs font-bold uppercase tracking-wider skeuo-text-emboss">Now Pitching on Stage</p>
+                    <span className="skeuo-led-bezel">
+                      <span className="skeuo-led-emerald animate-ping" />
+                    </span>
+                  </div>
+                  <p className="text-zinc-950 font-black text-base sm:text-lg truncate skeuo-text-emboss">{activeRound.team.name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
                 <button
                   onClick={() => handleSelectPitch(activeRound.team!.id)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                  className="skeuo-btn-secondary px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-800 hover:text-zinc-950"
                 >
                   View Pitch Standings
                 </button>
                 <Link to="/live">
-                  <Button size="sm" className="bg-zinc-950 text-white">
+                  <Button size="sm" className="skeuo-btn-primary font-bold px-4 py-2">
                     Score Live Now
                   </Button>
                 </Link>
@@ -853,9 +898,9 @@ export function ScoreboardPage() {
 
           {/* Blind mode notice */}
           {blindMode && (
-            <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-center">
-              <p className="text-amber-900 font-semibold text-xs">Blind Leaderboard Mode Active</p>
-              <p className="text-amber-700 text-[11px] mt-0.5">Audience point scores are hidden until the final stage reveal</p>
+            <div className="p-3.5 rounded-2xl skeuo-sunken border border-amber-300 text-center">
+              <p className="text-amber-900 font-bold text-xs">Blind Leaderboard Mode Active</p>
+              <p className="text-amber-700 text-[11px] mt-0.5 font-medium">Audience point scores are hidden until the final stage reveal</p>
             </div>
           )}
 
@@ -883,32 +928,32 @@ export function ScoreboardPage() {
       {activeTab === 'official' && (
         <div className="space-y-6 animate-fade-in">
           {!isOfficialPublished ? (
-            <div className="p-10 rounded-2xl bg-white border border-zinc-200 text-center space-y-4 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-zinc-100 border border-zinc-200 text-zinc-400 flex items-center justify-center mx-auto">
+            <div className="skeuo-surface rounded-3xl p-8 sm:p-10 text-center space-y-4 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF]">
+              <div className="w-14 h-14 rounded-2xl skeuo-sunken flex items-center justify-center mx-auto text-zinc-500">
                 <Lock size={26} />
               </div>
               <div className="space-y-1.5 max-w-md mx-auto">
-                <h3 className="text-zinc-950 font-black text-lg">Official Results Unpublished</h3>
-                <p className="text-zinc-600 text-xs leading-relaxed">
+                <h3 className="text-zinc-950 font-black text-lg sm:text-xl skeuo-text-emboss">Official Results Unpublished</h3>
+                <p className="text-zinc-600 text-xs sm:text-sm leading-relaxed font-medium">
                   The official judges evaluate pitching teams independently using their own scoring process (including pen and paper).
                   Official competition rankings and winners will be published here by event administrators once jury deliberations conclude.
                 </p>
               </div>
               <div className="pt-2">
-                <Button variant="secondary" size="sm" onClick={() => setActiveTab('pitch')}>
+                <Button variant="secondary" size="sm" onClick={() => setActiveTab('pitch')} className="skeuo-btn-secondary font-bold">
                   View Pitch Standings
                 </Button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-white border border-emerald-400/80 shadow-sm flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 size={18} />
+              <div className="skeuo-surface border border-emerald-400/80 p-4 rounded-2xl shadow-sm flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl skeuo-token flex items-center justify-center text-emerald-700 flex-shrink-0">
+                  <CheckCircle2 size={20} />
                 </div>
                 <div>
-                  <h4 className="text-zinc-950 font-bold text-xs uppercase tracking-wider">Official Jury Decision Published</h4>
-                  <p className="text-zinc-500 text-xs">
+                  <h4 className="text-zinc-950 font-bold text-xs uppercase tracking-wider skeuo-text-emboss">Official Jury Decision Published</h4>
+                  <p className="text-zinc-500 text-xs font-medium">
                     These are the independently evaluated and verified competition rankings from the official judging panel.
                   </p>
                 </div>

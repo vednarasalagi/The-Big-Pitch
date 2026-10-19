@@ -20,8 +20,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       className={cn(
-        'glass-card bg-white border border-zinc-200 text-zinc-900',
-        hover && 'glass-card-hover cursor-pointer',
+        'skeuo-surface rounded-2xl text-zinc-900',
+        hover && 'skeuo-surface-interactive cursor-pointer',
         className
       )}
       {...props}
@@ -41,22 +41,27 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', loading, icon, children, disabled, ...props }, ref) => {
     const variantClass = {
-      primary:   'btn-primary',
-      secondary: 'btn-secondary',
+      primary:   'skeuo-btn-primary font-bold rounded-xl',
+      secondary: 'skeuo-btn-secondary font-bold rounded-xl',
       ghost:     'btn-ghost',
       danger:    'btn-danger',
     }[variant]
 
     const sizeClass = {
       sm: 'text-xs px-3.5 py-1.5 rounded-lg',
-      md: '',
-      lg: 'text-base px-6 py-3',
+      md: 'px-5 py-2.5 text-sm',
+      lg: 'text-base px-6 py-3.5',
     }[size]
 
     return (
       <button
         ref={ref}
-        className={cn(variantClass, sizeClass, className)}
+        className={cn(
+          'inline-flex items-center justify-center font-sans tracking-tight select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none',
+          variantClass,
+          sizeClass,
+          className
+        )}
         disabled={disabled || loading}
         {...props}
       >
@@ -192,7 +197,7 @@ interface StatCardProps {
 }
 
 export const StatCard = ({ label, value, subtext, icon, trend, trendValue, className }: StatCardProps) => (
-  <Card className={cn('p-5 border-zinc-200 bg-white', className)}>
+  <Card className={cn('p-5 skeuo-surface', className)}>
     <div className="flex items-start justify-between">
       <div className="flex-1">
         <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider mb-1.5">{label}</p>
@@ -209,7 +214,7 @@ export const StatCard = ({ label, value, subtext, icon, trend, trendValue, class
         )}
       </div>
       {icon && (
-        <div className="p-2.5 rounded-xl bg-zinc-100 text-zinc-800 border border-zinc-200 flex-shrink-0">
+        <div className="skeuo-token p-2.5 rounded-xl text-zinc-800 flex-shrink-0">
           {icon}
         </div>
       )}
@@ -238,9 +243,9 @@ export const ProgressBar = ({ value, max = 100, size = 'md', showLabel, label, c
           <span>{Math.round(pct)}%</span>
         </div>
       )}
-      <div className={cn('w-full rounded-full bg-zinc-100 overflow-hidden', size === 'sm' ? 'h-1.5' : 'h-2.5')}>
+      <div className={cn('w-full rounded-full skeuo-meter-track overflow-hidden p-[1px]', size === 'sm' ? 'h-2' : 'h-3')}>
         <div
-          className="h-full rounded-full bg-zinc-900 transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-gradient-to-r from-zinc-800 to-zinc-950 shadow-[0_1px_2px_rgba(0,0,0,0.3)] transition-all duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -280,19 +285,25 @@ interface EmptyStateProps {
 }
 
 export const EmptyState = ({ icon, title, description, action }: EmptyStateProps) => (
-  <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
-    {icon && <div className="text-zinc-400 mb-3">{icon}</div>}
-    <h3 className="text-zinc-900 font-bold text-base mb-1">{title}</h3>
-    {description && <p className="text-zinc-500 text-sm max-w-sm">{description}</p>}
+  <div className="skeuo-surface flex flex-col items-center justify-center py-12 px-6 text-center rounded-2xl max-w-lg mx-auto my-6">
+    {icon && (
+      <div className="skeuo-token w-14 h-14 flex items-center justify-center text-zinc-700 mb-4">
+        {icon}
+      </div>
+    )}
+    <h3 className="text-zinc-950 font-black text-lg mb-1.5 skeuo-text-emboss">{title}</h3>
+    {description && <p className="text-zinc-600 text-xs sm:text-sm max-w-sm leading-relaxed">{description}</p>}
     {action && <div className="mt-5">{action}</div>}
   </div>
 )
 
 // ── Live Indicator ────────────────────────────────────────
 export const LiveIndicator = ({ label = 'LIVE PITCH', className }: { label?: string; className?: string }) => (
-  <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-bold tracking-wide', className)}>
-    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-    {label}
+  <span className={cn('inline-flex items-center gap-2 px-3 py-1 bg-white border border-emerald-300 rounded-full text-emerald-950 text-xs font-bold tracking-wide shadow-[inset_0_1px_0_#FFF,0_2px_4px_rgba(16,185,129,0.1)]', className)}>
+    <span className="skeuo-led-bezel">
+      <span className="skeuo-led-emerald animate-pulse" />
+    </span>
+    <span className="tracking-wide font-extrabold text-[11px] uppercase">{label}</span>
   </span>
 )
 

@@ -9,6 +9,7 @@ import {
   LogOut, Shield, ChevronRight, Bell, Sparkles, ArrowRight
 } from 'lucide-react'
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthStore, useEventStore, useNotificationStore, useWalletStore } from '@/store'
 import { Avatar, LiveIndicator, BrandLogo } from '@/components/ui'
@@ -71,8 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        {/* Center: Desktop Navigation Bar with clear, simple names */}
-        <nav className="hidden md:flex items-center gap-1 bg-zinc-100/80 p-1 rounded-2xl border border-zinc-200/70 shadow-inner">
+        {/* Center: Desktop Navigation Bar with tactile physical switch track & fluid sliding rocker */}
+        <nav className="hidden md:flex items-center gap-1 skeuo-pill-track p-1 rounded-2xl flex-shrink-0 relative">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
             const active = isActive(to)
             const showLiveBadge = to === '/live' && isLive
@@ -82,16 +83,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={to}
                 to={to}
                 className={cn(
-                  'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150',
+                  'relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors duration-150 select-none z-10',
                   active
-                    ? 'bg-white text-zinc-950 shadow-sm border border-zinc-200'
-                    : 'text-zinc-600 hover:text-zinc-950 hover:bg-white/60'
+                    ? 'text-white'
+                    : 'text-zinc-600 hover:text-zinc-950'
                 )}
               >
-                <Icon size={15} strokeWidth={active ? 2.2 : 1.75} className={active ? 'text-zinc-950' : 'text-zinc-500'} />
+                {active && (
+                  <motion.div
+                    layoutId="desktop-navbar-active-pill"
+                    className="absolute inset-0 skeuo-pill-active rounded-xl -z-10"
+                    transition={{
+                      type: 'spring',
+                      stiffness: 450,
+                      damping: 32,
+                      mass: 0.75,
+                    }}
+                  />
+                )}
+                <Icon size={15} strokeWidth={active ? 2.2 : 1.75} className={active ? 'text-white' : 'text-zinc-600'} />
                 <span>{label}</span>
                 {showLiveBadge && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white animate-pulse">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white animate-pulse shadow-xs">
                     Live
                   </span>
                 )}
@@ -106,10 +119,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {user && !isAdmin && (
             <Link
               to="/wallet"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 border border-zinc-200/90 transition-all text-xs font-semibold text-zinc-950 shadow-xs"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl skeuo-sunken transition-all text-xs font-semibold text-zinc-950"
               title="Your Available Points — Click to manage wallet"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="skeuo-led-bezel">
+                <span className="skeuo-led-emerald" />
+              </span>
               <span className="hidden sm:inline text-zinc-500 font-medium">Points:</span>
               <span className="font-mono font-black">{formatPoints(totalPoints)}</span>
             </Link>
@@ -119,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {isAdmin && (
             <Link
               to="/admin"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-zinc-950 text-white text-xs font-bold hover:bg-zinc-800 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl skeuo-btn-primary text-xs font-bold transition-all"
             >
               <Shield size={13} strokeWidth={2} />
               <span className="hidden sm:inline">Admin Room</span>
@@ -138,7 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <Link
               to="/auth"
-              className="px-3 sm:px-4 py-1.5 rounded-xl bg-zinc-950 text-white text-xs font-bold hover:bg-zinc-800 transition-all shadow-sm"
+              className="px-3.5 sm:px-4 py-1.5 rounded-xl skeuo-btn-primary text-xs font-bold transition-all"
             >
               Sign In
             </Link>
@@ -259,9 +274,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Enterprise Compliance Footer */}
       <Footer />
 
-      {/* Mobile Bottom Navigation Bar (Ultra-clean, touch-friendly, high contrast) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden backdrop-blur-2xl bg-white/95 border-t border-zinc-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-[max(0.35rem,env(safe-area-inset-bottom,0px))]">
-        <div className="flex items-center justify-around px-1 py-1.5">
+      {/* Mobile Bottom Navigation Bar (Tactile Hardware Dock) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-gradient-to-b from-white to-[#F6F7F9] border-t border-zinc-200/90 shadow-[0_-6px_24px_rgba(0,0,0,0.06),inset_0_1px_0_#FFFFFF] pb-[max(0.35rem,env(safe-area-inset-bottom,0px))]">
+        <div className="flex items-center justify-around px-2 py-1.5">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
             const active = isActive(to)
             const showLiveDot = to === '/live' && isLive
@@ -271,22 +286,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={to}
                 to={to}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl min-w-0 flex-1 transition-all',
-                  active ? 'text-zinc-950 font-bold scale-[1.03]' : 'text-zinc-500 hover:text-zinc-800 font-medium'
+                  'flex flex-col items-center justify-center gap-1 py-1 px-1.5 rounded-xl min-w-0 flex-1 transition-all select-none',
+                  active ? 'text-zinc-950 font-black' : 'text-zinc-500 hover:text-zinc-800 font-semibold'
                 )}
               >
                 <div className="relative flex items-center justify-center">
                   <div className={cn(
-                    'p-1 rounded-lg transition-colors',
-                    active ? 'bg-zinc-100 text-zinc-950' : 'text-zinc-500'
+                    'p-1.5 rounded-xl transition-colors duration-150 relative',
+                    active ? 'text-white' : 'hover:bg-zinc-100 text-zinc-600'
                   )}>
-                    <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
+                    {active && (
+                      <motion.div
+                        layoutId="mobile-dock-active-cap"
+                        className="absolute inset-0 skeuo-btn-primary rounded-xl -z-10"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 450,
+                          damping: 32,
+                          mass: 0.75,
+                        }}
+                      />
+                    )}
+                    <Icon size={18} strokeWidth={active ? 2.4 : 1.8} className={active ? 'text-white' : 'text-zinc-600'} />
                   </div>
                   {showLiveDot && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+                    <span className="absolute -top-1 -right-1 skeuo-led-bezel w-3.5 h-3.5 z-20">
+                      <span className="skeuo-led-emerald animate-pulse" />
+                    </span>
                   )}
                 </div>
-                <span className="text-[10px] tracking-tight truncate leading-none">{label}</span>
+                <span className={cn(
+                  'text-[10px] tracking-tight truncate leading-none mt-0.5',
+                  active && 'skeuo-text-emboss font-bold text-zinc-950'
+                )}>{label}</span>
               </Link>
             )
           })}
