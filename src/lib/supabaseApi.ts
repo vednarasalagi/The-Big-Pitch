@@ -278,38 +278,11 @@ export async function getOrCreateWallet(userId: string, eventId: string, initial
         return mapWallet(afterRpc)
       }
 
-      // Step D: Direct insert fallback (if permitted by policies)
-      const { data: inserted, error: insertErr } = await supabase
-        .from(TABLES.WALLETS)
-        .insert({
-          user_id: userId,
-          event_id: eventId,
-          free_points: initialGrant,
-          purchased_points: 0,
-          invested_points: 0,
-          total_spent_points: 0,
-          total_paid_rupees: 0,
-          free_points_granted: true,
-        })
-        .select()
-        .maybeSingle()
-
-      if (inserted && !insertErr) {
-        // Record ledger entry
-        try {
-          await supabase.from(TABLES.WALLET_LEDGER).insert({
-            wallet_id: inserted.id,
-            user_id: userId,
-            event_id: eventId,
-            type: 'free_grant',
-            amount: initialGrant,
-            balance_after: initialGrant,
-            description: 'Welcome grant of audience voting points',
-          })
-        } catch {}
-
-        return mapWallet(inserted)
-      }
+      // HIGH-1 FIX: Removed direct client-side INSERT fallback into wallets.
+      // Wallet creation MUST go through the grant_free_points RPC (server-side, atomic).
+      // A client-side INSERT bypasses server business rules and can be manipulated.
+      console.warn('Wallet RPC did not create wallet for user. They may need to refresh or re-authenticate.')
+      return null
     } catch (err) {
       console.error('Wallet access error:', err)
     }
@@ -442,6 +415,12 @@ export async function submitInvestment(params: {
   if (!supabase) return { success: false, error: 'Database client not connected' }
 
   const { userId, eventId, teamId, roundId, amount, wallet, timeElapsedMs } = params
+
+  // LOW-4 FIX: Validate investment amount is a safe positive integer
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return { success: false, error: 'Investment amount must be a positive whole number.' }
+  }
+
   const available = wallet.freePoints + wallet.purchasedPoints
   if (amount > available) {
     return { success: false, error: 'Insufficient points in wallet' }
@@ -465,8 +444,15 @@ export async function submitInvestment(params: {
       if (roundData.investment_close_time && new Date(roundData.investment_close_time).getTime() < Date.now()) {
         return { success: false, error: 'The investment window deadline has passed.' }
       }
-      if (!calculatedMs && roundData.investment_open_time) {
-        calculatedMs = Math.max(1, Date.now() - new Date(roundData.investment_open_time).getTime())
+      // Millisecond speed MUST strictly start once the investment window is open (never from pitch start or random)
+      if (roundData.investment_open_time) {
+        const windowOpenMs = new Date(roundData.investment_open_time).getTime()
+        const authoritativeElapsedMs = Math.max(1, Date.now() - windowOpenMs)
+        // If client did not provide calculatedMs, or provided a time measured from pitch start
+        // (significantly greater than elapsed time since investment window opened), enforce authoritativeElapsedMs:
+        if (!calculatedMs || calculatedMs <= 0 || calculatedMs > authoritativeElapsedMs + 4000) {
+          calculatedMs = authoritativeElapsedMs
+        }
       }
     }
   } catch {}
@@ -498,74 +484,15 @@ export async function submitInvestment(params: {
       return { success: true }
     }
 
-    // 2. Direct database transaction fallback if procedure is not installed
-    const deductFree = Math.min(wallet.freePoints, amount)
-    const deductPurchased = amount - deductFree
-
-    const newFree = wallet.freePoints - deductFree
-    const newPurchased = wallet.purchasedPoints - deductPurchased
-
-    // Update wallet
-    const { error: walletErr } = await supabase
-      .from(TABLES.WALLETS)
-      .update({
-        free_points: newFree,
-        purchased_points: newPurchased,
-        invested_points: wallet.investedPoints + amount,
-        total_spent_points: wallet.totalSpentPoints + amount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', wallet.id)
-
-    if (walletErr) {
-      return { success: false, error: walletErr.message }
-    }
-
-    // Insert investment with millisecond reaction time
-    const { data: invData, error: invErr } = await supabase
-      .from(TABLES.INVESTMENTS)
-      .insert({
-        user_id: userId,
-        event_id: eventId,
-        team_id: teamId,
-        round_id: roundId,
-        amount,
-        time_elapsed_ms: calculatedMs,
-      })
-      .select()
-      .single()
-
-    if (invErr) {
-      return { success: false, error: invErr.message }
-    }
-
-    // Append to wallet ledger
-    await supabase.from(TABLES.WALLET_LEDGER).insert({
-      wallet_id: wallet.id,
-      user_id: userId,
-      event_id: eventId,
-      type: 'investment',
-      amount: -amount,
-      balance_after: newFree + newPurchased,
-      description: 'Investment in pitch team',
-      reference_id: invData?.id,
-    })
-
-    // Update team totals
-    const { data: teamData } = await supabase
-      .from(TABLES.TEAMS)
-      .select('total_investment, unique_backers')
-      .eq('id', teamId)
-      .single()
-
-    if (teamData) {
-      await supabase
-        .from(TABLES.TEAMS)
-        .update({
-          total_investment: (teamData.total_investment ?? 0) + amount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', teamId)
+    // HIGH-2 FIX: Removed non-atomic client-side fallback.
+    // If the process_investment RPC is unavailable, we must fail safely.
+    // A non-atomic multi-step fallback creates TOCTOU race conditions
+    // that can allow double-spending or inconsistent ledger states.
+    if (rpcError) {
+      return {
+        success: false,
+        error: 'Investment service is temporarily unavailable. Please try again in a moment.',
+      }
     }
 
     return { success: true }
@@ -585,15 +512,28 @@ export async function logAuditEvent(params: {
   targetId?: string
   metadata?: Record<string, any>
   eventId?: string
+  adminId?: string   // CRIT-3 FIX: Always pass or resolve the real admin's UUID
 }): Promise<void> {
-  const { action, targetId, metadata = {}, eventId } = params
+  const { action, targetId, metadata = {}, eventId, adminId } = params
   const now = new Date().toISOString()
   const currentEventId = eventId || '11111111-0000-0000-0000-000000000001'
+
+  // CRIT-3 FIX: Automatically resolve the real authenticated admin ID if not explicitly passed
+  let resolvedAdminId = adminId
+  if (!resolvedAdminId && supabase) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.id) {
+        resolvedAdminId = user.id
+      }
+    } catch {}
+  }
+  const displayAdminId = resolvedAdminId || 'system'
 
   const newLogEntry = {
     id: generateId(),
     event_id: currentEventId,
-    admin_id: '00000000-0000-0000-0000-000000000000',
+    admin_id: displayAdminId,
     action,
     target_id: targetId || null,
     metadata,
@@ -612,12 +552,13 @@ export async function logAuditEvent(params: {
     window.dispatchEvent(new CustomEvent('audit-logs-updated', { detail: newLogEntry }))
   }
 
-  // 3. Persist to Supabase audit_logs table
-  if (supabase) {
+  // 3. Persist to Supabase audit_logs table (only if we have a valid UUID admin_id)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(displayAdminId)
+  if (supabase && isUuid) {
     try {
       await supabase.from(TABLES.AUDIT_LOGS).insert({
         event_id: currentEventId,
-        admin_id: '00000000-0000-0000-0000-000000000000',
+        admin_id: displayAdminId,
         action,
         target_id: targetId || null,
         metadata: newLogEntry.metadata,
@@ -755,8 +696,10 @@ export async function getUserRewards(userId: string, eventId?: string): Promise<
 /**
  * Claim reward in Supabase.
  */
-export async function claimRewardInDb(rewardId: string): Promise<boolean> {
-  if (!supabase || !rewardId) return false
+// HIGH-4 FIX: Added userId parameter and ownership filter to prevent
+// any authenticated user from claiming another user's reward by ID.
+export async function claimRewardInDb(rewardId: string, userId: string): Promise<boolean> {
+  if (!supabase || !rewardId || !userId) return false
 
   try {
     const { error } = await supabase
@@ -766,6 +709,7 @@ export async function claimRewardInDb(rewardId: string): Promise<boolean> {
         claimed_at: new Date().toISOString(),
       })
       .eq('id', rewardId)
+      .eq('user_id', userId)   // HIGH-4 FIX: Enforce ownership at the query level
 
     return !error
   } catch (err) {
@@ -1414,12 +1358,24 @@ export async function getTeamAudienceStandings(teamId: string): Promise<TeamInve
       const round = roundsMap.get(inv.round_id)
 
       let timeMs = Number(inv.time_elapsed_ms) || 0
-      if (!timeMs || timeMs <= 0) {
-        const openTime = round?.investment_open_time || round?.pitch_start_time || round?.created_at
-        if (openTime && inv.created_at) {
-          timeMs = Math.max(1, new Date(inv.created_at).getTime() - new Date(openTime).getTime())
+
+      // Speed in milliseconds MUST strictly be measured from when the investment window opened
+      if (round?.investment_open_time && inv.created_at) {
+        const windowOpenMs = new Date(round.investment_open_time).getTime()
+        const invTimeMs = new Date(inv.created_at).getTime()
+        const windowElapsed = Math.max(1, invTimeMs - windowOpenMs)
+
+        // If time_elapsed_ms was not recorded, or was mistakenly measured from pitch start
+        // (significantly greater than time since investment window opened), use true windowElapsed
+        if (!timeMs || timeMs <= 0 || timeMs > windowElapsed + 4000) {
+          timeMs = windowElapsed
+        }
+      } else if (!timeMs || timeMs <= 0) {
+        // Clean positive fallback if no investment_open_time exists
+        if (round?.created_at && inv.created_at) {
+          timeMs = Math.max(1, new Date(inv.created_at).getTime() - new Date(round.created_at).getTime())
         } else {
-          timeMs = 1200
+          timeMs = 1
         }
       }
 

@@ -63,10 +63,11 @@ function InvestmentPanel({ teamId, roundId }: { teamId: string; roundId: string 
     setLoading(true)
     setConfirming(false)
     try {
-      const openTime = (activeRound?.investmentOpenTime || activeRound?.pitchStartTime)
-        ? new Date(activeRound.investmentOpenTime || activeRound.pitchStartTime!).getTime()
+      // Millisecond speed MUST strictly start from when the investment window opened (not from pitch start or random)
+      const windowOpenMs = activeRound?.investmentOpenTime
+        ? new Date(activeRound.investmentOpenTime).getTime()
         : Date.now()
-      const timeElapsedMs = Math.max(1, Date.now() - openTime)
+      const timeElapsedMs = Math.max(1, Date.now() - windowOpenMs)
 
       if (wallet) {
         const res = await submitInvestment({
@@ -308,12 +309,18 @@ export function LivePitchPage() {
           // Check local investments
           const teamInvs = localInvestments.filter(i => i.teamId === team.id)
           if (teamInvs.length > 0) {
+            const openTimeMs = activeRound?.investmentOpenTime ? new Date(activeRound.investmentOpenTime).getTime() : 0
+            const firstInvTime = teamInvs[0]?.createdAt ? new Date(teamInvs[0].createdAt).getTime() : 0
+            const calculatedSpeedMs = (openTimeMs > 0 && firstInvTime >= openTimeMs)
+              ? Math.max(1, firstInvTime - openTimeMs)
+              : (teamInvs[0]?.timeElapsedMs && teamInvs[0].timeElapsedMs > 0 ? teamInvs[0].timeElapsedMs : 1)
+
             setTeamStandings([{
               userId: user?.id || 'me',
               displayName: user?.displayName || 'You',
               email: user?.email || '',
               amount: teamInvs.reduce((s, i) => s + i.amount, 0),
-              timeElapsedMs: teamInvs[0]?.timeElapsedMs || 1420,
+              timeElapsedMs: calculatedSpeedMs,
               investedAt: teamInvs[0]?.createdAt || new Date().toISOString(),
               rank: 1,
             }])

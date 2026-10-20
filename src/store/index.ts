@@ -65,7 +65,19 @@ export const useAuthStore = create<AuthState>()(
         }
       },
     }),
-    { name: 'pitch-arena-auth' }
+    {
+      name: 'pitch-arena-auth',
+      // LOW-2 FIX: Never persist privileged 'admin' role in localStorage.
+      // Re-hydrated sessions start as 'audience' until AdminGuard verifies via Supabase DB.
+      partialize: (state) => ({
+        user: state.user
+          ? {
+              ...state.user,
+              role: 'audience' as const,
+            }
+          : null,
+      }),
+    }
   )
 )
 

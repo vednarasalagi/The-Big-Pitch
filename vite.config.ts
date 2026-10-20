@@ -2,8 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  esbuild: (mode === 'production' ? { drop: ['console', 'debugger'] } : undefined) as any,
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -13,4 +14,4 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
-})
+}))

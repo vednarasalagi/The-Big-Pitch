@@ -140,11 +140,70 @@ export function CastScreenPage() {
 
   // Active round or live pitch data
   const currentTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
-  const isLive = activeRound?.status === 'investment_open'
+  const isInvestmentOpen = activeRound?.status === 'investment_open'
+  const isPitching = activeRound?.status === 'announced' || activeRound?.status === 'pitching'
+  const isPaused = activeRound?.status === 'investment_paused'
+  const isStageActive = Boolean(activeRound && ['announced', 'pitching', 'investment_open', 'investment_paused'].includes(activeRound.status))
+  const isLive = isInvestmentOpen
+
+  // Authoritative live countdown for investment window or pitch phase
+  const [countdownSeconds, setCountdownSeconds] = useState<number>(0)
+
+  useEffect(() => {
+    if (!activeRound) {
+      setCountdownSeconds(0)
+      return
+    }
+
+    if (activeRound.status === 'investment_paused') {
+      if (activeRound.investmentPauseTime && activeRound.investmentCloseTime) {
+        const pausedRemaining = Math.max(0, Math.floor((new Date(activeRound.investmentCloseTime).getTime() - new Date(activeRound.investmentPauseTime).getTime()) / 1000))
+        setCountdownSeconds(pausedRemaining)
+      }
+      return
+    }
+
+    if (activeRound.status === 'investment_open') {
+      const closeTimeMs = activeRound.investmentCloseTime
+        ? new Date(activeRound.investmentCloseTime).getTime()
+        : (activeRound.investmentOpenTime
+          ? new Date(activeRound.investmentOpenTime).getTime() + ((activeRound.investmentWindowSeconds || 180) * 1000)
+          : Date.now() + 180000)
+
+      const tick = () => {
+        const remaining = Math.max(0, Math.floor((closeTimeMs - Date.now()) / 1000))
+        setCountdownSeconds(remaining)
+      }
+      tick()
+      const interval = setInterval(tick, 1000)
+      return () => clearInterval(interval)
+    }
+
+    const pitchStartStr = activeRound.pitchStartTime || activeRound.createdAt
+    if ((activeRound.status === 'announced' || activeRound.status === 'pitching') && pitchStartStr) {
+      const start = new Date(pitchStartStr).getTime()
+      const duration = (activeRound.scheduledDurationSeconds || 300) * 1000
+      const tick = () => {
+        const remaining = Math.max(0, Math.floor((start + duration - Date.now()) / 1000))
+        setCountdownSeconds(remaining)
+      }
+      tick()
+      const interval = setInterval(tick, 1000)
+      return () => clearInterval(interval)
+    }
+
+    setCountdownSeconds(0)
+  }, [activeRound?.status, activeRound?.investmentCloseTime, activeRound?.investmentOpenTime, activeRound?.investmentPauseTime, activeRound?.pitchStartTime, activeRound?.scheduledDurationSeconds, activeRound?.createdAt])
 
   // If a team result is selected
   const activeSelectedTeam = selectedTeamId ? teams.find(t => t.id === selectedTeamId) : null
   const selectedTeamRank = activeSelectedTeam ? sortedTeams.findIndex(t => t.id === activeSelectedTeam.id) + 1 : 0
+  const isViewingCurrentStageTeam = Boolean(
+    activeSelectedTeam && (
+      (activeRound && activeSelectedTeam.id === activeRound.teamId) ||
+      activeSelectedTeam.status === 'active'
+    )
+  )
 
   // Load live audience standings for the casted startup
   useEffect(() => {
@@ -165,12 +224,18 @@ export function CastScreenPage() {
           // Fallback to local store investments if testing locally
           const teamInvs = localInvestments.filter(i => i.teamId === activeSelectedTeam.id)
           if (teamInvs.length > 0) {
+            const openTimeMs = activeRound?.investmentOpenTime ? new Date(activeRound.investmentOpenTime).getTime() : 0
+            const firstInvTime = teamInvs[0]?.createdAt ? new Date(teamInvs[0].createdAt).getTime() : 0
+            const calculatedSpeedMs = (openTimeMs > 0 && firstInvTime >= openTimeMs)
+              ? Math.max(1, firstInvTime - openTimeMs)
+              : (teamInvs[0]?.timeElapsedMs && teamInvs[0].timeElapsedMs > 0 ? teamInvs[0].timeElapsedMs : 1)
+
             const fallbackStanding: TeamInvestorStanding = {
               userId: user?.id || 'current-user',
               displayName: user?.displayName || 'Audience Backer',
               email: user?.email || '',
               amount: teamInvs.reduce((s, i) => s + i.amount, 0),
-              timeElapsedMs: teamInvs[0]?.timeElapsedMs || 1420,
+              timeElapsedMs: calculatedSpeedMs,
               investedAt: teamInvs[0]?.createdAt || new Date().toISOString(),
               rank: 1,
             }
@@ -251,6 +316,12 @@ export function CastScreenPage() {
                   <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase text-zinc-800">
                     Stage Projection
                   </span>
+                  {isInvestmentOpen && (
+                    <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 text-xs font-mono font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Window: {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -380,22 +451,114 @@ export function CastScreenPage() {
                     )}
                   </div>
 
-                  {/* Dual Podiums (Rank + Capital) */}
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-200/80">
-                    <div className="skeuo-sunken p-4 text-center rounded-2xl">
-                      <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">Tournament Rank</p>
-                      <p className="text-3xl lg:text-4xl font-black text-zinc-950 font-mono mt-0.5">
-                        #{selectedTeamRank}
-                      </p>
-                      <p className="text-zinc-400 text-[10px] mt-0.5 font-medium">of {teams.length} Startups</p>
-                    </div>
+                  {/* ── LIVE INVESTMENT WINDOW TIMER & DUAL PODIUMS (LEFT PART) ── */}
+                  <div className="pt-2 border-t border-zinc-200/80 space-y-3">
+                    {/* Investment Window Timer Widget */}
+                    {isViewingCurrentStageTeam && isInvestmentOpen && (
+                      <div className="skeuo-sunken rounded-2xl p-4 border-2 border-emerald-500/60 bg-emerald-50/40 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06),0_2px_8px_rgba(16,185,129,0.12)]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="skeuo-led-bezel">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse block shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+                            </div>
+                            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                              Investment Window Open
+                            </span>
+                          </div>
+                          <span className="skeuo-token px-2.5 py-0.5 rounded-full text-[10px] font-mono text-emerald-950 font-black uppercase tracking-wider border border-emerald-300 bg-white">
+                            Audience Live
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between mt-2">
+                          <div className="font-mono text-4xl lg:text-5xl font-black text-zinc-950 tabular-nums tracking-tight">
+                            {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-bold">
+                              {countdownSeconds <= 30 && countdownSeconds > 0 ? (
+                                <span className="text-rose-600 font-black animate-pulse">Closing soon!</span>
+                              ) : countdownSeconds === 0 ? (
+                                <span className="text-zinc-600 font-semibold">Window closed</span>
+                              ) : (
+                                <span className="text-emerald-800 font-black">Time to invest</span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 font-mono font-medium">Speed starts from window open</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                    <div className="skeuo-surface-dark p-4 text-center rounded-2xl text-white">
-                      <p className="text-zinc-400 text-[10px] uppercase tracking-widest font-bold">Audience Capital</p>
-                      <p className="text-2xl lg:text-3xl font-black text-white font-mono mt-0.5">
-                        {formatPoints(activeSelectedTeam.totalInvestment)}
-                      </p>
-                      <p className="text-zinc-400 text-[10px] mt-0.5 font-medium">{activeSelectedTeam.uniqueBackers} Backers</p>
+                    {isViewingCurrentStageTeam && isPaused && (
+                      <div className="skeuo-sunken rounded-2xl p-3.5 border border-amber-300/60 bg-amber-50/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="skeuo-led-bezel">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 block shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                              Investment Window Paused
+                            </span>
+                          </div>
+                          <span className="text-lg font-mono font-black text-amber-900">
+                            {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {isViewingCurrentStageTeam && isPitching && (
+                      <div className="skeuo-sunken rounded-2xl p-3.5 border border-zinc-300/80">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-zinc-500" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-700">
+                              Pitch In Progress
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-base font-mono font-black text-zinc-950 block">
+                              {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                            </span>
+                            <span className="text-[9px] text-zinc-400 font-medium">Investment window opens next</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isViewingCurrentStageTeam && (
+                      <div className="skeuo-sunken rounded-2xl p-3 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 text-zinc-600">
+                          <Clock size={14} className="text-zinc-400" />
+                          <span className="font-semibold text-xs">Investment Window:</span>
+                        </div>
+                        <span className="skeuo-token px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold text-zinc-800">
+                          {activeSelectedTeam.status === 'completed' || activeSelectedTeam.status === 'closed'
+                            ? 'Concluded'
+                            : activeSelectedTeam.status === 'upcoming'
+                            ? 'Scheduled'
+                            : 'Ready'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Dual Podiums (Rank + Capital) */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="skeuo-sunken p-4 text-center rounded-2xl">
+                        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">Tournament Rank</p>
+                        <p className="text-3xl lg:text-4xl font-black text-zinc-950 font-mono mt-0.5">
+                          #{selectedTeamRank}
+                        </p>
+                        <p className="text-zinc-400 text-[10px] mt-0.5 font-medium">of {teams.length} Startups</p>
+                      </div>
+
+                      <div className="skeuo-sunken p-4 text-center rounded-2xl border border-zinc-200/90 bg-zinc-50/80">
+                        <p className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">Audience Capital</p>
+                        <p className="text-2xl lg:text-3xl font-black text-zinc-950 font-mono mt-0.5">
+                          {formatPoints(activeSelectedTeam.totalInvestment)}
+                        </p>
+                        <p className="text-zinc-500 text-[10px] mt-0.5 font-medium">{activeSelectedTeam.uniqueBackers} Backers</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -599,21 +762,36 @@ export function CastScreenPage() {
             >
               {/* Left Column (7 cols): Live Pitch Hero or Stage Status */}
               <div className="lg:col-span-7 space-y-6">
-                {isLive && currentTeam ? (
-                  // Live Pitch in Progress Box
+                {(isStageActive || isLive) && currentTeam ? (
+                  // Live Pitch on Stage Card with Startup Details & Investment Window Timer
                   <div className="skeuo-surface relative overflow-hidden rounded-3xl p-8 lg:p-10 border-2 border-zinc-950 shadow-[0_8px_30px_rgba(0,0,0,0.08)] animate-fade-in">
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-2.5">
                         <div className="skeuo-led-bezel">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse block shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                          <span className={`w-2.5 h-2.5 rounded-full block ${
+                            isInvestmentOpen
+                              ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.9)]'
+                              : isPaused
+                              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]'
+                              : 'bg-zinc-400'
+                          }`} />
                         </div>
                         <span className="font-black text-zinc-950 text-xs tracking-widest uppercase">
-                          LIVE PITCH ON STAGE
+                          {isInvestmentOpen
+                            ? 'INVESTMENT WINDOW OPEN • LIVE'
+                            : isPaused
+                            ? 'STAGE ROUND PAUSED'
+                            : 'LIVE PITCH PRESENTATION'}
                         </span>
                       </div>
-                      <span className="skeuo-token px-3 py-1 rounded-full text-xs font-mono font-bold uppercase text-zinc-900">
-                        Round #{activeRound?.roundNumber || currentTeam.pitchOrder}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="skeuo-token px-3 py-1 rounded-full text-xs font-mono font-bold uppercase text-zinc-900">
+                          Round #{activeRound?.roundNumber || currentTeam.pitchOrder}
+                        </span>
+                        <span className="skeuo-token px-3 py-1 rounded-full text-xs font-bold uppercase text-zinc-700">
+                          {currentTeam.category}
+                        </span>
+                      </div>
                     </div>
 
                     <h2 className="text-4xl sm:text-6xl font-black text-zinc-950 tracking-tight leading-none mb-3">
@@ -623,7 +801,7 @@ export function CastScreenPage() {
                       {currentTeam.pitchTitle}
                     </p>
 
-                    <p className="text-zinc-600 text-sm sm:text-base leading-relaxed line-clamp-3 mb-6">
+                    <p className="text-zinc-600 text-sm sm:text-base leading-relaxed line-clamp-3 mb-5">
                       {currentTeam.description}
                     </p>
 
@@ -634,6 +812,86 @@ export function CastScreenPage() {
                         <span>{currentTeam.presenters.join(', ')}</span>
                       </div>
                     )}
+
+                    {/* ── LIVE INVESTMENT WINDOW TIMER IN PROJECTOR SCREEN (LEFT COLUMN) ── */}
+                    {isInvestmentOpen ? (
+                      <div className="skeuo-sunken rounded-2xl p-6 mb-6 border-2 border-emerald-500/60 bg-emerald-50/40 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06),0_2px_8px_rgba(16,185,129,0.12)]">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="skeuo-led-bezel">
+                              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse block shadow-[0_0_10px_rgba(16,185,129,0.95)]" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
+                              INVESTMENT WINDOW OPEN
+                            </span>
+                          </div>
+                          <span className="skeuo-token px-3 py-1 rounded-full text-[11px] font-mono text-emerald-950 font-black uppercase tracking-wider border border-emerald-300 bg-white">
+                            Audience Window Live
+                          </span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-2">
+                          <div className="font-mono text-5xl sm:text-7xl font-black text-zinc-950 tabular-nums tracking-tight">
+                            {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                          </div>
+                          <div className="sm:text-right">
+                            <p className="text-sm font-bold">
+                              {countdownSeconds <= 30 && countdownSeconds > 0 ? (
+                                <span className="text-rose-600 font-black animate-pulse flex items-center gap-1.5 sm:justify-end">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping inline-block" />
+                                  WINDOW CLOSING SOON!
+                                </span>
+                              ) : countdownSeconds === 0 ? (
+                                <span className="text-zinc-600 font-semibold">Investment window closed</span>
+                              ) : (
+                                <span className="text-emerald-800 font-black">Audience investments active</span>
+                              )}
+                            </p>
+                            <p className="text-[11px] text-zinc-600 font-mono mt-0.5 font-semibold">
+                              Reaction speed timer active in milliseconds
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isPaused ? (
+                      <div className="skeuo-sunken rounded-2xl p-5 mb-6 border border-amber-300/60 bg-amber-50/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="skeuo-led-bezel">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 block shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-black uppercase tracking-wider text-amber-800 block">
+                                INVESTMENT WINDOW PAUSED
+                              </span>
+                              <span className="text-[10px] text-amber-600 font-medium">Timer paused by stage coordinator</span>
+                            </div>
+                          </div>
+                          <span className="text-3xl font-mono font-black text-amber-900">
+                            {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                          </span>
+                        </div>
+                      </div>
+                    ) : isPitching ? (
+                      <div className="skeuo-sunken rounded-2xl p-5 mb-6 border border-zinc-300/80">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <Clock size={18} className="text-zinc-500" />
+                            <div>
+                              <span className="text-xs font-black uppercase tracking-wider text-zinc-800 block">
+                                PITCH PRESENTATION IN PROGRESS
+                              </span>
+                              <span className="text-[10px] text-zinc-500 font-medium">Investment window opens immediately after presentation</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-2xl sm:text-3xl font-mono font-black text-zinc-950 block">
+                              {Math.floor(countdownSeconds / 60)}:{String(countdownSeconds % 60).padStart(2, '0')}
+                            </span>
+                            <span className="text-[9px] text-zinc-400 font-medium">Pitch Clock</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
 
                     {/* Live Metric Display */}
                     <div className="grid grid-cols-2 gap-4">
@@ -649,6 +907,20 @@ export function CastScreenPage() {
                           {currentTeam.uniqueBackers}
                         </p>
                       </div>
+                    </div>
+
+                    {/* Quick Button to Jump to Startup Podium */}
+                    <div className="mt-5 flex justify-end">
+                      <button
+                        onClick={() => {
+                          setSelectedTeamId(currentTeam.id)
+                          setSearchParams({ teamId: currentTeam.id })
+                        }}
+                        className="skeuo-btn-secondary px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-zinc-800"
+                      >
+                        <span>Cast #{currentTeam.pitchOrder} Winner & Top Backers Podium</span>
+                        <ArrowUpRight size={14} />
+                      </button>
                     </div>
                   </div>
                 ) : (

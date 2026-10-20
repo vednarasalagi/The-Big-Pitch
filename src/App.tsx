@@ -14,7 +14,7 @@ import { AuthPage }       from '@/pages/AuthPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { AdminDashboard } from '@/pages/AdminDashboard'
 import { CastScreenPage } from '@/pages/CastScreenPage'
-import { AccessDeniedPage } from '@/pages/AccessDeniedPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { AdminGuard }     from '@/components/auth/AdminGuard'
@@ -77,20 +77,6 @@ function AuthCallback() {
   }
 
   return <Navigate to={target} replace />
-}
-
-// ── 404 Page ───────────────────────────────────────────────
-function NotFoundPage() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh] flex-col gap-4 text-center px-4">
-      <div className="text-8xl">🎯</div>
-      <h1 className="text-white font-black text-4xl">404</h1>
-      <p className="text-white/50 text-lg">This page missed its pitch.</p>
-      <a href="/" className="btn-primary px-6 py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-arena-blue to-arena-violet">
-        Back to Arena
-      </a>
-    </div>
-  )
 }
 
 import {
@@ -332,8 +318,13 @@ export default function App() {
               <Route path="/auth"          element={<AuthPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/access-denied" element={<AccessDeniedPage />} />
+              <Route path="/access-denied" element={<NotFoundPage />} />
               <Route path="/admin"         element={
+                <AdminGuard>
+                  <AdminDashboard />
+                </AdminGuard>
+              } />
+              <Route path="/admin/*"       element={
                 <AdminGuard>
                   <AdminDashboard />
                 </AdminGuard>

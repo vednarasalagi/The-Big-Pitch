@@ -13,14 +13,15 @@ import { formatPoints } from '@/lib/utils'
 import type { Reward } from '@/types'
 import { getTopInvestors, claimRewardInDb, type TopInvestor } from '@/lib/supabaseApi'
 
-function RewardCard({ reward }: { reward: Reward }) {
+function RewardCard({ reward, userId }: { reward: Reward; userId: string }) {
   const [showQR, setShowQR] = useState(false)
   const [claimed, setClaimed] = useState(reward.claimed)
 
   const handleClaim = async () => {
     setClaimed(true)
     setShowQR(true)
-    await claimRewardInDb(reward.id)
+    // HIGH-4 FIX: Pass userId so the DB query enforces ownership
+    await claimRewardInDb(reward.id, userId)
   }
 
   return (
@@ -178,7 +179,7 @@ export function RewardsPage() {
             <Award size={15} className="text-zinc-900" />
             My Earned Badges ({rewards.length})
           </h2>
-          {rewards.map(r => <RewardCard key={r.id} reward={r} />)}
+          {rewards.map(r => <RewardCard key={r.id} reward={r} userId={user.id} />)}
         </div>
       ) : (
         <Card className="p-8 text-center border-zinc-200 bg-white shadow-sm space-y-2">

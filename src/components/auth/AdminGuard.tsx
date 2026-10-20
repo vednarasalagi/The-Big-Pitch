@@ -1,13 +1,14 @@
 // ============================================================
 // AdminGuard — Secure Route Guard for Admin Routes
+// SECURITY: Authorization is ALWAYS verified server-side via
+// the check_is_admin RPC. The localStorage cache is NEVER used
+// for access control decisions — only the DB is the source of truth.
 // ============================================================
 
 import { useEffect, useState } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store'
-import { isAdminEmail, verifyAdminRole } from '@/lib/adminConfig'
-import { AccessDeniedPage } from '@/pages/AccessDeniedPage'
-import { Loader2, Shield } from 'lucide-react'
+import { verifyAdminRole } from '@/lib/adminConfig'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 
 interface AdminGuardProps {
   children: React.ReactNode
@@ -15,7 +16,6 @@ interface AdminGuardProps {
 
 export function AdminGuard({ children }: AdminGuardProps) {
   const { user, isLoading, setUser } = useAuthStore()
-  const location = useLocation()
   const [isVerifying, setIsVerifying] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
 
@@ -31,21 +31,8 @@ export function AdminGuard({ children }: AdminGuardProps) {
         return
       }
 
-      // Check allowlist
-      const hasAllowlist = isAdminEmail(user.email)
-      if (hasAllowlist) {
-        // Sync role if necessary
-        if (user.role !== 'admin') {
-          setUser({ ...user, role: 'admin' })
-        }
-        if (isMounted) {
-          setIsAuthorized(true)
-          setIsVerifying(false)
-        }
-        return
-      }
-
-      // Backend verification
+      // SECURITY: Always verify against the server-side database.
+      // Never grant access based on localStorage cache alone.
       const verified = await verifyAdminRole(user)
       if (isMounted) {
         if (verified && user.role !== 'admin') {
@@ -61,30 +48,20 @@ export function AdminGuard({ children }: AdminGuardProps) {
     return () => {
       isMounted = false
     }
-  }, [user, user?.email])
+  }, [user?.id, user?.email])
 
   if (isLoading || isVerifying) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-arena-violet/10 border border-arena-violet/20 flex items-center justify-center animate-pulse">
-          <Shield size={24} className="text-arena-violet-3" />
-        </div>
-        <div className="flex items-center gap-2 text-white/50 text-sm">
-          <Loader2 size={16} className="animate-spin text-arena-blue-3" />
-          <span>Verifying administrator authorization...</span>
-        </div>
+        <div className="w-8 h-8 rounded-full border-2 border-zinc-900 border-t-transparent animate-spin" />
+        <span className="text-xs text-zinc-400 font-medium">Verifying access...</span>
       </div>
     )
   }
 
-  // If not logged in, redirect to login page with return target
-  if (!user) {
-    return <Navigate to={`/auth?redirect=${encodeURIComponent(location.pathname)}`} replace />
-  }
-
-  // If logged in but unauthorized, show Access Denied page
-  if (!isAuthorized) {
-    return <AccessDeniedPage userEmail={user.email} />
+  // If user does not have admin access (not logged in or not authorized), show 404 Page Not Found
+  if (!user || !isAuthorized) {
+    return <NotFoundPage />
   }
 
   return <>{children}</>

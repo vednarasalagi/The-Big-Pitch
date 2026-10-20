@@ -247,6 +247,7 @@ function PitchStandingsView({
   isLive: boolean
 }) {
   const { user } = useAuthStore()
+  const { activeRound } = useEventStore()
   const { investments: localInvestments } = useWalletStore()
   const [standings, setStandings] = useState<TeamInvestorStanding[]>([])
   const [loading, setLoading] = useState(true)
@@ -266,13 +267,19 @@ function PitchStandingsView({
           // Check local investments fallback
           const teamInvs = localInvestments.filter(i => i.teamId === team.id)
           if (teamInvs.length > 0) {
+            const openTimeMs = activeRound?.investmentOpenTime ? new Date(activeRound.investmentOpenTime).getTime() : 0
+            const firstInvTime = teamInvs[0]?.createdAt ? new Date(teamInvs[0].createdAt).getTime() : 0
+            const calculatedSpeedMs = (openTimeMs > 0 && firstInvTime >= openTimeMs)
+              ? Math.max(1, firstInvTime - openTimeMs)
+              : (teamInvs[0]?.timeElapsedMs && teamInvs[0].timeElapsedMs > 0 ? teamInvs[0].timeElapsedMs : 1)
+
             setStandings([
               {
                 userId: user?.id || 'current-user',
                 displayName: user?.displayName || 'Audience Backer',
                 email: user?.email || '',
                 amount: teamInvs.reduce((s, i) => s + i.amount, 0),
-                timeElapsedMs: teamInvs[0]?.timeElapsedMs || 1420,
+                timeElapsedMs: calculatedSpeedMs,
                 investedAt: teamInvs[0]?.createdAt || new Date().toISOString(),
                 rank: 1,
               },

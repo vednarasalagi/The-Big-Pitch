@@ -217,22 +217,22 @@ export async function syncAdminAllowlistFromSupabase(): Promise<string[]> {
 }
 
 /**
- * Securely verifies the user's admin role from Supabase or fallback.
+ * Securely verifies the user's admin role from Supabase server-side records.
+ * SECURITY (CRIT-2 FIX): Never trusts localStorage or client-side cache for
+ * authorization decisions. Only the database (RPC or table) is authoritative.
  */
 export async function verifyAdminRole(user: { id: string; email?: string | null }): Promise<boolean> {
-  if (!user || !user.email) return false
+  if (!user || !user.id || !user.email) return false
   const normalized = user.email.trim().toLowerCase()
 
-  // Always true for Super Admin
-  if (isSuperAdmin(normalized)) return true
-
-  // Offline / not connected fallback
+  // Offline / no database connected: Fail closed for security
   if (!supabase) {
-    return isAdminEmail(normalized)
+    console.warn('verifyAdminRole: Database client not connected. Access denied.')
+    return false
   }
 
   try {
-    // 1. Try secure Supabase RPC check if available
+    // 1. Try secure Supabase RPC check (check_is_admin checks profiles & admin_allowlist)
     const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('check_is_admin', {
       p_user_id: user.id,
     })
@@ -241,21 +241,32 @@ export async function verifyAdminRole(user: { id: string; email?: string | null 
       return isRpcAdmin
     }
 
-    // 2. Query profiles table
+    // 2. Query profiles table directly
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!profileError && profile?.role === 'admin') {
       return true
     }
 
-    // 3. Fallback to allowlist check
-    return isAdminEmail(normalized)
+    // 3. Query admin_allowlist table directly in database
+    const { data: allowlistRow, error: allowlistError } = await supabase
+      .from('admin_allowlist')
+      .select('email')
+      .eq('email', normalized)
+      .maybeSingle()
+
+    if (!allowlistError && allowlistRow?.email) {
+      return true
+    }
+
+    // CRIT-2 FIX: Do NOT fall back to localStorage. Fail closed.
+    return false
   } catch (err) {
-    console.error('Error during admin verification:', err)
-    return isAdminEmail(normalized)
+    console.warn('Error during admin verification:', err)
+    return false
   }
 }

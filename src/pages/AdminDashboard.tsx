@@ -306,6 +306,7 @@ function TeamModal({
   onSaved: (savedTeam: Team) => void
 }) {
   const { event, teams } = useEventStore()
+  const { user: adminUser } = useAuthStore()
   const [name, setName] = useState(team?.name || '')
   const [pitchTitle, setPitchTitle] = useState(team?.pitchTitle || '')
   const [description, setDescription] = useState(team?.description || '')
@@ -373,6 +374,7 @@ function TeamModal({
           targetId: team.id,
           metadata: { name: name.trim(), category: cleanCategory, description: `Updated details for "${name.trim()}"` },
           eventId,
+          adminId: adminUser?.id,  // CRIT-3 FIX: real admin attribution
         })
         onClose()
       } else {
@@ -401,6 +403,7 @@ function TeamModal({
           targetId: created.id,
           metadata: { name: created.name, category: cleanCategory, description: `Pre-listed new startup "${created.name}"` },
           eventId,
+          adminId: adminUser?.id,  // CRIT-3 FIX: real admin attribution
         })
         onClose()
       } else {
@@ -607,6 +610,7 @@ function TeamModal({
 // ── 2. Live Control Room Tab ────────────────────────────────
 function ControlTab() {
   const { event, teams, setTeams, activeRound, setActiveRound } = useEventStore()
+  const { user } = useAuthStore()
   const [loading, setLoading] = useState<string | null>(null)
   const [selectedTeamToPitch, setSelectedTeamToPitch] = useState<string>('')
   const [selectedNextTeam, setSelectedNextTeam] = useState<string>('')
@@ -668,6 +672,7 @@ function ControlTab() {
               : `Opened live investment window for "${teamToStart.name}"`,
           },
           eventId,
+          adminId: user?.id,
         })
         toast.success(
           phase === 'announced'
@@ -704,6 +709,7 @@ function ControlTab() {
             description: `Opened audience investment window for "${activeRound.team?.name || 'startup'}" (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`,
           },
           eventId,
+          adminId: user?.id,
         })
         toast.success(`Audience investment window is now OPEN! (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`)
       }
@@ -733,6 +739,7 @@ function ControlTab() {
             description: `Closed audience investment window for "${activeRound.team?.name || 'startup'}"`,
           },
           eventId,
+          adminId: user?.id,
         })
         toast.info('Investment window closed. Audience can no longer invest.')
       }
@@ -767,6 +774,7 @@ function ControlTab() {
             description: `Resumed countdown timer for "${activeRound.team?.name || 'startup'}"`,
           },
           eventId,
+          adminId: user?.id,
         })
         toast.success('Round resumed! Remaining countdown continues.')
       }
@@ -789,6 +797,7 @@ function ControlTab() {
             description: `Paused countdown timer for "${activeRound.team?.name || 'startup'}"`,
           },
           eventId,
+          adminId: user?.id,
         })
         toast.info('Round paused. Investments and timer temporarily held.')
       }
@@ -812,6 +821,7 @@ function ControlTab() {
           description: `Added +60s extension to round timer for "${activeRound.team?.name || 'startup'}"`,
         },
         eventId,
+        adminId: user?.id,
       })
       toast.success('+60s added to authoritative round timer!')
     }
@@ -837,6 +847,7 @@ function ControlTab() {
           description: `Concluded pitch round for "${activeRound.team?.name || 'team'}"`,
         },
         eventId,
+        adminId: user?.id,
       })
       toast.info(`Pitch round concluded for ${activeRound.team?.name || 'team'}.`)
     } catch (err: any) {
@@ -1178,6 +1189,7 @@ function ControlTab() {
 // ── 3. Teams Tab (Pre-listing, Startup Ideas, Pitchers, Reordering) ──────
 function TeamsTab() {
   const { teams, setTeams, event, activeRound, setActiveRound } = useEventStore()
+  const { user } = useAuthStore()
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('all')
   const [modalTeam, setModalTeam] = useState<Team | null | 'new'>(null)
@@ -1215,6 +1227,7 @@ function TeamsTab() {
         description: `Reordered pitching startup lineup: moved "${temp.name}" ${direction}`,
       },
       eventId,
+      adminId: user?.id,
     })
     toast.success('Pitch order updated.')
   }
@@ -1237,6 +1250,7 @@ function TeamsTab() {
         targetId: teamId,
         metadata: { name: teamName, description: `Removed "${teamName}" from pitching lineup` },
         eventId,
+        adminId: user?.id,
       })
       toast.success(`Removed "${teamName}" from pitching lineup.`)
     } else {
@@ -1703,6 +1717,7 @@ function AllowlistTab() {
       await logAuditEvent({
         action: 'AUTHORIZE_ADMIN',
         metadata: { email: clean, description: `Authorized ${clean} as administrator` },
+        adminId: user?.id,
       })
       toast.success(`Authorized ${clean} as an event administrator!`)
     } else {
@@ -1726,6 +1741,7 @@ function AllowlistTab() {
       await logAuditEvent({
         action: 'REVOKE_ADMIN',
         metadata: { email: emailToRemove, description: `Revoked admin privileges for ${emailToRemove}` },
+        adminId: user?.id,
       })
       toast.info(`Revoked admin access for ${emailToRemove}.`)
     } else {
@@ -1869,6 +1885,7 @@ function PaymentsTab() {
 function TimerConfigTab() {
   const { event, teams, setTeams, setEvent } = useEventStore()
   const { eventConfig, setEventConfig } = useAdminStore()
+  const { user } = useAuthStore()
 
   const currentEventConfig = eventConfig ?? event?.config
   const eventId = event?.id || 'event-pitch-arena-2025'
@@ -1952,6 +1969,7 @@ function TimerConfigTab() {
           description: `Updated default timers: pitch=${pitchMin}m ${pitchSec}s, investment window=${investMin}m ${investSec}s`,
         },
         eventId,
+        adminId: user?.id,
       })
       toast.success(`Default timers saved: ${pitchMin}m ${pitchSec}s pitch, ${investMin}m ${investSec}s window`)
     } else {
@@ -1984,6 +2002,7 @@ function TimerConfigTab() {
           description: `Updated timer for "${teamName}": pitch=${timer.pitchMin}m ${timer.pitchSec}s, invest=${timer.investMin}m ${timer.investSec}s`,
         },
         eventId,
+        adminId: user?.id,
       })
       toast.success(`Timer updated for ${teamName}!`)
     } else {
@@ -2259,6 +2278,7 @@ function TimerConfigTab() {
 // ── 8. Official Judging & Competition Results Tab ───────────
 function OfficialJudgingTab() {
   const { teams, setTeams, event, setEvent } = useEventStore()
+  const { user } = useAuthStore()
   const eventId = event?.id || 'event-pitch-arena-2025'
 
   const [isPublished, setIsPublished] = useState(event?.config.officialResultsPublished ?? false)
@@ -2344,6 +2364,7 @@ function OfficialJudgingTab() {
             : 'Saved draft official competition jury results',
         },
         eventId,
+        adminId: user?.id,
       })
 
       toast.success(isPublished ? 'Official Competition Results published to audience!' : 'Official results saved (draft).')
@@ -2508,6 +2529,7 @@ function OfficialJudgingTab() {
 function SettingsTab() {
   const { eventConfig, setEventConfig } = useAdminStore()
   const { event, setEvent } = useEventStore()
+  const { user } = useAuthStore()
   const [config, setConfig] = useState(eventConfig ?? event?.config)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -2548,6 +2570,7 @@ function SettingsTab() {
           description: `Updated event configuration: welcome bonus ${updatedConfig.freePointsAllocation} pts, rate ${updatedConfig.pointsPerRupee} pts/₹, purchase cap ₹${updatedConfig.maxPaidPurchaseRupees}`,
         },
         eventId,
+        adminId: user?.id,
       })
       toast.success('Event rules & buying rates saved and synced to database!')
       setTimeout(() => setSaved(false), 2500)

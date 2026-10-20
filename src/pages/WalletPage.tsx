@@ -15,7 +15,7 @@ import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, StatCard, ProgressBar, Badge, SectionHeader, EmptyState } from '@/components/ui'
 import { formatPoints, formatRupees, formatRelativeTime } from '@/lib/utils'
 import { supabase, TABLES, isSupabaseConfigured } from '@/lib/supabase'
-import { toUserFriendlyError } from '@/lib/supabaseApi'
+import { toUserFriendlyError, getOrCreateWallet } from '@/lib/supabaseApi'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { LedgerType } from '@/types'
@@ -373,36 +373,22 @@ export function WalletPage() {
     const newSpentRupees = (wallet?.totalPaidRupees ?? 0) + rupees
 
     if (wallet) {
+      // Optimistic UI state
       setWallet({
         ...wallet,
         purchasedPoints: newPurchased,
         totalPaidRupees: newSpentRupees,
       })
 
-      if (supabase) {
+      // Refresh authoritative balance from Supabase (processed via server RPC/webhook)
+      if (supabase && user) {
         try {
-          await supabase
-            .from(TABLES.WALLETS)
-            .update({
-              purchased_points: newPurchased,
-              total_paid_rupees: newSpentRupees,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', wallet.id)
-
-          await supabase.from(TABLES.WALLET_LEDGER).insert({
-            wallet_id: wallet.id,
-            user_id: wallet.userId,
-            event_id: wallet.eventId,
-            type: 'purchase',
-            amount: points,
-            balance_after: wallet.freePoints + newPurchased,
-            description: paymentId
-              ? `Purchased ${points} points (${formatRupees(rupees)}) • Razorpay ID: ${paymentId}`
-              : `Purchased ${points} points (${formatRupees(rupees)})`,
-          })
+          const authoritative = await getOrCreateWallet(user.id, wallet.eventId)
+          if (authoritative) {
+            setWallet(authoritative)
+          }
         } catch (err) {
-          console.warn('Wallet database sync notice:', err)
+          console.warn('Wallet refresh notice:', err)
         }
       }
     }
