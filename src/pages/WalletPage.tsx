@@ -9,23 +9,27 @@ import {
   Wallet, TrendingUp, ShoppingCart, ArrowUpRight,
   ArrowDownLeft, Gift, Shield, CreditCard, AlertCircle,
   CheckCircle2, Lock, X, ShieldCheck, ShoppingBag,
-  Zap, Sparkles, Plus, ArrowRight, Check
+  Zap, Sparkles, Plus, ArrowRight, Check, AlertTriangle, RefreshCw
 } from 'lucide-react'
 import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, StatCard, ProgressBar, Badge, SectionHeader, EmptyState } from '@/components/ui'
 import { formatPoints, formatRupees, formatRelativeTime } from '@/lib/utils'
 import { supabase, TABLES, isSupabaseConfigured } from '@/lib/supabase'
-import { toUserFriendlyError, getOrCreateWallet } from '@/lib/supabaseApi'
+import { toUserFriendlyError, getOrCreateWallet, getUserPaymentIntents, getPackageQRCodes, claimPaymentIntent } from '@/lib/supabaseApi'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
-import type { LedgerType } from '@/types'
+import type { LedgerType, PaymentIntent, PackageQRCode } from '@/types'
+import { StaticQRCheckoutModal } from '@/components/wallet/StaticQRCheckoutModal'
 
 export interface PurchasePackage {
+  id?: string
   points: number
   rupees: number
   label: string
   popular?: boolean
   badge?: string
+  qrImageUrl?: string
+  upiVpa?: string
 }
 
 const ledgerIcon: Record<LedgerType, React.ReactNode> = {
@@ -46,17 +50,6 @@ const ledgerColor: Record<LedgerType, string> = {
   purchase_refund: 'text-zinc-950 font-bold',
 }
 
-// Inject Razorpay checkout script once
-function useRazorpayScript() {
-  useEffect(() => {
-    if (document.getElementById('razorpay-checkout-js')) return
-    const script = document.createElement('script')
-    script.id = 'razorpay-checkout-js'
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.async = true
-    document.body.appendChild(script)
-  }, [])
-}
 
 // Official E-Commerce Checkout Modal integrated directly with Razorpay Standard Checkout
 // Eliminates untrusted 1-click & custom QR methods in favor of standard, certified checkout flow.
@@ -75,260 +68,162 @@ function RazorpayCheckoutModal({
   onClose: () => void
   onSuccess: (points: number, rupees: number, paymentId?: string) => void
 }) {
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-
-  const handleProceedToRazorpay = async () => {
-    setErrorMsg('')
-
-    if (typeof (window as any).Razorpay === 'undefined') {
-      setErrorMsg('Payment gateway script is loading. Please check your internet connection and try again.')
-      return
-    }
-
-    setLoading(true)
-
-    let razorpayKey = (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || ''
-    let orderId: string | undefined = undefined
-
-    // Attempt server-side order creation via Supabase Edge Function
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const token = sessionData?.session?.access_token
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-
-        if (token && supabaseUrl) {
-          const res = await fetch(`${supabaseUrl}/functions/v1/create-payment-order`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              rupeeAmount: pkg.rupees,
-              eventId,
-            }),
-          })
-
-          const data = await res.json()
-          if (!res.ok) {
-            setErrorMsg(toUserFriendlyError(data?.error, 'Could not initiate payment order.'))
-            setLoading(false)
-            return
-          }
-
-          if (data.orderId) {
-            orderId = data.orderId
-          }
-          if (data.keyId && !razorpayKey) {
-            razorpayKey = data.keyId
-          }
-        }
-      } catch (err: any) {
-        console.warn('Backend order generation notice:', err)
-      }
-    }
-
-    // Require Razorpay Key ID
-    if (!razorpayKey) {
-      setErrorMsg('Razorpay merchant key is not configured. Please set VITE_RAZORPAY_KEY_ID in your environment or Supabase Edge Function.')
-      setLoading(false)
-      return
-    }
-
-    const options = {
-      key: razorpayKey,
-      amount: pkg.rupees * 100, // Amount in paise
-      currency: 'INR',
-      name: 'THE BIG PITCH — Sphinx 2026',
-      description: `${pkg.points} Event Participation Points — ${pkg.label} Package (Digital Event Goods)`,
-      notes_key_1: 'NOT an investment. Virtual event tokens for audience scoring at college fest.',
-      order_id: orderId,
-      prefill: {
-        name: user.displayName || '',
-        email: user.email || '',
-      },
-      notes: {
-        eventId,
-        userId: user.id,
-        points: pkg.points.toString(),
-        package: pkg.label,
-        event: eventName,
-      },
-      theme: {
-        color: '#09090b',
-      },
-      handler: async (response: { razorpay_payment_id: string; razorpay_order_id?: string; razorpay_signature?: string }) => {
-        setLoading(false)
-        onSuccess(pkg.points, pkg.rupees, response.razorpay_payment_id)
-        onClose()
-      },
-      modal: {
-        ondismiss: () => {
-          setLoading(false)
-        },
-      },
-    }
-
-    try {
-      const rzp = new (window as any).Razorpay(options)
-      rzp.on('payment.failed', (resp: any) => {
-        setErrorMsg(toUserFriendlyError(resp.error?.description, 'Payment failed or was declined by your bank/UPI app.'))
-        setLoading(false)
-      })
-      rzp.open()
-      setLoading(false)
-    } catch (err: any) {
-      setErrorMsg(toUserFriendlyError(err?.message, 'Could not launch Razorpay checkout modal.'))
-      setLoading(false)
-    }
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 12 }}
-        className="skeuo-surface rounded-3xl w-full max-w-sm overflow-hidden text-zinc-900 my-auto shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35),inset_0_1px_0_#FFF]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-zinc-200/80 bg-gradient-to-b from-white to-zinc-50/50 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl skeuo-token-dark flex items-center justify-center flex-shrink-0">
-              <ShoppingBag size={14} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-zinc-950 font-black text-base tracking-tight leading-none truncate skeuo-text-emboss">Checkout</h3>
-              <p className="text-zinc-500 text-[11px] mt-1 truncate font-medium">{eventName}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Checkout"
-            className="skeuo-btn-secondary p-1.5 rounded-xl text-zinc-600 hover:text-zinc-950 transition-colors flex-shrink-0"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-4 sm:p-5 space-y-4">
-          {/* Order Details Card — Sunken Slot */}
-          <div className="rounded-2xl skeuo-sunken p-4 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <span className="font-extrabold text-zinc-950 text-sm block truncate skeuo-text-emboss">{pkg.label} Package</span>
-                <span className="text-zinc-600 text-xs font-semibold">+{formatPoints(pkg.points)} Event Participation Points</span>
-              </div>
-              <span className="font-mono font-black text-xl text-zinc-950 flex-shrink-0">{formatRupees(pkg.rupees)}</span>
-            </div>
-
-            <div className="border-t border-zinc-300/60 pt-2 flex items-center justify-between text-[11px] text-zinc-600 font-medium">
-              <span>Attendee</span>
-              <span className="font-bold text-zinc-900 truncate max-w-[180px] text-right">
-                {user.displayName || user.email}
-              </span>
-            </div>
-          </div>
-
-          {/* Secure Payment Note */}
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 px-0.5 font-medium">
-            <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
-              <span className="skeuo-led-bezel w-3.5 h-3.5">
-                <span className="skeuo-led-emerald" />
-              </span>
-              <span>Razorpay Secure</span>
-            </span>
-            <span className="text-zinc-500 text-[10px] font-mono">UPI • Cards • NetBanking</span>
-          </div>
-
-          {/* Error Notice */}
-          {errorMsg && (
-            <div className="p-3 rounded-2xl skeuo-sunken border border-rose-300 text-rose-900 text-xs flex items-start gap-2">
-              <AlertCircle size={15} className="text-rose-600 flex-shrink-0 mt-0.5" />
-              <p className="text-[11px] text-rose-800 font-semibold flex-1">{errorMsg}</p>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="space-y-2 pt-1">
-            <Button
-              onClick={handleProceedToRazorpay}
-              loading={loading}
-              className="w-full justify-center skeuo-btn-primary py-3.5 font-black text-sm shadow-md"
-              icon={<Lock size={14} />}
-            >
-              {loading ? 'Initializing Razorpay...' : `Pay ${formatRupees(pkg.rupees)} via Razorpay`}
-            </Button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="w-full text-center text-xs text-zinc-500 hover:text-zinc-950 font-bold py-1 transition-colors"
-            >
-              Cancel & Return
-            </button>
-          </div>
-
-          {/* Legal Notice */}
-          <p className="text-[10px] text-zinc-400 text-center leading-normal px-1">
-            You are purchasing <strong>virtual event participation tokens</strong> (digital goods) for audience scoring at a live college fest. No financial investment is made in any startup.{' '}
-            <Link to="/terms" target="_blank" className="text-zinc-600 font-bold hover:underline">Terms</Link>
-            {' '}&{' '}
-            <Link to="/terms#refunds" target="_blank" className="text-zinc-600 font-bold hover:underline">Refund Policy</Link>.
-          </p>
-        </div>
-      </motion.div>
-    </div>
+    <StaticQRCheckoutModal
+      pkg={pkg}
+      user={user}
+      eventId={eventId}
+      eventName={eventName}
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
   )
+
 }
 
 export function WalletPage() {
-  useRazorpayScript()
   const { user } = useAuthStore()
   const { wallet, ledger, investments, setWallet } = useWalletStore()
   const { event } = useEventStore()
   const [buyModal, setBuyModal] = useState<PurchasePackage | null>(null)
-  const [customRupeesInput, setCustomRupeesInput] = useState<string>('')
+  const [userIntents, setUserIntents] = useState<PaymentIntent[]>([])
+  const [packageQRCodes, setPackageQRCodes] = useState<PackageQRCode[]>([])
+  const [inlineUtr, setInlineUtr] = useState('')
+  const [submittingInlineUtr, setSubmittingInlineUtr] = useState(false)
+
+  // Realtime subscription & auto-sync heartbeat on user's payment intents
+  useEffect(() => {
+    if (!user?.id || !event?.id) return
+
+    const refreshIntents = async () => {
+      try {
+        const intents = await getUserPaymentIntents(user.id, event.id)
+        setUserIntents(intents)
+      } catch {}
+    }
+
+    refreshIntents()
+
+    if (!supabase) return
+
+    const channel = supabase
+      .channel(`user_wallet_intents_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payment_intents',
+          filter: `user_id=eq.${user.id}`,
+        },
+        payload => {
+          refreshIntents()
+          const newRow = payload.new as any
+          if (newRow?.status === 'credited') {
+            getOrCreateWallet(user.id, event.id).then(w => {
+              if (w) setWallet(w)
+            })
+          }
+        }
+      )
+      .subscribe()
+
+    // 5-second polling heartbeat ensures the user sees status updates without reloading
+    const interval = setInterval(() => {
+      refreshIntents()
+    }, 5000)
+
+    return () => {
+      clearInterval(interval)
+      if (supabase) supabase.removeChannel(channel)
+    }
+  }, [user?.id, event?.id, setWallet])
+
+  useEffect(() => {
+    if (event?.id) {
+      getPackageQRCodes(event.id).then(setPackageQRCodes)
+    }
+  }, [event?.id])
+
+  // Locate current active pending/verifying/mismatch intent
+  const activeIntent = useMemo(() => {
+    return userIntents.find(i =>
+      i.status === 'pending' ||
+      i.status === 'processing' ||
+      i.status === 'manual_review' ||
+      i.status === 'vpa_mismatch'
+    )
+  }, [userIntents])
+
+  const handleInlineUtrSubmit = async () => {
+    if (!activeIntent || !inlineUtr.trim()) return
+    setSubmittingInlineUtr(true)
+    try {
+      const res = await claimPaymentIntent(activeIntent.id, inlineUtr.trim(), activeIntent.userVpa)
+      if (res.matched || res.status === 'credited') {
+        toast.success(`${formatPoints(activeIntent.pointsToCredit)} points credited to your wallet!`)
+        setInlineUtr('')
+        if (user && event) {
+          const updatedWallet = await getOrCreateWallet(user.id, event.id)
+          if (updatedWallet) setWallet(updatedWallet)
+          const updatedIntents = await getUserPaymentIntents(user.id, event.id)
+          setUserIntents(updatedIntents)
+        }
+      } else if (res.status === 'vpa_mismatch') {
+        toast.error('UPI ID Mismatch: Sender UPI does not match your registered UPI ID!')
+        if (user && event) {
+          const updatedIntents = await getUserPaymentIntents(user.id, event.id)
+          setUserIntents(updatedIntents)
+        }
+      } else {
+        toast.info(res.message || 'UTR submitted. Awaiting verification.')
+        if (user && event) {
+          const updatedIntents = await getUserPaymentIntents(user.id, event.id)
+          setUserIntents(updatedIntents)
+        }
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to submit UTR')
+    } finally {
+      setSubmittingInlineUtr(false)
+    }
+  }
 
   const config = event?.config
   const pointsPerRupee = Math.max(1, config?.pointsPerRupee ?? 10)
-  const maxPaid = Math.max(5, config?.maxPaidPurchaseRupees ?? 100)
+  const maxPaid = Math.max(5, config?.maxPaidPurchaseRupees ?? 500)
   const spentRupees = wallet?.totalPaidRupees ?? 0
   const remainingAllowance = Math.max(0, maxPaid - spentRupees)
   const available = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
 
-  // Dynamically generate packages according to active event config
+  // Dynamically load the 5 fixed packages (configurable by admin)
   const purchasePackages = useMemo<PurchasePackage[]>(() => {
-    const baseTiers = [
-      { rupees: 5, label: 'Starter', popular: false, badge: 'Budget' },
-      { rupees: 10, label: 'Standard', popular: true, badge: 'Most Popular' },
-      { rupees: 20, label: 'Supporter', popular: false, badge: 'Value Pack' },
-      { rupees: 50, label: 'Enthusiast', popular: false, badge: 'High Impact' },
-      { rupees: 100, label: 'Champion', popular: false, badge: 'Power Backer' },
-      { rupees: 200, label: 'Super Fan', popular: false, badge: 'Top Cheer' },
-      { rupees: 500, label: 'Mega Backer', popular: false, badge: 'Mega Cheer' },
+    if (packageQRCodes && packageQRCodes.length > 0) {
+      return packageQRCodes
+        .filter(p => p.isActive && p.rupeeAmount <= maxPaid)
+        .map(p => ({
+          id: p.id,
+          points: p.rupeeAmount * pointsPerRupee,
+          rupees: p.rupeeAmount,
+          label: p.label,
+          popular: p.rupeeAmount === 50,
+          badge: p.rupeeAmount === 10 ? 'Budget' : p.rupeeAmount === 50 ? 'Most Popular' : undefined,
+          qrImageUrl: p.qrImageUrl,
+          upiVpa: p.upiVpa,
+        }))
+    }
+
+    // Default 5 fixed tiers fallback
+    const fallbackTiers: PurchasePackage[] = [
+      { rupees: 10, points: 10 * pointsPerRupee, label: 'Starter Pack', popular: false, badge: 'Budget' },
+      { rupees: 20, points: 20 * pointsPerRupee, label: 'Supporter Pack', popular: false, badge: 'Value' },
+      { rupees: 50, points: 50 * pointsPerRupee, label: 'Enthusiast Pack', popular: true, badge: 'Most Popular' },
+      { rupees: 100, points: 100 * pointsPerRupee, label: 'Champion Pack', popular: false, badge: 'Power Backer' },
+      { rupees: 200, points: 200 * pointsPerRupee, label: 'Super Backer', popular: false, badge: 'Top Cheer' },
     ]
 
-    const filtered = baseTiers.filter(t => t.rupees <= maxPaid)
-    const tiersToUse = filtered.length >= 2 ? filtered : baseTiers.slice(0, 3)
-
-    return tiersToUse.map(t => ({
-      points: t.rupees * pointsPerRupee,
-      rupees: t.rupees,
-      label: t.label,
-      popular: t.popular,
-      badge: t.badge,
-    }))
-  }, [pointsPerRupee, maxPaid])
+    return fallbackTiers.filter(t => t.rupees <= maxPaid)
+  }, [packageQRCodes, pointsPerRupee, maxPaid])
 
   if (!user) {
     return (
@@ -348,24 +243,6 @@ export function WalletPage() {
         />
       </div>
     )
-  }
-
-  const handleCustomBuy = () => {
-    const val = parseInt(customRupeesInput) || 0
-    if (val <= 0) {
-      toast.error('Please enter an amount of at least ₹1')
-      return
-    }
-    if (val > remainingAllowance) {
-      toast.error(`Maximum remaining purchase limit is ₹${remainingAllowance}`)
-      return
-    }
-    setBuyModal({
-      rupees: val,
-      points: val * pointsPerRupee,
-      label: 'Custom Top-Up',
-      popular: false,
-    })
   }
 
   const handlePurchaseSuccess = async (points: number, rupees: number, paymentId?: string) => {
@@ -468,6 +345,134 @@ export function WalletPage() {
           </div>
         </div>
       </div>
+
+      {/* ACTIVE TOP-UP VERIFICATION IN PROGRESS */}
+      {activeIntent && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`rounded-3xl p-5 sm:p-6 border-2 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF] ${
+            activeIntent.status === 'vpa_mismatch'
+              ? 'bg-gradient-to-br from-rose-50/90 via-amber-50/40 to-white border-rose-400/70'
+              : activeIntent.status === 'manual_review'
+              ? 'bg-gradient-to-br from-amber-50/90 via-amber-50/30 to-white border-amber-400/60'
+              : 'bg-gradient-to-br from-blue-50/90 via-indigo-50/30 to-white border-blue-400/60'
+          }`}
+        >
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+                  activeIntent.status === 'vpa_mismatch'
+                    ? 'bg-rose-500 text-white'
+                    : activeIntent.status === 'manual_review'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-blue-600 text-white'
+                }`}
+              >
+                {activeIntent.status === 'vpa_mismatch' ? (
+                  <AlertTriangle size={20} />
+                ) : activeIntent.status === 'manual_review' ? (
+                  <AlertCircle size={20} />
+                ) : (
+                  <RefreshCw size={20} className="animate-spin" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-zinc-950 font-black text-base tracking-tight skeuo-text-emboss">
+                    {activeIntent.status === 'vpa_mismatch'
+                      ? 'UPI ID Mismatch Detected'
+                      : activeIntent.status === 'manual_review'
+                      ? 'Payment in Admin Review'
+                      : 'Active Payment Verification in Progress'}
+                  </h3>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      activeIntent.status === 'vpa_mismatch'
+                        ? 'bg-rose-500/20 text-rose-800 border border-rose-500/30'
+                        : activeIntent.status === 'manual_review'
+                        ? 'bg-amber-500/20 text-amber-900 border border-amber-500/30'
+                        : 'bg-blue-500/20 text-blue-900 border border-blue-500/30'
+                    }`}
+                  >
+                    {activeIntent.status === 'vpa_mismatch' ? 'Mismatch' : activeIntent.status}
+                  </span>
+                </div>
+                <p className="text-zinc-600 text-xs mt-0.5 font-medium">
+                  Ref Code: <span className="font-mono font-bold text-zinc-900">{activeIntent.claimCode}</span> &bull;{' '}
+                  <span className="font-bold text-zinc-950 font-mono">{formatRupees(activeIntent.rupeeAmount)}</span> for{' '}
+                  <span className="text-emerald-700 font-bold">+{formatPoints(activeIntent.pointsToCredit)} points</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Resume / Reopen in Checkout Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const targetPkg = purchasePackages.find(p => p.rupees === activeIntent.rupeeAmount) || {
+                  points: activeIntent.pointsToCredit,
+                  rupees: activeIntent.rupeeAmount,
+                  label: `₹${activeIntent.rupeeAmount} Top-up Package`,
+                }
+                setBuyModal(targetPkg)
+              }}
+              className="skeuo-btn-primary px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 self-start sm:self-auto shadow-sm"
+            >
+              <span>Resume Checkout / QR</span>
+              <ArrowRight size={13} />
+            </button>
+          </div>
+
+          {/* Description & Helper */}
+          <div className="p-3.5 rounded-2xl bg-white/90 border border-zinc-200/80 text-xs space-y-2">
+            {activeIntent.status === 'vpa_mismatch' ? (
+              <p className="text-rose-950 leading-relaxed text-[11px] font-medium">
+                <strong>Attention:</strong> Payment was received, but the sender UPI did not match your registered UPI ID (<span className="font-mono font-bold text-zinc-900">{activeIntent.userVpa || 'None'}</span>). To immediately verify and credit your points, enter the <strong>12-digit UTR number</strong> from your bank receipt below, or click <strong>"Resume Checkout"</strong> to change your UPI ID.
+              </p>
+            ) : activeIntent.status === 'manual_review' ? (
+              <p className="text-amber-950 leading-relaxed text-[11px] font-medium">
+                Your payment was received and flagged for fast review by the arena operations team. Tokens will be credited to your wallet shortly.
+              </p>
+            ) : (
+              <p className="text-blue-950 leading-relaxed text-[11px] font-medium">
+                Waiting for UPI bank confirmation from <span className="font-mono font-bold text-zinc-900">{activeIntent.userVpa || 'your UPI app'}</span>. Once settled, points are credited automatically. You can also submit your 12-digit UTR reference below to expedite verification.
+              </p>
+            )}
+
+            {/* Quick Inline UTR Verification Form */}
+            <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="text"
+                placeholder="Enter 12-digit UTR (e.g. 502184910284)"
+                value={inlineUtr}
+                onChange={e => setInlineUtr(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 border border-zinc-300 text-xs font-mono font-bold text-zinc-950 placeholder:text-zinc-400 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <button
+                type="button"
+                onClick={handleInlineUtrSubmit}
+                disabled={submittingInlineUtr || !inlineUtr.trim()}
+                className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+              >
+                {submittingInlineUtr ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={13} />
+                    <span>Submit UTR</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* FEATURED: POINTS BUYING SECTION — HIGH VISIBILITY */}
       <div id="buy-points" className="scroll-mt-20">
@@ -590,51 +595,6 @@ export function WalletPage() {
                 })}
               </div>
 
-              {/* Custom Rupee Top-Up Calculator */}
-              <div className="p-4 sm:p-5 rounded-2xl skeuo-sunken space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5 skeuo-text-emboss">
-                    <Sparkles size={14} className="text-zinc-950" />
-                    Custom Top-Up Calculator (Enter any amount)
-                  </span>
-                  <span className="text-xs text-zinc-500 font-mono font-bold">
-                    Max: ₹{remainingAllowance}
-                  </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <div className="relative flex-1 skeuo-surface rounded-xl p-0.5 flex items-center border border-zinc-300">
-                    <span className="pl-3.5 font-bold text-zinc-500 text-sm">
-                      ₹
-                    </span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={remainingAllowance}
-                      placeholder={`Enter amount (1 - ${remainingAllowance})`}
-                      value={customRupeesInput}
-                      onChange={(e) => setCustomRupeesInput(e.target.value)}
-                      className="w-full pl-2 pr-3.5 py-2.5 bg-transparent text-sm font-mono font-black text-zinc-950 placeholder-zinc-400 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-start gap-3">
-                    <span className="text-xs text-zinc-700 font-mono font-black whitespace-nowrap skeuo-sunken px-3 py-2 rounded-xl">
-                      = {formatPoints((parseInt(customRupeesInput) || 0) * pointsPerRupee)}
-                    </span>
-
-                    <Button
-                      size="sm"
-                      onClick={handleCustomBuy}
-                      disabled={!customRupeesInput || (parseInt(customRupeesInput) || 0) <= 0 || (parseInt(customRupeesInput) || 0) > remainingAllowance}
-                      className="skeuo-btn-primary font-black text-xs px-5 py-2.5"
-                    >
-                      Buy Custom
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
               {/* Payment Methods Banner */}
               <div className="pt-2 border-t border-zinc-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-zinc-500">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -699,6 +659,63 @@ export function WalletPage() {
           icon={<ArrowUpRight size={18} />}
         />
       </div>
+
+      {/* Recent QR Payment Requests / Claims */}
+      {userIntents.length > 0 && (
+        <div className="space-y-3">
+          <SectionHeader
+            title="My Token Top-up Requests"
+            subtitle={`${userIntents.length} requests • Razorpay Static QR`}
+          />
+          <div className="skeuo-surface rounded-3xl overflow-hidden p-0 shadow-sm divide-y divide-zinc-200/70">
+            {userIntents.map(intent => {
+              const isCredited = intent.status === 'credited'
+              const isPending = intent.status === 'pending' || intent.status === 'processing'
+              const isReview = intent.status === 'manual_review'
+              const isMismatch = intent.status === 'vpa_mismatch'
+              return (
+                <div key={intent.id} className="p-4 flex items-center justify-between hover:bg-zinc-50/70 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                    <div className="w-9 h-9 rounded-xl skeuo-token flex items-center justify-center flex-shrink-0">
+                      <CreditCard size={14} className="text-zinc-900" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-zinc-950 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">
+                          {intent.claimCode}
+                        </span>
+                        <span className="text-xs font-bold text-zinc-900">
+                          {formatRupees(intent.rupeeAmount)} → +{formatPoints(intent.pointsToCredit)} pts
+                        </span>
+                      </div>
+                      <p className="text-zinc-500 text-[11px] font-mono mt-0.5">
+                        {intent.userUtr ? `UTR: ${intent.userUtr}` : 'Awaiting UTR submission'} • {formatRelativeTime(intent.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span
+                      className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase ${
+                        isCredited
+                          ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20'
+                          : isMismatch
+                          ? 'bg-rose-500/15 text-rose-800 border border-rose-500/30 font-black'
+                          : isReview
+                          ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
+                          : isPending
+                          ? 'bg-blue-500/10 text-blue-700 border border-blue-500/20'
+                          : 'bg-zinc-200 text-zinc-600'
+                      }`}
+                    >
+                      {intent.status === 'vpa_mismatch' ? 'UPI Mismatch' : intent.status}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Transaction History / Ledger Console */}
       <div className="space-y-3">

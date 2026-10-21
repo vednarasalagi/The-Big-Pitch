@@ -5,7 +5,7 @@
 
 import { supabase, TABLES } from './supabase'
 import { generateId } from './utils'
-import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding } from '@/types'
+import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo } from '@/types'
 
 /**
  * Fetch the active or upcoming event along with its configuration.
@@ -1462,3 +1462,732 @@ export function toUserFriendlyError(err: any, fallback = 'Unable to complete req
   return msg || fallback
 }
 
+// ============================================================
+// STATIC QR PAYMENT & RECONCILIATION SERVICES
+// ============================================================
+
+/**
+ * Create a new static QR payment intent with a unique server-generated claim code.
+ */
+export async function createPaymentIntent(eventId: string, rupeeAmount: number): Promise<{
+  success: boolean
+  intentId?: string
+  claimCode?: string
+  rupeeAmount?: number
+  pointsToCredit?: number
+  expiresAt?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('create_payment_intent', {
+      p_event_id: eventId,
+      p_rupee_amount: rupeeAmount,
+    })
+    if (error) throw error
+    return {
+      success: true,
+      intentId: data.intent_id,
+      claimCode: data.claim_code,
+      rupeeAmount: data.rupee_amount,
+      pointsToCredit: data.points_to_credit,
+      expiresAt: data.expires_at,
+    }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to create payment intent') }
+  }
+}
+
+/**
+ * Submit UTR / UPI Reference No. to claim points for an intent.
+ */
+export async function claimPaymentIntent(intentId: string, utr?: string, vpa?: string): Promise<{
+  success: boolean
+  status?: string
+  matched?: boolean
+  pointsCredited?: number
+  paymentId?: string
+  message?: string
+  receivedVpaHint?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('claim_payment_intent', {
+      p_intent_id: intentId,
+      p_utr: utr || null,
+      p_vpa: vpa || null,
+    })
+    if (error) throw error
+    return {
+      success: data.success,
+      status: data.status,
+      matched: data.matched,
+      pointsCredited: data.points_credited,
+      paymentId: data.payment_id,
+      message: data.message,
+      receivedVpaHint: data.received_vpa_hint,
+    }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Could not verify payment claim') }
+  }
+}
+
+/**
+ * Get payment intent by ID.
+ */
+export async function getPaymentIntent(intentId: string): Promise<PaymentIntent | null> {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.PAYMENT_INTENTS)
+      .select('*')
+      .eq('id', intentId)
+      .single()
+    if (error || !data) return null
+    return {
+      id: data.id,
+      userId: data.user_id,
+      eventId: data.event_id,
+      claimCode: data.claim_code,
+      rupeeAmount: data.rupee_amount,
+      pointsToCredit: data.points_to_credit,
+      status: data.status,
+      userUtr: data.user_utr,
+      userVpa: data.user_vpa,
+      matchedPaymentId: data.matched_payment_id,
+      matchedAt: data.matched_at,
+      adminNotes: data.admin_notes,
+      expiresAt: data.expires_at,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetch all payment intents for a user.
+ */
+export async function getUserPaymentIntents(userId: string, eventId: string): Promise<PaymentIntent[]> {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.PAYMENT_INTENTS)
+      .select('*')
+      .eq('user_id', userId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (error || !data) return []
+    return data.map((d: any) => ({
+      id: d.id,
+      userId: d.user_id,
+      eventId: d.event_id,
+      claimCode: d.claim_code,
+      rupeeAmount: d.rupee_amount,
+      pointsToCredit: d.points_to_credit,
+      status: d.status,
+      userUtr: d.user_utr,
+      userVpa: d.user_vpa,
+      matchedPaymentId: d.matched_payment_id,
+      matchedAt: d.matched_at,
+      adminNotes: d.admin_notes,
+      expiresAt: d.expires_at,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+    }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Admin: Fetch incoming static QR payments.
+ */
+export async function getAdminQRPayments(): Promise<QRPayment[]> {
+  if (!supabase) return []
+  try {
+    // 1. Try secure RPC first (bypasses RLS issues)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_qr_payments')
+    if (!rpcError && Array.isArray(rpcData)) {
+      return rpcData.map((d: any) => ({
+        id: d.id,
+        razorpayPaymentId: d.razorpay_payment_id,
+        razorpayQrId: d.razorpay_qr_id,
+        amountPaise: d.amount_paise,
+        rupeeAmount: d.rupee_amount,
+        currency: d.currency,
+        payerVpa: d.payer_vpa,
+        bankRrn: d.bank_rrn,
+        status: d.status,
+        matchedIntentId: d.matched_intent_id,
+        matchedUserId: d.matched_user_id,
+        rawPayload: d.raw_payload,
+        paymentTime: d.payment_time,
+        adminNotes: d.admin_notes,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
+        matchedUserEmail: d.matched_user_email,
+        matchedUserDisplayName: d.matched_user_display_name,
+      }))
+    }
+
+    // 2. Fallback to direct table select
+    const { data, error } = await supabase
+      .from(TABLES.QR_PAYMENTS)
+      .select(`
+        *,
+        profiles:matched_user_id (
+          email,
+          display_name
+        )
+      `)
+      .order('payment_time', { ascending: false })
+      .limit(100)
+    if (error || !data) return []
+    return data.map((d: any) => ({
+      id: d.id,
+      razorpayPaymentId: d.razorpay_payment_id,
+      razorpayQrId: d.razorpay_qr_id,
+      amountPaise: d.amount_paise,
+      rupeeAmount: d.rupee_amount,
+      currency: d.currency,
+      payerVpa: d.payer_vpa,
+      bankRrn: d.bank_rrn,
+      status: d.status,
+      matchedIntentId: d.matched_intent_id,
+      matchedUserId: d.matched_user_id,
+      rawPayload: d.raw_payload,
+      paymentTime: d.payment_time,
+      adminNotes: d.admin_notes,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+      matchedUserEmail: d.profiles?.email,
+      matchedUserDisplayName: d.profiles?.display_name,
+    }))
+  } catch (err) {
+    console.warn('Error fetching admin QR payments:', err)
+    return []
+  }
+}
+
+/**
+ * Admin: Fetch payment intents across all users.
+ */
+export async function getAdminPaymentIntents(): Promise<PaymentIntent[]> {
+  if (!supabase) return []
+  try {
+    // 1. Try secure RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_payment_intents')
+    if (!rpcError && Array.isArray(rpcData)) {
+      return rpcData.map((d: any) => ({
+        id: d.id,
+        userId: d.user_id,
+        eventId: d.event_id,
+        claimCode: d.claim_code,
+        rupeeAmount: d.rupee_amount,
+        pointsToCredit: d.points_to_credit,
+        status: d.status,
+        userUtr: d.user_utr,
+        userVpa: d.user_vpa,
+        matchedPaymentId: d.matched_payment_id,
+        matchedAt: d.matched_at,
+        adminNotes: d.admin_notes,
+        expiresAt: d.expires_at,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
+        userEmail: d.user_email,
+        userDisplayName: d.user_display_name,
+      }))
+    }
+
+    // 2. Fallback to direct table select
+    const { data, error } = await supabase
+      .from(TABLES.PAYMENT_INTENTS)
+      .select(`
+        *,
+        profiles:user_id (
+          email,
+          display_name
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (error || !data) return []
+    return data.map((d: any) => ({
+      id: d.id,
+      userId: d.user_id,
+      eventId: d.event_id,
+      claimCode: d.claim_code,
+      rupeeAmount: d.rupee_amount,
+      pointsToCredit: d.points_to_credit,
+      status: d.status,
+      userUtr: d.user_utr,
+      userVpa: d.user_vpa,
+      matchedPaymentId: d.matched_payment_id,
+      matchedAt: d.matched_at,
+      adminNotes: d.admin_notes,
+      expiresAt: d.expires_at,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+      userEmail: d.profiles?.email,
+      userDisplayName: d.profiles?.display_name,
+    }))
+  } catch (err) {
+    console.warn('Error fetching admin payment intents:', err)
+    return []
+  }
+}
+
+/**
+ * Admin: Fetch raw webhook event logs.
+ */
+export async function getAdminWebhookEvents(): Promise<WebhookEventRecord[]> {
+  if (!supabase) return []
+  try {
+    // 1. Try secure RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_webhook_events')
+    if (!rpcError && Array.isArray(rpcData)) {
+      return rpcData.map((d: any) => ({
+        id: d.id,
+        eventType: d.event_type,
+        eventId: d.event_id,
+        signatureVerified: d.signature_verified,
+        status: d.status,
+        errorMessage: d.error_message,
+        payload: d.payload,
+        createdAt: d.created_at,
+      }))
+    }
+
+    // 2. Fallback to direct table select
+    const { data, error } = await supabase
+      .from(TABLES.WEBHOOK_EVENTS)
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error || !data) return []
+    return data.map((d: any) => ({
+      id: d.id,
+      eventType: d.event_type,
+      eventId: d.event_id,
+      signatureVerified: d.signature_verified,
+      status: d.status,
+      errorMessage: d.error_message,
+      payload: d.payload,
+      createdAt: d.created_at,
+    }))
+  } catch (err) {
+    console.warn('Error fetching webhook events:', err)
+    return []
+  }
+}
+
+/**
+ * Admin: Manually match an unmatched QR payment to a user intent.
+ */
+export async function adminManualMatchPayment(paymentId: string, intentId: string, notes?: string): Promise<{
+  success: boolean
+  message?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('admin_manual_match_payment', {
+      p_payment_id: paymentId,
+      p_intent_id: intentId,
+      p_admin_notes: notes || null,
+    })
+    if (error) throw error
+    return { success: true, message: data?.message || 'Payment successfully matched' }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to manually match payment') }
+  }
+}
+
+/**
+ * Admin: Reject payment.
+ */
+export async function adminRejectPayment(paymentId: string, notes: string): Promise<{
+  success: boolean
+  message?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('admin_reject_payment', {
+      p_payment_id: paymentId,
+      p_notes: notes,
+    })
+    if (error) throw error
+    return { success: true, message: data?.message || 'Payment rejected' }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to reject payment') }
+  }
+}
+
+/**
+ * Admin: Flag payment intent.
+ */
+export async function adminFlagIntent(intentId: string, status: string, notes?: string): Promise<{
+  success: boolean
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { error } = await supabase.rpc('admin_flag_intent', {
+      p_intent_id: intentId,
+      p_status: status,
+      p_notes: notes || null,
+    })
+    if (error) throw error
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to flag intent') }
+  }
+}
+
+/**
+ * Admin: Delete a purchase claim / payment intent.
+ */
+export async function adminDeletePaymentIntent(intentId: string): Promise<{
+  success: boolean
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { error } = await supabase.rpc('admin_delete_payment_intent', {
+      p_intent_id: intentId,
+    })
+    if (error) throw error
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to delete payment intent') }
+  }
+}
+
+/**
+ * Update the user's saved UPI ID (VPA) in their profile.
+ */
+export async function updateUserVpa(vpa: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { error } = await supabase.rpc('update_user_vpa', { p_vpa: vpa })
+    if (error) throw error
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to save UPI ID') }
+  }
+}
+
+/**
+ * Get user's saved UPI ID.
+ */
+export async function getUserVpa(userId?: string): Promise<string | null> {
+  if (!supabase) return null
+  try {
+    let targetId = userId
+    if (!targetId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      targetId = user?.id
+    }
+    if (!targetId) return null
+
+    const { data, error } = await supabase
+      .from(TABLES.PROFILES)
+      .select('upi_id')
+      .eq('id', targetId)
+      .single()
+
+    if (error || !data) return null
+    return data.upi_id || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetch the 5 fixed packages with their static QR codes.
+ */
+export async function getPackageQRCodes(eventId = '11111111-0000-0000-0000-000000000001'): Promise<PackageQRCode[]> {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.PACKAGE_QR_CODES)
+      .select('*')
+      .eq('event_id', eventId)
+      .order('display_order', { ascending: true })
+
+    if (error || !data || data.length === 0) {
+      return [
+        { id: 'pkg_1', eventId, label: 'Starter Pack', rupeeAmount: 10, points: 100, isActive: true, displayOrder: 1 },
+        { id: 'pkg_2', eventId, label: 'Supporter Pack', rupeeAmount: 20, points: 200, isActive: true, displayOrder: 2 },
+        { id: 'pkg_3', eventId, label: 'Enthusiast Pack', rupeeAmount: 50, points: 500, isActive: true, displayOrder: 3 },
+        { id: 'pkg_4', eventId, label: 'Champion Pack', rupeeAmount: 100, points: 1000, isActive: true, displayOrder: 4 },
+        { id: 'pkg_5', eventId, label: 'Super Backer', rupeeAmount: 200, points: 2000, isActive: true, displayOrder: 5 },
+      ]
+    }
+
+    return data.map((d: any) => ({
+      id: d.id,
+      eventId: d.event_id,
+      label: d.label,
+      rupeeAmount: d.rupee_amount,
+      points: d.points,
+      qrImageUrl: d.qr_image_url || undefined,
+      upiVpa: d.upi_vpa || undefined,
+      isActive: d.is_active,
+      displayOrder: d.display_order,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+    }))
+  } catch {
+    return [
+      { id: 'pkg_1', eventId, label: 'Starter Pack', rupeeAmount: 10, points: 100, isActive: true, displayOrder: 1 },
+      { id: 'pkg_2', eventId, label: 'Supporter Pack', rupeeAmount: 20, points: 200, isActive: true, displayOrder: 2 },
+      { id: 'pkg_3', eventId, label: 'Enthusiast Pack', rupeeAmount: 50, points: 500, isActive: true, displayOrder: 3 },
+      { id: 'pkg_4', eventId, label: 'Champion Pack', rupeeAmount: 100, points: 1000, isActive: true, displayOrder: 4 },
+      { id: 'pkg_5', eventId, label: 'Super Backer', rupeeAmount: 200, points: 2000, isActive: true, displayOrder: 5 },
+    ]
+  }
+}
+
+/**
+ * Admin: Update a package's QR code image, price, points, or status.
+ */
+export async function adminUpdatePackageQRCode(pkg: Partial<PackageQRCode> & { id: string }): Promise<{
+  success: boolean
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    // 1. Try secure RPC first (bypasses RLS permission errors)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_package_qr_code', {
+      p_package_id: pkg.id,
+      p_label: pkg.label ?? null,
+      p_rupee_amount: pkg.rupeeAmount ?? null,
+      p_points: pkg.points ?? null,
+      p_qr_image_url: pkg.qrImageUrl ?? null,
+      p_upi_vpa: pkg.upiVpa ?? null,
+      p_is_active: pkg.isActive ?? null,
+    })
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true }
+    }
+
+    // 2. Fallback to direct table update with updated RLS policy
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    }
+    if (pkg.label !== undefined) updateData.label = pkg.label
+    if (pkg.rupeeAmount !== undefined) updateData.rupee_amount = pkg.rupeeAmount
+    if (pkg.points !== undefined) updateData.points = pkg.points
+    if (pkg.qrImageUrl !== undefined) updateData.qr_image_url = pkg.qrImageUrl
+    if (pkg.upiVpa !== undefined) updateData.upi_vpa = pkg.upiVpa
+    if (pkg.isActive !== undefined) updateData.is_active = pkg.isActive
+
+    const { error } = await supabase
+      .from(TABLES.PACKAGE_QR_CODES)
+      .update(updateData)
+      .eq('id', pkg.id)
+
+    if (error) throw error
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to update package QR code') }
+  }
+}
+
+/**
+ * Helper to convert a File to a base64 data URL
+ */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
+ * Admin: Upload a static QR code image for a package.
+ * First tries uploading to Supabase Storage bucket 'payment-qr-codes'.
+ * If the bucket is not available, automatically falls back to an optimized base64 Data URL
+ * so upload NEVER fails and works immediately without manual storage setup!
+ */
+export async function uploadPackageQRImage(
+  packageId: string,
+  file: File
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+
+  // 1. Validation
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml']
+  if (!validTypes.includes(file.type)) {
+    return { success: false, error: 'Please upload a valid image file (PNG, JPG, WEBP, or SVG)' }
+  }
+
+  // Max 5MB
+  if (file.size > 5 * 1024 * 1024) {
+    return { success: false, error: 'File size exceeds 5MB limit. Please choose a smaller image.' }
+  }
+
+  try {
+    const fileExt = file.name.split('.').pop() || 'png'
+    const fileName = `${packageId}_${Date.now()}.${fileExt}`
+    const filePath = `packages/${fileName}`
+
+    // Try Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('payment-qr-codes')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      })
+
+    if (!uploadError) {
+      const { data: publicData } = supabase.storage
+        .from('payment-qr-codes')
+        .getPublicUrl(filePath)
+      if (publicData?.publicUrl) {
+        return { success: true, url: publicData.publicUrl }
+      }
+    }
+
+    // Fallback: convert to Base64 Data URL (stored in text column)
+    const base64Url = await fileToDataUrl(file)
+    return { success: true, url: base64Url }
+  } catch (err: any) {
+    try {
+      const base64Url = await fileToDataUrl(file)
+      return { success: true, url: base64Url }
+    } catch {
+      return { success: false, error: toUserFriendlyError(err, 'Failed to process image file') }
+    }
+  }
+}
+
+/**
+ * Admin: Fetch full list of audience users with live wallet telemetry.
+ */
+export async function getAdminUsersList(eventId = '11111111-0000-0000-0000-000000000001'): Promise<AdminUserInfo[]> {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase.rpc('get_admin_users_list', {
+      p_event_id: eventId,
+    })
+
+    if (error) {
+      console.warn('RPC get_admin_users_list fallback query:', error)
+      const { data: profiles, error: pError } = await supabase
+        .from(TABLES.PROFILES)
+        .select(`
+          id, email, display_name, role, upi_id, created_at,
+          wallets (id, free_points, purchased_points, invested_points, total_paid_rupees)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (pError || !profiles) return []
+
+      return profiles.map((p: any) => {
+        const w = Array.isArray(p.wallets) ? p.wallets[0] : p.wallets
+        const free = w?.free_points || 0
+        const purchased = w?.purchased_points || 0
+        return {
+          id: p.id,
+          email: p.email,
+          displayName: p.display_name || '',
+          role: p.role,
+          upiId: p.upi_id || undefined,
+          walletId: w?.id,
+          freePoints: free,
+          purchasedPoints: purchased,
+          investedPoints: w?.invested_points || 0,
+          availablePoints: free + purchased,
+          totalPaidRupees: w?.total_paid_rupees || 0,
+          createdAt: p.created_at,
+        }
+      })
+    }
+
+    return (data || []).map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      displayName: u.display_name || '',
+      role: u.role,
+      upiId: u.upi_id || undefined,
+      walletId: u.wallet_id || undefined,
+      freePoints: u.free_points || 0,
+      purchasedPoints: u.purchased_points || 0,
+      investedPoints: u.invested_points || 0,
+      availablePoints: u.available_points || 0,
+      totalPaidRupees: u.total_paid_rupees || 0,
+      createdAt: u.created_at,
+    }))
+  } catch (err) {
+    console.warn('Error fetching admin users list:', err)
+    return []
+  }
+}
+
+/**
+ * Admin: Add or adjust points for an audience user (problem/discrepancy resolution).
+ */
+export async function adminAdjustUserPoints(
+  userId: string,
+  eventId: string,
+  points: number,
+  rupeeAmount = 0,
+  reason = 'Admin Point Adjustment'
+): Promise<{
+  success: boolean
+  error?: string
+  newBalance?: number
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('admin_adjust_user_points', {
+      p_user_id: userId,
+      p_event_id: eventId,
+      p_points: points,
+      p_rupee_amount: rupeeAmount,
+      p_reason: reason,
+    })
+
+    if (error) throw error
+    return {
+      success: true,
+      newBalance: data?.new_balance,
+    }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to adjust points') }
+  }
+}
+
+/**
+ * Super Admin: Permanently delete a user account and associated records.
+ */
+export async function adminDeleteUser(userId: string): Promise<{
+  success: boolean
+  message?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_user', {
+      p_target_user_id: userId,
+    })
+
+    if (error) throw error
+    return {
+      success: data?.success ?? true,
+      message: data?.message,
+    }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to delete user') }
+  }
+}

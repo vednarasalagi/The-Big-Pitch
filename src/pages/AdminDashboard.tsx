@@ -53,6 +53,7 @@ import { broadcastRoundUpdate, broadcastTeamsUpdate } from '@/lib/realtimeSync'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { Team, OfficialResult } from '@/types'
+import { AdminPaymentsCockpit } from '@/components/admin/AdminPaymentsCockpit'
 
 // ── Admin Navigation Tabs & Categorization ───────────────────
 export interface AdminTabItem {
@@ -1861,23 +1862,9 @@ function AllowlistTab() {
 
 // ── 5. Payments Tab ─────────────────────────────────────────
 function PaymentsTab() {
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <SectionHeader title="Financial & Transaction History" subtitle="Live tracking of point purchases and payment telemetry" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Revenue" value="₹240" icon={<TrendingUp size={16} />} />
-        <StatCard label="Paid Orders" value="12" icon={<CreditCard size={16} />} />
-        <StatCard label="Points Issued" value="2,400" icon={<Gift size={16} />} />
-        <StatCard label="Failed Orders" value="0" icon={<CheckCircle2 size={16} />} />
-      </div>
-      <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm">
-        <p className="text-zinc-500 text-xs text-center py-6">
-          Razorpay Webhook & Payment sync active. Transaction records are secured in public.payment_transactions.
-        </p>
-      </div>
-    </div>
-  )
+  return <AdminPaymentsCockpit />
 }
+
 
 
 

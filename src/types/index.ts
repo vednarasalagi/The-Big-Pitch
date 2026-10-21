@@ -205,6 +205,107 @@ export interface PaymentOrder {
   updatedAt: string;
 }
 
+// --- Static QR Payment Types ---
+export type PaymentIntentStatus =
+  | 'pending'
+  | 'processing'
+  | 'credited'
+  | 'manual_review'
+  | 'expired'
+  | 'failed'
+  | 'cancelled'
+  | 'vpa_mismatch';
+
+export interface PaymentIntent {
+  id: string;
+  userId: string;
+  eventId: string;
+  claimCode: string;
+  rupeeAmount: number;
+  pointsToCredit: number;
+  status: PaymentIntentStatus;
+  userUtr?: string;
+  userVpa?: string;
+  matchedPaymentId?: string;
+  matchedAt?: string;
+  adminNotes?: string;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  userEmail?: string;
+  userDisplayName?: string;
+}
+
+export type QRPaymentStatus =
+  | 'unmatched'
+  | 'matched'
+  | 'manual_review'
+  | 'rejected'
+  | 'refunded';
+
+export interface QRPayment {
+  id: string;
+  razorpayPaymentId: string;
+  razorpayQrId?: string;
+  amountPaise: number;
+  rupeeAmount: number;
+  currency: string;
+  payerVpa?: string;
+  bankRrn?: string;
+  status: QRPaymentStatus;
+  matchedIntentId?: string;
+  matchedUserId?: string;
+  rawPayload?: any;
+  paymentTime: string;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  matchedUserEmail?: string;
+  matchedUserDisplayName?: string;
+}
+
+export interface WebhookEventRecord {
+  id: string;
+  eventType: string;
+  eventId?: string;
+  signatureVerified: boolean;
+  status: 'received' | 'processed' | 'ignored' | 'failed' | 'duplicate';
+  errorMessage?: string;
+  payload: any;
+  createdAt: string;
+}
+
+export interface PackageQRCode {
+  id: string;
+  eventId: string;
+  label: string;
+  rupeeAmount: number;
+  points: number;
+  qrImageUrl?: string;
+  upiVpa?: string;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminUserInfo {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  upiId?: string;
+  walletId?: string;
+  freePoints: number;
+  purchasedPoints: number;
+  investedPoints: number;
+  availablePoints: number;
+  totalPaidRupees: number;
+  createdAt: string;
+}
+
 // --- Rewards ---
 export interface RewardRule {
   id: string;
