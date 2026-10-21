@@ -918,7 +918,7 @@ export function AdminPaymentsCockpit() {
                       ) : (
                         <div className="w-36 h-36 flex flex-col items-center justify-center text-center p-2 text-zinc-400 bg-zinc-50 rounded">
                           <QRCodeSVG
-                            value={`upi://pay?pa=sphinx.ecell@upi&pn=The%20Big%20Pitch&am=${pkg.rupeeAmount}&cu=INR`}
+                            value={`upi://pay?pa=thebigpitchvedn664812.rzp@rxairtel&pn=The%20Big%20Pitch%20Ved%20Narasalagi&am=${pkg.rupeeAmount}&cu=INR`}
                             size={120}
                           />
                           <span className="text-[9px] text-zinc-500 mt-1 font-mono">Auto-generated</span>

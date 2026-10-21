@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { QRCodeSVG } from 'qrcode.react'
+import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react'
 import {
   X,
   QrCode,
@@ -15,10 +15,11 @@ import {
   ArrowLeft,
   ShieldCheck,
   CheckCircle2,
-  ExternalLink,
   Edit2,
   Smartphone,
   AlertTriangle,
+  Download,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -85,12 +86,121 @@ export function StaticQRCheckoutModal({
   const pollingTimerRef = useRef<any>(null)
 
   // Merchant Configuration (Used for QR Generation / Deep link only)
-  const merchantVpa = pkg.upiVpa || (import.meta.env.VITE_MERCHANT_UPI_VPA as string) || 'sphinx.ecell@upi'
-  const merchantName = (import.meta.env.VITE_MERCHANT_NAME as string) || 'THE BIG PITCH - SPHINX 2026'
+  const merchantVpa = pkg.upiVpa || (import.meta.env.VITE_MERCHANT_UPI_VPA as string) || 'thebigpitchvedn664812.rzp@rxairtel'
+  const merchantName = (import.meta.env.VITE_MERCHANT_NAME as string) || 'The Big Pitch Ved Narasalagi'
   const staticQrImageUrl = pkg.qrImageUrl || (import.meta.env.VITE_STATIC_QR_URL as string) || ''
 
-  // UPI Deep Link for scanning
-  const upiIntentString = `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(merchantName)}&am=${pkg.rupees}&cu=INR&tn=${encodeURIComponent(claimCode || 'SphinxTokens')}`
+  // Standard UPI Deep Link for App Redirection & QR
+  const upiIntentString = `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(merchantName)}&am=${pkg.rupees}&cu=INR&tn=${encodeURIComponent('Payment To The Big Pitch Ved Narasalagi')}`
+
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [downloadingQr, setDownloadingQr] = useState(false)
+  const [copiedMerchantVpa, setCopiedMerchantVpa] = useState(false)
+
+  const handleCopyMerchantVpa = () => {
+    navigator.clipboard.writeText(merchantVpa)
+    setCopiedMerchantVpa(true)
+    toast.success('Merchant UPI ID copied!')
+    setTimeout(() => setCopiedMerchantVpa(false), 2000)
+  }
+
+  const handleDownloadQR = () => {
+    try {
+      setDownloadingQr(true)
+      const fileName = `TheBigPitch_Pay_Rs${pkg.rupees}_QR.png`
+
+      // 1. Locate the rendered QR canvas
+      const sourceCanvas = qrCanvasRef.current
+      if (!sourceCanvas) {
+        toast.error('QR code not ready. Please try again.')
+        setDownloadingQr(false)
+        return
+      }
+
+      // 2. Build high-res branded payment card (500x620)
+      const exportCanvas = document.createElement('canvas')
+      const cardWidth = 500
+      const cardHeight = 620
+      exportCanvas.width = cardWidth
+      exportCanvas.height = cardHeight
+      const ctx = exportCanvas.getContext('2d')
+
+      if (!ctx) {
+        setDownloadingQr(false)
+        toast.error('Canvas error. Please take a screenshot.')
+        return
+      }
+
+      // Clean white card background
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(0, 0, cardWidth, cardHeight)
+
+      // Header Banner
+      ctx.fillStyle = '#09090b'
+      ctx.fillRect(0, 0, cardWidth, 80)
+
+      // Header Brand Text
+      ctx.fillStyle = '#FAFAFA'
+      ctx.font = 'bold 22px system-ui, -apple-system, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText("THE BIG PITCH • SPHINX '26", cardWidth / 2, 48)
+
+      // Amount Badge / Pill
+      ctx.fillStyle = '#ECFDF5'
+      ctx.beginPath()
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(cardWidth / 2 - 120, 100, 240, 46, 23)
+      } else {
+        ctx.rect(cardWidth / 2 - 120, 100, 240, 46)
+      }
+      ctx.fill()
+      ctx.strokeStyle = '#10B981'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+
+      ctx.fillStyle = '#065F46'
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif'
+      ctx.fillText(`Amount to Pay: ₹${pkg.rupees}`, cardWidth / 2, 131)
+
+      // Draw QR Code centered with clean border
+      const qrDisplaySize = 340
+      const qrX = (cardWidth - qrDisplaySize) / 2
+      const qrY = 168
+
+      ctx.strokeStyle = '#E4E4E7'
+      ctx.lineWidth = 1
+      ctx.strokeRect(qrX - 6, qrY - 6, qrDisplaySize + 12, qrDisplaySize + 12)
+      ctx.drawImage(sourceCanvas, qrX, qrY, qrDisplaySize, qrDisplaySize)
+
+      // Merchant VPA text
+      ctx.fillStyle = '#18181B'
+      ctx.font = 'bold 15px monospace'
+      ctx.fillText(merchantVpa, cardWidth / 2, 545)
+
+      // Instructions footer
+      ctx.fillStyle = '#71717A'
+      ctx.font = '13px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Scan with GPay, PhonePe, Paytm, or BHIM', cardWidth / 2, 574)
+
+      // 3. Generate Data URL synchronously
+      const dataUrl = exportCanvas.toDataURL('image/png')
+
+      // 4. Trigger download directly via anchor element (No rel, no target)
+      const a = document.createElement('a')
+      a.download = fileName
+      a.href = dataUrl
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+
+      setDownloadingQr(false)
+      toast.success('QR Code downloaded! Open your UPI app and scan from gallery.')
+    } catch (err) {
+      console.error('Failed to download QR code:', err)
+      setDownloadingQr(false)
+      toast.error('Could not download QR. Please take a screenshot.')
+    }
+  }
 
   // 1. Load User's Saved VPA on Mount (Do NOT create database intent yet!)
   useEffect(() => {
@@ -107,6 +217,8 @@ export function StaticQRCheckoutModal({
           setSavedVpa(vpa)
           setPayerVpa(vpa)
           setIsEditingVpa(false)
+          // Returning users with saved VPA advance straight to payment screen
+          setCheckoutStep('scan_qr')
         } else {
           setIsEditingVpa(true)
         }
@@ -238,33 +350,46 @@ export function StaticQRCheckoutModal({
     setTimeout(() => setCopiedCode(false), 2000)
   }
 
-  // Step 1: Validate UPI ID and advance to QR display
+  // Step 1: Validate UPI ID or Transaction ID and advance to payment view
   const handleProceedToQR = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     setErrorMsg('')
 
-    const cleanVpa = payerVpa.trim()
-    if (!cleanVpa || !cleanVpa.includes('@') || cleanVpa.length < 3) {
-      setErrorMsg('Please enter a valid UPI ID (e.g. yourname@okhdfcbank or 9876543210@paytm)')
+    const cleanInput = payerVpa.trim()
+    const isVpa = cleanInput.includes('@') && cleanInput.length >= 3
+    const isUtr = /^[0-9a-zA-Z]{6,22}$/.test(cleanInput) && !cleanInput.includes('@')
+
+    if (!isVpa && !isUtr) {
+      setErrorMsg('Please enter a valid UPI ID (e.g. yourname@okhdfcbank) or 12-digit Transaction ID')
       setIsEditingVpa(true)
       return
     }
 
-    // Auto-save VPA to profile so user never has to re-enter
-    updateUserVpa(cleanVpa).catch(() => {})
-    setSavedVpa(cleanVpa)
+    if (isVpa) {
+      // Auto-save VPA to profile so user never has to re-enter
+      updateUserVpa(cleanInput).catch(() => {})
+      setSavedVpa(cleanInput)
+    } else {
+      setOptionalUtr(cleanInput)
+    }
+
     setIsEditingVpa(false)
     setCheckoutStep('scan_qr')
   }
 
-  // Step 2: Handle "I Have Paid" (Creates intent on demand and auto-matches via VPA)
+  // Step 2: Handle "I Have Paid" (Auto-matches via VPA or 12-digit UTR)
   const handleClaimWithVpa = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     setErrorMsg('')
 
-    const cleanVpa = payerVpa.trim()
-    if (!cleanVpa || !cleanVpa.includes('@')) {
-      setErrorMsg('Please enter a valid UPI ID (e.g. yourname@okhdfcbank or 9876543210@paytm)')
+    const cleanInput = payerVpa.trim()
+    const isVpa = cleanInput.includes('@') && cleanInput.length >= 3
+    const isUtr = /^[0-9a-zA-Z]{6,22}$/.test(cleanInput) && !cleanInput.includes('@')
+    const hasSavedVpa = Boolean(savedVpa && savedVpa.includes('@'))
+    const hasUtr = Boolean(optionalUtr.trim())
+
+    if (!isVpa && !isUtr && !hasSavedVpa && !hasUtr) {
+      setErrorMsg('Please enter your UPI ID (e.g. name@okhdfcbank) or 12-digit Transaction ID (e.g. 170510197207)')
       setCheckoutStep('vpa_input')
       setIsEditingVpa(true)
       return
@@ -273,8 +398,10 @@ export function StaticQRCheckoutModal({
     setSubmittingClaim(true)
 
     try {
-      updateUserVpa(cleanVpa).catch(() => {})
-      setSavedVpa(cleanVpa)
+      if (isVpa) {
+        updateUserVpa(cleanInput).catch(() => {})
+        setSavedVpa(cleanInput)
+      }
 
       let currentIntentId = intentId
       // Only create a purchase claim in the database when the user actually claims "I Have Paid"!
@@ -291,10 +418,13 @@ export function StaticQRCheckoutModal({
         setExpiresAt(createRes.expiresAt || null)
       }
 
+      const utrToPass = isUtr ? cleanInput : (optionalUtr.trim() || undefined)
+      const vpaToPass = isVpa ? cleanInput : (savedVpa || undefined)
+
       const result = await claimPaymentIntent(
         currentIntentId,
-        optionalUtr.trim() || undefined,
-        cleanVpa
+        utrToPass,
+        vpaToPass
       )
 
       if (result.matched || result.status === 'credited') {
@@ -360,17 +490,17 @@ export function StaticQRCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-zinc-950/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2.5 sm:p-4 bg-zinc-950/80 backdrop-blur-md animate-fade-in overflow-hidden"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className={`skeuo-surface rounded-3xl w-full my-auto shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),inset_0_1px_0_#FFF] border border-zinc-200/80 overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] transition-all duration-300 ${
+        className={`skeuo-surface rounded-3xl w-full my-auto shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),inset_0_1px_0_#FFF] border border-zinc-200/80 overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[85vh] transition-all duration-300 ${
           checkoutStep === 'scan_qr' && status !== 'credited' && status !== 'expired'
-            ? 'max-w-[420px] md:max-w-[680px]'
-            : 'max-w-[420px]'
+            ? 'max-w-[440px] md:max-w-[680px]'
+            : 'max-w-[440px]'
         }`}
         onClick={e => e.stopPropagation()}
       >
@@ -407,8 +537,8 @@ export function StaticQRCheckoutModal({
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-3.5 sm:p-4 md:p-5 overflow-y-auto overscroll-contain flex-1">
+        {/* Modal Body with internal smooth mobile scroll */}
+        <div className="p-3.5 sm:p-4 md:p-5 overflow-y-auto overscroll-contain flex-1 space-y-3.5 scrollbar-thin">
 
           {/* SUCCESS VIEW */}
           {status === 'credited' ? (
@@ -500,12 +630,12 @@ export function StaticQRCheckoutModal({
                 </div>
               </div>
 
-              {/* Payer UPI ID Input */}
+              {/* Payer UPI ID / Transaction ID Input */}
               <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-zinc-900 flex items-center gap-1.5">
                     <Smartphone size={14} className="text-zinc-600" />
-                    <span>Your Payer UPI ID (VPA):</span>
+                    <span>Your Payer UPI ID:</span>
                   </span>
                   {!isEditingVpa && savedVpa && (
                     <button
@@ -522,8 +652,9 @@ export function StaticQRCheckoutModal({
                 {!isEditingVpa && savedVpa ? (
                   <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-white border border-zinc-200 font-mono text-xs shadow-sm">
                     <span className="font-bold text-zinc-950">{savedVpa}</span>
-                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      Saved
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                      <Check size={10} />
+                      <span>Saved in Supabase</span>
                     </span>
                   </div>
                 ) : (
@@ -542,15 +673,18 @@ export function StaticQRCheckoutModal({
                       }}
                       className="w-full px-3.5 py-2.5 rounded-xl skeuo-sunken text-xs font-mono font-bold text-zinc-950 placeholder:text-zinc-400 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                     />
+                    <p className="text-[10px] text-zinc-500">
+                      Auto-saved to your Supabase profile for automatic matching.
+                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Prominent Warning Banner */}
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
-                <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-950 leading-relaxed">
-                  <strong className="font-bold">Important Warning:</strong> You must make the UPI payment from the <strong>exact same UPI ID</strong> that you enter here. If you pay from a different UPI ID, your payment cannot be verified and points might not be credited to your account!
+              {/* Informative Guidance Banner */}
+              <div className="p-3 rounded-2xl bg-zinc-100 border border-zinc-200/90 flex items-start gap-2.5">
+                <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-zinc-700 leading-relaxed">
+                  <strong className="font-bold text-zinc-950">Bank Verification:</strong> Next screen displays the official payment QR code. Scan directly with your phone, or download the QR to pay from your gallery on mobile.
                 </div>
               </div>
 
@@ -574,7 +708,7 @@ export function StaticQRCheckoutModal({
             </motion.div>
           ) : (
             /* ─────────────────────────────────────────────────────────────
-               STEP 2: SCAN & PAY VIA QR CODE (RESPONSIVE GRID & COMPACT MOBILE)
+               STEP 2: SCAN & PAY VIA QR CODE (RESPONSIVE: LAPTOP SCAN VS MOBILE DOWNLOAD)
                ───────────────────────────────────────────────────────────── */
             <motion.div
               initial={{ opacity: 0, x: 10 }}
@@ -582,43 +716,115 @@ export function StaticQRCheckoutModal({
               exit={{ opacity: 0, x: 10 }}
               className="space-y-3 md:space-y-0 md:grid md:grid-cols-12 md:gap-4 md:items-start"
             >
-              {/* LEFT COLUMN (ON MD) / TOP (ON MOBILE): QR CODE CARD */}
-              <div className="md:col-span-6 flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-2.5">
-                <div className="relative p-2 rounded-2xl bg-white border border-zinc-200 shadow-inner group flex items-center justify-center">
+              {/* LEFT COLUMN: QR CODE & ACTIONS */}
+              <div className="md:col-span-6 flex flex-col items-center justify-center p-3 sm:p-3.5 md:p-4 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
+                {/* Header text */}
+                <div className="text-center space-y-0.5">
+                  <p className="text-xs sm:text-sm font-black text-zinc-950">
+                    Scan with any UPI App
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-zinc-500 font-medium">
+                    Google Pay • PhonePe • Paytm • BHIM
+                  </p>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="relative p-2.5 rounded-2xl bg-white border border-zinc-200 shadow-inner group flex items-center justify-center">
                   {staticQrImageUrl ? (
-                    <img
-                      src={staticQrImageUrl}
-                      alt={`${pkg.label} Static QR`}
-                      className="w-36 h-36 xs:w-40 xs:h-40 sm:w-44 sm:h-44 md:w-48 md:h-48 object-contain rounded-lg"
-                    />
+                    <>
+                      <img
+                        src={staticQrImageUrl}
+                        alt={`${pkg.label} Static QR`}
+                        className="w-36 h-36 xs:w-40 xs:h-40 sm:w-44 sm:h-44 md:w-48 md:h-48 object-contain rounded-lg"
+                      />
+                      <div className="hidden">
+                        <QRCodeCanvas
+                          ref={qrCanvasRef}
+                          value={upiIntentString}
+                          size={320}
+                          level="M"
+                          marginSize={1}
+                        />
+                      </div>
+                    </>
                   ) : (
-                    <QRCodeSVG
+                    <QRCodeCanvas
+                      ref={qrCanvasRef}
                       value={upiIntentString}
-                      size={152}
+                      size={320}
                       level="M"
-                      includeMargin={false}
+                      marginSize={1}
                       className="rounded-lg w-32 h-32 xs:w-36 xs:h-36 sm:w-40 sm:h-40 md:w-44 md:h-44"
                     />
                   )}
                 </div>
 
-                <div className="text-center space-y-0.5">
-                  <p className="text-[11px] sm:text-xs font-bold text-zinc-900 leading-tight">
-                    Scan with any UPI App
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] text-zinc-500">
-                    GPay &bull; PhonePe &bull; Paytm &bull; BHIM
-                  </p>
+                {/* ─────────────────────────────────────────────────────────
+                    MOBILE-ONLY ACTIONS (< 768px): DOWNLOAD & GALLERY STEPS
+                    ───────────────────────────────────────────────────────── */}
+                <div className="w-full space-y-2 md:hidden">
+                  {/* Download QR Button */}
+                  <button
+                    type="button"
+                    onClick={handleDownloadQR}
+                    disabled={downloadingQr}
+                    className="w-full py-2.5 px-3 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] disabled:opacity-60"
+                  >
+                    <Download size={14} className="text-emerald-400" />
+                    <span>{downloadingQr ? 'Saving QR...' : 'Download QR Code'}</span>
+                  </button>
+
+                  {/* Step-by-Step Payment Instructions for Mobile */}
+                  <div className="w-full p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-[10px] sm:text-[11px] text-emerald-950 space-y-1 text-left">
+                    <div className="font-bold flex items-center gap-1.5 text-emerald-900">
+                      <ImageIcon size={12} className="text-emerald-700" />
+                      <span>How to pay on this phone:</span>
+                    </div>
+                    <ol className="text-[10px] text-emerald-900/90 leading-relaxed list-decimal list-inside space-y-0.5">
+                      <li>Tap <strong>Download QR Code</strong> above.</li>
+                      <li>Open <strong>GPay, PhonePe, Paytm, or BHIM</strong>.</li>
+                      <li>Tap <strong>Scan QR (📷)</strong> ➔ tap <strong>Gallery (🖼️)</strong>.</li>
+                      <li>Select the downloaded QR & pay <strong>{formatRupees(pkg.rupees)}</strong>.</li>
+                    </ol>
+                  </div>
+
+                  {/* Quick Copy UPI ID for Mobile */}
+                  <div className="w-full flex items-center justify-between text-[10px] bg-zinc-50 border border-zinc-200 px-2.5 py-1.5 rounded-xl text-zinc-600 font-mono">
+                    <span className="truncate">{merchantVpa}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyMerchantVpa}
+                      className="text-zinc-600 hover:text-zinc-950 ml-1.5 flex items-center gap-1 font-sans font-bold flex-shrink-0"
+                    >
+                      {copiedMerchantVpa ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                      <span>{copiedMerchantVpa ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Mobile Direct UPI Intent Button */}
-                <a
-                  href={upiIntentString}
-                  className="w-full py-2 px-3 rounded-xl skeuo-btn-secondary text-[11px] sm:text-xs font-bold text-center flex items-center justify-center gap-1.5 text-zinc-800 transition-transform active:scale-[0.98]"
-                >
-                  <span>Pay {formatRupees(pkg.rupees)} in UPI App</span>
-                  <ExternalLink size={12} />
-                </a>
+                {/* ─────────────────────────────────────────────────────────
+                    LAPTOP / DESKTOP ONLY VIEW (>= 768px): SCAN FROM PHONE PROMPT
+                    ───────────────────────────────────────────────────────── */}
+                <div className="hidden md:flex flex-col items-center text-center space-y-2 p-3.5 rounded-xl bg-zinc-50 border border-zinc-200/90 w-full">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                    <Smartphone size={14} className="text-emerald-600" />
+                    <span>Scan & Pay from your phone</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-600 leading-relaxed max-w-[260px]">
+                    Open <strong>Google Pay</strong>, <strong>PhonePe</strong>, <strong>Paytm</strong>, or <strong>BHIM</strong> on your mobile phone and scan this QR code to pay <strong className="text-zinc-950 font-bold">{formatRupees(pkg.rupees)}</strong>.
+                  </p>
+                  <div className="pt-0.5 flex items-center justify-center gap-1.5 text-[11px] font-mono text-zinc-700 bg-white px-3 py-1.5 rounded-lg border border-zinc-200 shadow-sm w-full max-w-[260px]">
+                    <span className="truncate">{merchantVpa}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyMerchantVpa}
+                      className="text-zinc-400 hover:text-zinc-900 ml-1 p-0.5 transition-colors"
+                      title="Copy UPI ID"
+                    >
+                      {copiedMerchantVpa ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* RIGHT COLUMN (ON MD) / BOTTOM (ON MOBILE): INFO & ACTIONS */}
@@ -680,24 +886,7 @@ export function StaticQRCheckoutModal({
                   )}
                 </div>
 
-                {/* Status Banner when polling or in manual review */}
-                {status === 'polling' && (
-                  <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-900 text-xs flex items-center gap-2">
-                    <RefreshCw size={14} className="animate-spin text-blue-600 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-[11px]">Listening for Bank Settlement</p>
-                      <p className="text-[10px] text-blue-700 truncate">Matching payment from {payerVpa}...</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleManualCheckStatus}
-                      disabled={checkingStatus}
-                      className="p-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold px-2"
-                    >
-                      Check
-                    </button>
-                  </div>
-                )}
+
 
                 {status === 'manual_review' && (
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 text-xs space-y-0.5">
@@ -777,15 +966,15 @@ export function StaticQRCheckoutModal({
                   )}
                 </button>
 
-                {/* Optional Fallback UTR Input */}
+                {/* Optional Fallback UTR / Transaction ID Input */}
                 <div className="pt-0.5 text-center">
                   {!showUtrFallback ? (
                     <button
                       type="button"
                       onClick={() => setShowUtrFallback(true)}
-                      className="text-[10px] sm:text-[11px] text-zinc-400 hover:text-zinc-700 underline transition-colors"
+                      className="text-[10px] sm:text-[11px] text-zinc-500 hover:text-zinc-900 underline font-semibold transition-colors"
                     >
-                      Trouble matching? Enter 12-digit UTR (Optional)
+                      Enter 12-digit Transaction ID from receipt
                     </button>
                   ) : (
                     <motion.div
@@ -794,12 +983,12 @@ export function StaticQRCheckoutModal({
                       className="text-left p-2.5 rounded-xl bg-zinc-100 border border-zinc-200 text-xs space-y-1.5 mt-1"
                     >
                       <label className="block text-[10px] font-bold text-zinc-800">
-                        12-Digit UTR / Bank Reference No.:
+                        12-Digit Transaction ID / Bank UTR:
                       </label>
                       <div className="flex gap-1.5">
                         <input
                           type="text"
-                          placeholder="e.g. 502184910284"
+                          placeholder="e.g. 170510197207"
                           value={optionalUtr}
                           onChange={e => setOptionalUtr(e.target.value)}
                           className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-zinc-300 text-xs font-mono font-bold text-zinc-950 focus:outline-none"
@@ -814,7 +1003,7 @@ export function StaticQRCheckoutModal({
                         </button>
                       </div>
                       <p className="text-[9px] text-zinc-500">
-                        Found under "UTR" or "UPI Ref ID" in Google Pay, PhonePe, Paytm, or BHIM receipt.
+                        Found as "Transaction ID" in BHIM or "UPI Ref No" in Google Pay / PhonePe / Paytm receipt.
                       </p>
                     </motion.div>
                   )}
