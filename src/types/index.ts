@@ -3,7 +3,7 @@
 // ============================================================
 
 // --- Auth & Users ---
-export type UserRole = 'admin' | 'audience' | 'public';
+export type UserRole = 'admin' | 'member' | 'audience' | 'public';
 
 export interface UserProfile {
   id: string;
@@ -15,6 +15,10 @@ export interface UserProfile {
   updatedAt: string;
   emailDomain?: string;
   isVerified: boolean;
+  isEntryVerified: boolean;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  passCode?: string;
 }
 
 // --- Event ---

@@ -9,7 +9,7 @@ import {
   Wallet, TrendingUp, ShoppingCart, ArrowUpRight,
   ArrowDownLeft, Gift, Shield, CreditCard, AlertCircle,
   CheckCircle2, Lock, X, ShieldCheck, ShoppingBag,
-  Zap, Sparkles, Plus, ArrowRight, Check, AlertTriangle, RefreshCw
+  Zap, Sparkles, Plus, ArrowRight, Check, AlertTriangle, RefreshCw, Camera
 } from 'lucide-react'
 import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, StatCard, ProgressBar, Badge, SectionHeader, EmptyState } from '@/components/ui'
@@ -19,7 +19,7 @@ import { toUserFriendlyError, getOrCreateWallet, getUserPaymentIntents, getPacka
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { LedgerType, PaymentIntent, PackageQRCode } from '@/types'
-import { StaticQRCheckoutModal } from '@/components/wallet/StaticQRCheckoutModal'
+import { RazorpayCheckoutModal } from '@/components/wallet/RazorpayCheckoutModal'
 
 export interface PurchasePackage {
   id?: string
@@ -48,37 +48,6 @@ const ledgerColor: Record<LedgerType, string> = {
   investment_refund: 'text-emerald-700 font-bold',
   admin_adjustment: 'text-zinc-950 font-bold',
   purchase_refund: 'text-zinc-950 font-bold',
-}
-
-
-// Official E-Commerce Checkout Modal integrated directly with Razorpay Standard Checkout
-// Eliminates untrusted 1-click & custom QR methods in favor of standard, certified checkout flow.
-function RazorpayCheckoutModal({
-  pkg,
-  user,
-  eventId,
-  eventName,
-  onClose,
-  onSuccess,
-}: {
-  pkg: { points: number; rupees: number; label: string }
-  user: { id: string; email: string; displayName: string }
-  eventId: string
-  eventName: string
-  onClose: () => void
-  onSuccess: (points: number, rupees: number, paymentId?: string) => void
-}) {
-  return (
-    <StaticQRCheckoutModal
-      pkg={pkg}
-      user={user}
-      eventId={eventId}
-      eventName={eventName}
-      onClose={onClose}
-      onSuccess={onSuccess}
-    />
-  )
-
 }
 
 export function WalletPage() {
@@ -297,6 +266,28 @@ export function WalletPage() {
           </a>
         )}
       </div>
+
+      {/* Staff verification quick access */}
+      {user && (user.role === 'member' || user.role === 'admin') && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-600 text-white flex-shrink-0">
+              <Camera size={16} />
+            </div>
+            <div>
+              <span className="font-black text-purple-950 block">Staff Authorization Active</span>
+              <span className="text-[11px] text-purple-800">You have access to the Gate QR Scanner & Attendee Verification Portal.</span>
+            </div>
+          </div>
+          <Link
+            to="/verify"
+            className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 flex-shrink-0 shadow-xs"
+          >
+            <Camera size={13} />
+            <span>Open Scanner Portal</span>
+          </Link>
+        </div>
+      )}
 
       {/* Balance Overview Console — Tactile Instrument Vault */}
       <div className="skeuo-surface rounded-3xl p-6 sm:p-8 space-y-5 shadow-[0_6px_24px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF]">

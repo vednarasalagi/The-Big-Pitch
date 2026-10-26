@@ -16,11 +16,18 @@ import { useEventStore, useWalletStore, useAuthStore } from '@/store'
 import { formatPoints, formatRelativeTime, formatMilliseconds, formatExactMs } from '@/lib/utils'
 import { getTeamAudienceStandings } from '@/lib/supabaseApi'
 import { supabase, TABLES } from '@/lib/supabase'
-import { STANDINGS_INVALIDATE_EVENT, syncLiveState } from '@/lib/realtimeSync'
+import {
+  STANDINGS_INVALIDATE_EVENT,
+  syncLiveState,
+  getWinnerCelebrationState,
+  STAGE_CELEBRATION_EVENT,
+  type WinnerCelebrationPayload,
+} from '@/lib/realtimeSync'
 import type { TeamInvestorStanding } from '@/types'
 import { motion, AnimatePresence } from 'framer-motion'
-import { StatusBadge, LiveIndicator } from '@/components/ui'
+import { StatusBadge, LiveIndicator, Avatar } from '@/components/ui'
 import { BrandLogo } from '@/components/ui/BrandLogo'
+import { GrandWinnerCelebration } from '@/components/stage/GrandWinnerCelebration'
 
 export function CastScreenPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -32,6 +39,29 @@ export function CastScreenPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(searchParams.get('teamId'))
   const [teamStandings, setTeamStandings] = useState<TeamInvestorStanding[]>([])
   const [standingsLoading, setStandingsLoading] = useState(false)
+  const [celebration, setCelebration] = useState<WinnerCelebrationPayload | null>(() => {
+    return getWinnerCelebrationState()
+  })
+
+  // Listen to stage celebration triggers
+  useEffect(() => {
+    const handleCelebration = (e: any) => {
+      if (e.detail) {
+        setCelebration(e.detail)
+      }
+    }
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'pitch_arena_stage_celebration') {
+        setCelebration(getWinnerCelebrationState())
+      }
+    }
+    window.addEventListener(STAGE_CELEBRATION_EVENT, handleCelebration)
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener(STAGE_CELEBRATION_EVENT, handleCelebration)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [])
 
   // Listen to search params
   useEffect(() => {
@@ -584,112 +614,194 @@ export function CastScreenPage() {
                       </span>
                     </div>
 
-                    {teamStandings.length > 0 ? (
-                      <div className="space-y-3">
-                        {/* #1 Winner Showcase Podium Banner */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 via-zinc-900 to-black text-white p-5 border border-amber-500/30 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-                            <div className="space-y-1">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-black tracking-wider uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                <Crown size={12} className="text-amber-400" />
-                                <span>#1 Audience Champion</span>
-                              </div>
-                              <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
-                                {teamStandings[0].displayName}
-                              </h3>
-                              <p className="text-zinc-400 text-[11px] font-mono">
-                                {teamStandings[0].email ? teamStandings[0].email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : 'Verified Audience Backer'}
-                              </p>
-                            </div>
+                    {teamStandings.length > 0 ? (() => {
+                      const rank1 = teamStandings[0]
+                      const rank2 = teamStandings[1]
+                      const rank3 = teamStandings[2]
+                      const runnersUp = teamStandings.slice(3, 5)
 
-                            <div className="flex items-center gap-2.5 flex-shrink-0">
-                              <div className="p-2.5 px-3.5 rounded-xl bg-white/[0.08] border border-white/15 text-center backdrop-blur-sm min-w-[100px] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-                                <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-bold">Capital</p>
-                                <p className="text-xl font-black text-white font-mono mt-0.5">
-                                  {formatPoints(teamStandings[0].amount)}
-                                </p>
-                              </div>
-                              <div className="p-2.5 px-3.5 rounded-xl bg-amber-400/[0.12] border border-amber-400/30 text-center backdrop-blur-sm min-w-[120px] shadow-[inset_0_1px_0_rgba(251,191,36,0.3)]">
-                                <p className="text-[9px] text-amber-300 uppercase tracking-widest font-bold flex items-center justify-center gap-1">
-                                  <Zap size={10} className="text-amber-400" /> Speed (ms)
-                                </p>
-                                <p className="text-xl font-black text-amber-300 font-mono mt-0.5">
-                                  {formatExactMs(teamStandings[0].timeElapsedMs)}
-                                </p>
-                                <p className="text-[9px] text-zinc-400 mt-0.5">
-                                  {(teamStandings[0].timeElapsedMs / 1000).toFixed(3)}s
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Top 5 Backers Table */}
-                        <div className="skeuo-sunken rounded-2xl overflow-hidden p-1">
-                          <div className="px-3.5 py-2 flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                            <span>Rank & Investor</span>
-                            <div className="flex gap-6">
-                              <span className="w-20 text-right">Points</span>
-                              <span className="w-28 text-right">Time Taken (ms)</span>
-                            </div>
-                          </div>
-
-                          <div className="divide-y divide-zinc-200/70 bg-white/70 rounded-xl overflow-hidden">
-                            {teamStandings.slice(0, 5).map((standing) => (
-                              <div
-                                key={standing.userId}
-                                className={`px-3.5 py-2.5 flex items-center justify-between transition-colors ${
-                                  standing.rank === 1 ? 'bg-amber-50/50' : 'hover:bg-zinc-50/70'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className={`w-6 h-6 rounded-lg font-black font-mono flex items-center justify-center text-[10px] ${
-                                    standing.rank === 1
-                                      ? 'skeuo-token-gold'
-                                      : standing.rank === 2
-                                      ? 'skeuo-token-silver'
-                                      : standing.rank === 3
-                                      ? 'skeuo-token-bronze'
-                                      : 'skeuo-token text-zinc-700'
-                                  }`}>
-                                    #{standing.rank}
-                                  </div>
-                                  <div>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-bold text-zinc-950 text-xs sm:text-sm">
-                                        {standing.displayName}
-                                      </span>
-                                      {standing.rank === 1 && (
-                                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-900 border border-amber-300">
-                                          Winner
-                                        </span>
-                                      )}
+                      return (
+                        <div className="space-y-4">
+                          {/* ── TOP 3 MINIMALIST TRIANGULAR CORNERS PODIUM ── */}
+                          <div className="relative pt-6 pb-4 px-2">
+                            {/* TOP APEX: #1 AUDIENCE CHAMPION */}
+                            <div className="flex flex-col items-center justify-center mb-8">
+                              {rank1 ? (
+                                <div className="flex flex-col items-center text-center animate-fade-in">
+                                  {/* Profile Photo with Floating Crown & Gold Halo */}
+                                  <div className="relative mb-2.5">
+                                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 z-10">
+                                      <Crown size={24} className="text-amber-400 fill-amber-400 drop-shadow-[0_2px_8px_rgba(251,191,36,0.9)] animate-pulse" />
                                     </div>
-                                    <span className="text-zinc-400 text-[10px] font-mono">
-                                      {standing.email ? standing.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : 'Audience Backer'}
+                                    <div className="p-1.5 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-amber-500 shadow-[0_10px_28px_rgba(245,158,11,0.4)]">
+                                      <Avatar
+                                        name={rank1.displayName}
+                                        src={rank1.avatarUrl}
+                                        size="3xl"
+                                        className="w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl font-black border-4 border-white shadow-inner"
+                                      />
+                                    </div>
+                                    <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full skeuo-token-gold font-mono font-black text-xs flex items-center justify-center shadow-md border-2 border-white">
+                                      1
                                     </span>
                                   </div>
-                                </div>
 
-                                <div className="flex items-center gap-6 font-mono">
-                                  <span className="w-20 text-right font-black text-xs sm:text-sm text-zinc-950">
-                                    {formatPoints(standing.amount)}
+                                  {/* User Name */}
+                                  <h3 className="text-base sm:text-lg font-black text-zinc-950 truncate max-w-[240px]">
+                                    {rank1.displayName}
+                                  </h3>
+
+                                  {/* User Invested Points */}
+                                  <span className="mt-1 px-3 py-0.5 rounded-full skeuo-token-gold font-mono font-black text-xs shadow-sm border border-amber-300">
+                                    {formatPoints(rank1.amount)}
                                   </span>
-                                  <div className="w-28 text-right">
-                                    <span className="font-bold text-xs sm:text-sm text-zinc-950 block">
-                                      {formatExactMs(standing.timeElapsedMs)}
-                                    </span>
-                                    <span className="text-[9px] text-zinc-400 font-sans block">
-                                      {(standing.timeElapsedMs / 1000).toFixed(3)}s
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center text-center text-zinc-400">
+                                  <div className="w-24 h-24 rounded-full border-2 border-dashed border-zinc-200 flex items-center justify-center mb-2">
+                                    <Crown size={28} className="text-zinc-300" />
+                                  </div>
+                                  <p className="text-xs font-bold text-zinc-500">Awaiting #1</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* BOTTOM CORNERS: #2 (LEFT) & #3 (RIGHT) */}
+                            <div className="grid grid-cols-2 gap-8 sm:gap-14 max-w-md mx-auto items-start">
+                              {/* LEFT CORNER: #2 RUNNER-UP */}
+                              {rank2 ? (
+                                <div className="flex flex-col items-center text-center animate-fade-in">
+                                  {/* Profile Photo with Silver Rim */}
+                                  <div className="relative mb-2">
+                                    <div className="p-1 rounded-full bg-gradient-to-tr from-zinc-400 via-zinc-200 to-zinc-400 shadow-[0_6px_20px_rgba(0,0,0,0.14)]">
+                                      <Avatar
+                                        name={rank2.displayName}
+                                        src={rank2.avatarUrl}
+                                        size="2xl"
+                                        className="w-18 h-18 sm:w-20 sm:h-20 text-lg font-black border-3 border-white shadow-inner"
+                                      />
+                                    </div>
+                                    <span className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full skeuo-token-silver font-mono font-black text-[10px] flex items-center justify-center shadow-md border border-white">
+                                      2
                                     </span>
                                   </div>
+
+                                  {/* User Name */}
+                                  <h4 className="text-sm sm:text-base font-bold text-zinc-950 truncate max-w-[160px]">
+                                    {rank2.displayName}
+                                  </h4>
+
+                                  {/* User Invested Points */}
+                                  <span className="mt-1 px-2.5 py-0.5 rounded-full skeuo-token-silver font-mono font-black text-xs shadow-sm border border-zinc-300">
+                                    {formatPoints(rank2.amount)} Points
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center text-center text-zinc-400">
+                                  <div className="w-18 h-18 rounded-full border-2 border-dashed border-zinc-200 flex items-center justify-center mb-2">
+                                    <span className="text-sm font-bold text-zinc-300">2</span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-zinc-500">Awaiting #2</p>
+                                </div>
+                              )}
+
+                              {/* RIGHT CORNER: #3 THIRD PLACE */}
+                              {rank3 ? (
+                                <div className="flex flex-col items-center text-center animate-fade-in">
+                                  {/* Profile Photo with Bronze Rim */}
+                                  <div className="relative mb-2">
+                                    <div className="p-1 rounded-full bg-gradient-to-tr from-amber-700 via-amber-200 to-amber-800 shadow-[0_6px_20px_rgba(180,83,9,0.25)]">
+                                      <Avatar
+                                        name={rank3.displayName}
+                                        src={rank3.avatarUrl}
+                                        size="2xl"
+                                        className="w-18 h-18 sm:w-20 sm:h-20 text-lg font-black border-3 border-white shadow-inner"
+                                      />
+                                    </div>
+                                    <span className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full skeuo-token-bronze font-mono font-black text-[10px] flex items-center justify-center shadow-md border border-white">
+                                      3
+                                    </span>
+                                  </div>
+
+                                  {/* User Name */}
+                                  <h4 className="text-sm sm:text-base font-bold text-zinc-950 truncate max-w-[160px]">
+                                    {rank3.displayName}
+                                  </h4>
+
+                                  {/* User Invested Points */}
+                                  <span className="mt-1 px-2.5 py-0.5 rounded-full skeuo-token-bronze font-mono font-black text-xs shadow-sm border border-amber-800/30">
+                                    {formatPoints(rank3.amount)} Points
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center text-center text-zinc-400">
+                                  <div className="w-18 h-18 rounded-full border-2 border-dashed border-zinc-200 flex items-center justify-center mb-2">
+                                    <span className="text-sm font-bold text-zinc-300">3</span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-zinc-500">Awaiting #3</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ── POSITIONS #4 & #5 (UNDERNEATH) ── */}
+                          {runnersUp.length > 0 && (
+                            <div className="mt-2 skeuo-sunken rounded-2xl overflow-hidden p-1">
+                              <div className="px-3.5 py-1.5 flex items-center justify-between text-[9px] font-bold text-zinc-500 uppercase tracking-wider">
+                                <span>Positions #4 & #5</span>
+                                <div className="flex gap-6">
+                                  <span className="w-16 text-right">Points</span>
+                                  <span className="w-24 text-right">Speed (ms)</span>
                                 </div>
                               </div>
-                            ))}
-                          </div>
+
+                              <div className="divide-y divide-zinc-200/70 bg-white/80 rounded-xl overflow-hidden">
+                                {runnersUp.map((standing) => (
+                                  <div
+                                    key={standing.userId}
+                                    className="px-3 py-2 flex items-center justify-between hover:bg-zinc-50/70 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="w-5 h-5 rounded-md font-black font-mono flex items-center justify-center text-[10px] skeuo-token text-zinc-700 flex-shrink-0">
+                                        #{standing.rank}
+                                      </span>
+                                      <Avatar
+                                        name={standing.displayName}
+                                        src={standing.avatarUrl}
+                                        size="sm"
+                                        className="w-6 h-6 text-[10px]"
+                                      />
+                                      <div className="min-w-0">
+                                        <span className="font-bold text-zinc-950 text-xs truncate block max-w-[120px] sm:max-w-[160px]">
+                                          {standing.displayName}
+                                        </span>
+                                        <span className="text-zinc-400 text-[9px] font-mono truncate block">
+                                          {standing.email ? standing.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : 'Backer'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-6 font-mono flex-shrink-0">
+                                      <span className="w-16 text-right font-black text-xs text-zinc-950">
+                                        {formatPoints(standing.amount)}
+                                      </span>
+                                      <div className="w-24 text-right">
+                                        <span className="font-bold text-xs text-zinc-950 block">
+                                          {formatExactMs(standing.timeElapsedMs)}
+                                        </span>
+                                        <span className="text-[9px] text-zinc-400 font-sans block">
+                                          {(standing.timeElapsedMs / 1000).toFixed(3)}s
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ) : (
+                      )
+                    })() : (
                       <div className="skeuo-sunken p-8 rounded-2xl text-center space-y-2">
                         <Clock size={24} className="text-zinc-400 mx-auto animate-pulse" />
                         <h3 className="font-bold text-zinc-900 text-sm">Awaiting Audience Backers</h3>
@@ -1048,6 +1160,16 @@ export function CastScreenPage() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* ── FULLSCREEN GRAND WINNER CELEBRATION OVERLAY ── */}
+      <AnimatePresence>
+        {celebration?.active && celebration.winner && (
+          <GrandWinnerCelebration
+            celebration={celebration}
+            onDismiss={() => setCelebration({ active: false, winner: null, timestamp: Date.now() })}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

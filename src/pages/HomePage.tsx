@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users, Search, X, ChevronRight,
-  Radio, ArrowUpRight, Sparkles, Building2, Layers, Trophy
+  Radio, ArrowUpRight, Sparkles, Building2, Layers, Trophy, Camera, QrCode, ShieldCheck
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore } from '@/store'
 import { Card, StatusBadge, LiveIndicator, Button, Badge } from '@/components/ui'
@@ -191,7 +191,7 @@ export function HomePage() {
             </div>
 
             <span className="text-[11px] font-mono font-bold text-zinc-500 uppercase tracking-wider skeuo-text-emboss">
-              SPHINX 2026 • E-CELL
+              THE BIG PITCH
             </span>
           </div>
 
@@ -235,9 +235,27 @@ export function HomePage() {
                     Open Admin Control Room
                   </Button>
                 </Link>
+                <Link to="/verify" className="flex-1">
+                  <Button variant="secondary" icon={<Camera size={14} />} size="md" className="w-full justify-center">
+                    Gate QR Scanner Desk
+                  </Button>
+                </Link>
                 <Link to="/cast" className="flex-1">
                   <Button variant="secondary" icon={<Radio size={14} />} size="md" className="w-full justify-center">
-                    Projector Stage Cast Screen
+                    Stage Cast Screen
+                  </Button>
+                </Link>
+              </div>
+            ) : user.role === 'member' ? (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link to="/verify" className="flex-1">
+                  <Button size="lg" icon={<Camera size={18} />} className="w-full justify-center bg-purple-600 hover:bg-purple-700 text-white font-black py-3.5 shadow-md">
+                    Launch Gate QR Scanner Portal
+                  </Button>
+                </Link>
+                <Link to="/verify?tab=roster" className="flex-1">
+                  <Button variant="secondary" icon={<Users size={16} />} size="lg" className="w-full justify-center py-3.5 font-bold">
+                    Attendee Verification Roster
                   </Button>
                 </Link>
               </div>
@@ -264,6 +282,53 @@ export function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Volunteer Member & Admin Gate Scanner Portal Card */}
+      {user && (user.role === 'member' || user.role === 'admin') && (
+        <div className="relative overflow-hidden rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-zinc-950 via-purple-950/80 to-zinc-950 text-white border-2 border-purple-500/40 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                <Camera size={24} />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/30 text-purple-200 border border-purple-400/40">
+                    {user.role === 'admin' ? 'Administrator Gate Desk' : 'Volunteer Member Portal'}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
+                  Event Entry Gate QR Scanner Portal
+                </h3>
+                <p className="text-xs text-purple-200/80 max-w-lg">
+                  You have staff verification authorization. Scan attendee pass QR codes at the gate or search the registration roster to activate accounts for pitch scoring.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <Link to="/verify" className="flex-1 sm:flex-initial">
+                <button
+                  type="button"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-zinc-950 font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                >
+                  <Camera size={15} />
+                  <span>Launch Camera Scanner</span>
+                </button>
+              </Link>
+              <Link to="/verify?tab=roster" className="flex-1 sm:flex-initial">
+                <button
+                  type="button"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                >
+                  <Users size={15} />
+                  <span>Attendee List</span>
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3-Step Simple Guide — Physical Hardware Cards with Embossed Tokens */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">

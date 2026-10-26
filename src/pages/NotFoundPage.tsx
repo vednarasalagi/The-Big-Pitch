@@ -59,7 +59,7 @@ export function NotFoundPage() {
         </div>
 
         <p className="text-zinc-400 text-xs pt-4 font-medium">
-          The Big Pitch · Sphinx 2026 Innovation Arena
+          THE BIG PITCH · Live Pitch Arena
         </p>
       </div>
     </div>

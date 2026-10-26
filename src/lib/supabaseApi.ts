@@ -5,7 +5,7 @@
 
 import { supabase, TABLES } from './supabase'
 import { generateId } from './utils'
-import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo } from '@/types'
+import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo, UserProfile } from '@/types'
 
 /**
  * Fetch the active or upcoming event along with its configuration.
@@ -158,6 +158,60 @@ export async function getTeams(eventId?: string): Promise<Team[]> {
 }
 
 /**
+ * Reusable helper to map database team row to Team interface.
+ */
+export function mapTeamFromDb(t: any): Team | undefined {
+  if (!t) return undefined
+  return {
+    id: t.id,
+    eventId: t.event_id || t.eventId,
+    name: t.name,
+    logoUrl: t.logo_url || t.logoUrl,
+    pitchTitle: t.pitch_title || t.pitchTitle || '',
+    description: t.description ?? '',
+    category: t.category ?? 'Startup',
+    presenters: t.presenters ?? [],
+    pitchOrder: t.pitch_order ?? t.pitchOrder ?? 0,
+    status: t.status ?? 'upcoming',
+    totalInvestment: t.total_investment ?? t.totalInvestment ?? 0,
+    uniqueBackers: t.unique_backers ?? t.uniqueBackers ?? 0,
+    officialRank: t.official_rank ?? t.officialRank,
+    officialAward: t.official_award ?? t.officialAward,
+    officialNotes: t.official_notes ?? t.officialNotes,
+    officialScore: t.official_score ?? t.officialScore,
+    pitchDurationSeconds: t.pitch_duration_seconds ?? t.pitchDurationSeconds,
+    investmentWindowSeconds: t.investment_window_seconds ?? t.investmentWindowSeconds,
+    createdAt: t.created_at || t.createdAt,
+    updatedAt: t.updated_at || t.updatedAt,
+  }
+}
+
+/**
+ * Reusable helper to map database pitch round row to PitchRound interface.
+ */
+export function mapRoundFromDb(r: any, teamObj?: any): PitchRound {
+  const team = teamObj ? mapTeamFromDb(teamObj) : (r.teams ? mapTeamFromDb(r.teams) : (r.team ? mapTeamFromDb(r.team) : undefined))
+  return {
+    id: r.id,
+    eventId: r.event_id || r.eventId,
+    teamId: r.team_id || r.teamId,
+    team,
+    roundNumber: team?.pitchOrder ?? r.round_number ?? r.roundNumber ?? 1,
+    status: r.status,
+    pitchStartTime: r.pitch_start_time || r.pitchStartTime,
+    investmentOpenTime: r.investment_open_time || r.investmentOpenTime,
+    investmentCloseTime: r.investment_close_time || r.investmentCloseTime,
+    investmentPauseTime: r.investment_pause_time || r.investmentPauseTime,
+    scheduledDurationSeconds: r.scheduled_duration_seconds ?? r.scheduledDurationSeconds ?? 300,
+    investmentWindowSeconds: r.investment_window_seconds ?? r.investmentWindowSeconds ?? 180,
+    totalInvested: r.total_invested ?? r.totalInvested ?? team?.totalInvestment ?? 0,
+    uniqueInvestors: r.unique_investors ?? r.uniqueInvestors ?? team?.uniqueBackers ?? 0,
+    createdAt: r.created_at || r.createdAt,
+    updatedAt: r.updated_at || r.updatedAt,
+  }
+}
+
+/**
  * Fetch the currently active pitch round.
  */
 export async function getActivePitchRound(eventId?: string): Promise<PitchRound | null> {
@@ -168,6 +222,7 @@ export async function getActivePitchRound(eventId?: string): Promise<PitchRound 
       .from(TABLES.PITCH_ROUNDS)
       .select('*, teams(*)')
       .in('status', ['announced', 'pitching', 'investment_open', 'investment_paused', 'investment_closed'])
+      .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -175,44 +230,10 @@ export async function getActivePitchRound(eventId?: string): Promise<PitchRound 
       query = query.eq('event_id', eventId)
     }
 
-    const { data, error } = await query.single()
+    const { data, error } = await query.maybeSingle()
     if (error || !data) return null
 
-    const team = data.teams ? {
-      id: data.teams.id,
-      eventId: data.teams.event_id,
-      name: data.teams.name,
-      logoUrl: data.teams.logo_url,
-      pitchTitle: data.teams.pitch_title,
-      description: data.teams.description ?? '',
-      category: data.teams.category ?? 'Startup',
-      presenters: data.teams.presenters ?? [],
-      pitchOrder: data.teams.pitch_order ?? 0,
-      status: data.teams.status ?? 'upcoming',
-      totalInvestment: data.teams.total_investment ?? 0,
-      uniqueBackers: data.teams.unique_backers ?? 0,
-      createdAt: data.teams.created_at,
-      updatedAt: data.teams.updated_at,
-    } : undefined
-
-    return {
-      id: data.id,
-      eventId: data.event_id,
-      teamId: data.team_id,
-      team,
-      roundNumber: team?.pitchOrder ?? 1,
-      status: data.status,
-      pitchStartTime: data.pitch_start_time,
-      investmentOpenTime: data.investment_open_time,
-      investmentCloseTime: data.investment_close_time,
-      investmentPauseTime: data.investment_pause_time,
-      scheduledDurationSeconds: data.scheduled_duration_seconds ?? 300,
-      investmentWindowSeconds: data.investment_window_seconds ?? 180,
-      totalInvested: data.total_invested ?? 0,
-      uniqueInvestors: data.unique_investors ?? 0,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    }
+    return mapRoundFromDb(data, data.teams)
   } catch (err) {
     console.error('Failed to get active pitch round from Supabase:', err)
     return null
@@ -426,6 +447,24 @@ export async function submitInvestment(params: {
     return { success: false, error: 'Insufficient points in wallet' }
   }
 
+  // Gate Verification Check: Ensure attendee was verified in person by volunteer/admin
+  try {
+    const { data: profile } = await supabase
+      .from(TABLES.PROFILES)
+      .select('entry_verified, role')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profile && profile.role !== 'admin' && !profile.entry_verified) {
+      return {
+        success: false,
+        error: 'Account verification required. Please show your Entry Pass QR to an event volunteer at the entrance gate before you can invest.'
+      }
+    }
+  } catch (err) {
+    console.warn('Notice checking entry verification status:', err)
+  }
+
   // Calculate authoritative reaction time in milliseconds from window open
   let calculatedMs = timeElapsedMs ?? 0
 
@@ -459,7 +498,7 @@ export async function submitInvestment(params: {
 
   try {
     // 1. Try secure Supabase RPC procedure
-    const { error: rpcError } = await supabase.rpc('process_investment', {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('process_investment', {
       p_user_id: userId,
       p_event_id: eventId,
       p_team_id: teamId,
@@ -468,33 +507,33 @@ export async function submitInvestment(params: {
       p_wallet_id: wallet.id,
     })
 
-    if (!rpcError) {
-      // Sync time_elapsed_ms on the created investment record
-      if (calculatedMs > 0) {
-        try {
-          await supabase
-            .from(TABLES.INVESTMENTS)
-            .update({ time_elapsed_ms: calculatedMs })
-            .eq('user_id', userId)
-            .eq('round_id', roundId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-        } catch {}
-      }
-      return { success: true }
-    }
-
-    // HIGH-2 FIX: Removed non-atomic client-side fallback.
-    // If the process_investment RPC is unavailable, we must fail safely.
-    // A non-atomic multi-step fallback creates TOCTOU race conditions
-    // that can allow double-spending or inconsistent ledger states.
     if (rpcError) {
       return {
         success: false,
-        error: 'Investment service is temporarily unavailable. Please try again in a moment.',
+        error: toUserFriendlyError(rpcError, 'Investment service is temporarily unavailable. Please try again in a moment.'),
       }
     }
 
+    // Handle structured JSONB return from process_investment RPC
+    if (rpcData && typeof rpcData === 'object' && (rpcData as any).success === false) {
+      return {
+        success: false,
+        error: (rpcData as any).error || 'Investment could not be completed.',
+      }
+    }
+
+    // Sync time_elapsed_ms on the created investment record
+    if (calculatedMs > 0) {
+      try {
+        await supabase
+          .from(TABLES.INVESTMENTS)
+          .update({ time_elapsed_ms: calculatedMs })
+          .eq('user_id', userId)
+          .eq('round_id', roundId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+      } catch {}
+    }
     return { success: true }
   } catch (err: any) {
     return { success: false, error: toUserFriendlyError(err, 'Investment could not be completed. Please try again.') }
@@ -727,6 +766,7 @@ export async function createTeam(team: {
   pitchTitle: string
   description?: string
   category?: string
+  logoUrl?: string
   presenters?: string[]
   pitchOrder?: number
   pitchDurationSeconds?: number
@@ -743,6 +783,7 @@ export async function createTeam(team: {
         pitch_title: team.pitchTitle.trim(),
         description: (team.description || '').trim(),
         category: (team.category || 'General').trim(),
+        logo_url: team.logoUrl ? team.logoUrl.trim() : null,
         presenters: team.presenters || [],
         pitch_order: team.pitchOrder || 1,
         pitch_duration_seconds: team.pitchDurationSeconds,
@@ -793,6 +834,7 @@ export async function updateTeam(
     pitchTitle: string
     description: string
     category: string
+    logoUrl: string
     presenters: string[]
     pitchOrder: number
     status: 'upcoming' | 'active' | 'closed' | 'completed'
@@ -808,6 +850,7 @@ export async function updateTeam(
     if (updates.pitchTitle !== undefined) payload.pitch_title = updates.pitchTitle.trim()
     if (updates.description !== undefined) payload.description = updates.description.trim()
     if (updates.category !== undefined) payload.category = updates.category.trim()
+    if (updates.logoUrl !== undefined) payload.logo_url = updates.logoUrl ? updates.logoUrl.trim() : null
     if (updates.presenters !== undefined) payload.presenters = updates.presenters
     if (updates.pitchOrder !== undefined) payload.pitch_order = updates.pitchOrder
     if (updates.status !== undefined) payload.status = updates.status
@@ -907,18 +950,35 @@ export async function startPitchForTeam(
   if (!supabase || !team) return null
 
   try {
-    // 1. Close any currently open pitch rounds
+    // 1. Try elevated server RPC first (handles atomic cleanup, activation & insert)
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_start_pitch_round', {
+        p_event_id: eventId,
+        p_team_id: team.id,
+        p_pitch_duration: pitchDurationSeconds,
+        p_investment_window: investmentWindowSeconds,
+        p_phase: phase,
+      })
+      if (!rpcErr && rpcData?.success && rpcData?.round) {
+        return mapRoundFromDb(rpcData.round, rpcData.round.team)
+      }
+    } catch (rpcEx) {
+      console.warn('RPC admin_start_pitch_round fallback to direct DB:', rpcEx)
+    }
+
+    // 2. Direct DB fallback:
+    // Close ANY open, paused, or closed rounds so old rounds never linger
     await supabase
       .from(TABLES.PITCH_ROUNDS)
       .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .in('status', ['announced', 'pitching', 'investment_open', 'investment_paused'])
+      .in('status', ['announced', 'pitching', 'investment_open', 'investment_paused', 'investment_closed'])
 
     const now = new Date()
     const isInvesting = phase === 'investment_open'
     const openTime = isInvesting ? now.toISOString() : null
     const closeTime = isInvesting ? new Date(now.getTime() + investmentWindowSeconds * 1000).toISOString() : null
 
-    // 2. Insert new active pitch round for this team
+    // Insert new active pitch round for this team
     const { data, error } = await supabase
       .from(TABLES.PITCH_ROUNDS)
       .insert({
@@ -930,37 +990,21 @@ export async function startPitchForTeam(
         investment_close_time: closeTime,
         scheduled_duration_seconds: pitchDurationSeconds,
         investment_window_seconds: investmentWindowSeconds,
-        total_invested: team.totalInvestment,
-        unique_investors: team.uniqueBackers,
+        total_invested: team.totalInvestment ?? 0,
+        unique_investors: team.uniqueBackers ?? 0,
       })
-      .select()
-      .single()
+      .select('*, teams(*)')
+      .maybeSingle()
 
     if (error || !data) {
-      console.error('Error starting pitch round:', error)
+      console.error('Error starting pitch round directly:', error)
       return null
     }
 
-    // 3. Mark team status as active
+    // Mark team status as active
     await supabase.from(TABLES.TEAMS).update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', team.id)
 
-    return {
-      id: data.id,
-      eventId: data.event_id,
-      teamId: data.team_id,
-      team: { ...team, status: 'active' },
-      roundNumber: team.pitchOrder,
-      status: data.status,
-      pitchStartTime: data.pitch_start_time,
-      investmentOpenTime: data.investment_open_time,
-      investmentCloseTime: data.investment_close_time,
-      scheduledDurationSeconds: pitchDurationSeconds,
-      investmentWindowSeconds: investmentWindowSeconds,
-      totalInvested: team.totalInvestment,
-      uniqueInvestors: team.uniqueBackers,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    }
+    return mapRoundFromDb(data, data.teams || team)
   } catch (err) {
     console.error('Failed to start pitch for team:', err)
     return null
@@ -973,6 +1017,20 @@ export async function startPitchForTeam(
 export async function openInvestmentWindow(roundId: string, durationSeconds = 180): Promise<PitchRound | null> {
   if (!supabase || !roundId) return null
   try {
+    // 1. Try elevated server RPC first
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_open_investment_window', {
+        p_round_id: roundId,
+        p_duration_seconds: durationSeconds,
+      })
+      if (!rpcErr && rpcData?.success && rpcData?.round) {
+        return mapRoundFromDb(rpcData.round, rpcData.round.team)
+      }
+    } catch (rpcEx) {
+      console.warn('RPC admin_open_investment_window fallback to direct DB:', rpcEx)
+    }
+
+    // 2. Direct DB fallback
     const now = new Date()
     const closeTime = new Date(now.getTime() + durationSeconds * 1000).toISOString()
 
@@ -988,30 +1046,14 @@ export async function openInvestmentWindow(roundId: string, durationSeconds = 18
       })
       .eq('id', roundId)
       .select('*, teams(*)')
-      .single()
+      .maybeSingle()
 
     if (error || !data) {
-      console.error('Error opening investment window:', error)
+      console.error('Error opening investment window directly:', error)
       return null
     }
 
-    return {
-      id: data.id,
-      eventId: data.event_id,
-      teamId: data.team_id,
-      team: data.teams,
-      roundNumber: data.teams?.pitch_order ?? 1,
-      status: 'investment_open',
-      pitchStartTime: data.pitch_start_time,
-      investmentOpenTime: data.investment_open_time,
-      investmentCloseTime: data.investment_close_time,
-      scheduledDurationSeconds: data.scheduled_duration_seconds ?? 300,
-      investmentWindowSeconds: durationSeconds,
-      totalInvested: data.total_invested ?? 0,
-      uniqueInvestors: data.unique_investors ?? 0,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    }
+    return mapRoundFromDb(data, data.teams)
   } catch (err) {
     console.error('Error opening investment window:', err)
     return null
@@ -1117,6 +1159,11 @@ export async function extendRoundTimer(round: PitchRound, extraSeconds = 60): Pr
 export async function closeInvestmentWindow(roundId: string): Promise<boolean> {
   if (!supabase || !roundId) return false
   try {
+    try {
+      const { data, error } = await supabase.rpc('admin_close_investment_window', { p_round_id: roundId })
+      if (!error && data?.success) return true
+    } catch {}
+
     const { error } = await supabase
       .from(TABLES.PITCH_ROUNDS)
       .update({
@@ -1457,6 +1504,14 @@ export function toUserFriendlyError(err: any, fallback = 'Unable to complete req
   }
   if (lower.includes('not configured') || lower.includes('supabase') || lower.includes('vite_') || lower.includes('key')) {
     return 'The service is temporarily unavailable. Please try again shortly.'
+  }
+
+  if (lower.includes('mime type') || lower.includes('invalidmimetype')) {
+    return 'The image format is not supported. Please choose a PNG, JPG, or WebP image.'
+  }
+  if (lower === 'bad request') {
+    const detail = err?.details || err?.hint || err?.error || ''
+    return detail ? `Request error: ${detail}` : 'Could not process request. Please check the image and your inputs.'
   }
 
   return msg || fallback
@@ -2041,12 +2096,20 @@ export async function uploadPackageQRImage(
     const fileName = `${packageId}_${Date.now()}.${fileExt}`
     const filePath = `packages/${fileName}`
 
+    const mimeType = file.type || (
+      fileExt === 'webp' ? 'image/webp' :
+      fileExt === 'png' ? 'image/png' :
+      fileExt === 'svg' ? 'image/svg+xml' :
+      'image/jpeg'
+    )
+
     // Try Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('payment-qr-codes')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: true,
+        contentType: mimeType,
       })
 
     if (!uploadError) {
@@ -2070,6 +2133,76 @@ export async function uploadPackageQRImage(
     }
   }
 }
+
+/**
+ * Admin: Upload a startup team logo.
+ * First tries Supabase Storage bucket 'avatars' or 'payment-qr-codes'.
+ * If the bucket is not available or restricted, smoothly falls back to an optimized base64 Data URL
+ * so upload NEVER fails and works immediately without manual storage setup!
+ */
+export async function uploadTeamLogo(
+  identifier: string,
+  file: File
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml']
+  if (!validTypes.includes(file.type)) {
+    return { success: false, error: 'Please upload a valid image file (PNG, JPG, WEBP, or SVG)' }
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { success: false, error: 'File size exceeds 5MB limit. Please choose a smaller image.' }
+  }
+
+  try {
+    const fileExt = file.name.split('.').pop() || 'png'
+    const fileName = `team_${identifier}_${Date.now()}.${fileExt}`
+    const filePath = `teams/${fileName}`
+
+    const mimeType = file.type || 'image/png'
+
+    // Try 'avatars' bucket first
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
+
+    if (!uploadError) {
+      const { data: publicData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+      if (publicData?.publicUrl) {
+        return { success: true, url: publicData.publicUrl }
+      }
+    }
+
+    // Try 'payment-qr-codes' bucket next
+    const { error: qrError } = await supabase.storage
+      .from('payment-qr-codes')
+      .upload(filePath, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
+
+    if (!qrError) {
+      const { data: publicData } = supabase.storage
+        .from('payment-qr-codes')
+        .getPublicUrl(filePath)
+      if (publicData?.publicUrl) {
+        return { success: true, url: publicData.publicUrl }
+      }
+    }
+
+    // High reliability fallback: Base64 Data URL
+    const base64Url = await fileToDataUrl(file)
+    return { success: true, url: base64Url }
+  } catch (err: any) {
+    try {
+      const base64Url = await fileToDataUrl(file)
+      return { success: true, url: base64Url }
+    } catch {
+      return { success: false, error: toUserFriendlyError(err, 'Failed to process team logo image') }
+    }
+  }
+}
+
 
 /**
  * Admin: Fetch full list of audience users with live wallet telemetry.
@@ -2191,3 +2324,410 @@ export async function adminDeleteUser(userId: string): Promise<{
     return { success: false, error: toUserFriendlyError(err, 'Failed to delete user') }
   }
 }
+
+/**
+ * Upload an avatar image file to Supabase Storage ('avatars' bucket)
+ * and return the permanent public URL.
+ */
+export async function uploadUserAvatar(
+  file: File,
+  userId?: string
+): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+
+  try {
+    const fileExt = file.name.split('.').pop() || 'webp'
+    const userFolder = userId ? userId : `signup_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    const fileName = `${userFolder}/avatar-${Date.now()}.${fileExt}`
+
+    const mimeType = file.type || (
+      fileExt === 'webp' ? 'image/webp' :
+      fileExt === 'png' ? 'image/png' :
+      fileExt === 'gif' ? 'image/gif' :
+      'image/jpeg'
+    )
+
+    // 1. Try Supabase Storage bucket 'avatars' with explicit MIME-type
+    try {
+      const fileBuffer = await file.arrayBuffer()
+      let uploadResult = await supabase.storage
+        .from('avatars')
+        .upload(fileName, fileBuffer, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: mimeType,
+        })
+
+      // If ArrayBuffer fails, try direct File object
+      if (uploadResult.error) {
+        uploadResult = await supabase.storage
+          .from('avatars')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: mimeType,
+          })
+      }
+
+      if (!uploadResult.error && uploadResult.data?.path) {
+        const { data } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(uploadResult.data.path)
+
+        if (data?.publicUrl) {
+          return {
+            success: true,
+            publicUrl: data.publicUrl,
+          }
+        }
+      } else if (uploadResult.error) {
+        console.warn('Storage upload returned error, using high-reliability fallback:', uploadResult.error)
+      }
+    } catch (storageErr) {
+      console.warn('Storage upload exception, using high-reliability fallback:', storageErr)
+    }
+
+    // 2. High-reliability Fallback: Convert to optimized base64 Data URL
+    // Guarantees profile updates NEVER fail even if storage bucket policies or network has issues
+    const base64Url = await fileToDataUrl(file)
+    return {
+      success: true,
+      publicUrl: base64Url,
+    }
+  } catch (err: any) {
+    console.error('Failed to process user avatar:', err)
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Could not process profile picture.'),
+    }
+  }
+}
+
+/**
+ * Update user profile (display name and/or avatar URL) in both public.profiles and auth metadata.
+ */
+export async function updateUserProfile(
+  userId: string,
+  updates: { displayName?: string; avatarUrl?: string }
+): Promise<{
+  success: boolean
+  displayName?: string
+  avatarUrl?: string
+  error?: string
+}> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+
+  try {
+    // 1. Try atomic RPC update_user_profile if available
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_profile', {
+        p_display_name: updates.displayName || null,
+        p_avatar_url: updates.avatarUrl || null,
+        p_user_id: userId || null,
+      })
+
+      if (!rpcError && rpcData?.success) {
+        // Also sync to auth user_metadata in parallel (guarded against large data URLs)
+        const metaUpdates: Record<string, any> = {}
+        if (updates.displayName) metaUpdates.full_name = updates.displayName
+        if (updates.avatarUrl && !updates.avatarUrl.startsWith('data:')) {
+          metaUpdates.avatar_url = updates.avatarUrl
+        }
+        if (Object.keys(metaUpdates).length > 0) {
+          await supabase.auth.updateUser({ data: metaUpdates }).catch(() => {})
+        }
+
+        return {
+          success: true,
+          displayName: rpcData.displayName || updates.displayName,
+          avatarUrl: rpcData.avatarUrl || updates.avatarUrl,
+        }
+      } else if (rpcError) {
+        console.warn('RPC update_user_profile error, falling back to direct update:', rpcError)
+      }
+    } catch (rpcErr) {
+      console.warn('RPC update_user_profile exception, fallback to direct table update:', rpcErr)
+    }
+
+    // 2. Direct fallback to public.profiles table update
+    const profileUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    }
+    if (updates.displayName?.trim()) profileUpdates.display_name = updates.displayName.trim()
+    if (updates.avatarUrl !== undefined) profileUpdates.avatar_url = updates.avatarUrl
+
+    const { error: tableError } = await supabase
+      .from(TABLES.PROFILES)
+      .update(profileUpdates)
+      .eq('id', userId)
+
+    if (tableError) {
+      console.error('profiles table update error:', tableError)
+      throw tableError
+    }
+
+    // 3. Sync to Supabase Auth metadata (guarded against large data URLs)
+    const metaUpdates: Record<string, any> = {}
+    if (updates.displayName) metaUpdates.full_name = updates.displayName
+    if (updates.avatarUrl && !updates.avatarUrl.startsWith('data:')) {
+      metaUpdates.avatar_url = updates.avatarUrl
+    }
+    if (Object.keys(metaUpdates).length > 0) {
+      await supabase.auth.updateUser({ data: metaUpdates }).catch(() => {})
+    }
+
+    return {
+      success: true,
+      displayName: updates.displayName,
+      avatarUrl: updates.avatarUrl,
+    }
+  } catch (err: any) {
+    console.error('Failed to update user profile:', err)
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Failed to update profile'),
+    }
+  }
+}
+
+/**
+ * Fetch detailed user profile including gate entry verification status & pass code
+ */
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  if (!supabase || !userId) return null
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.PROFILES)
+      .select('id, email, display_name, avatar_url, role, is_verified, entry_verified, verified_at, verified_by, pass_code, created_at, updated_at')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (error || !data) return null
+
+    return {
+      id: data.id,
+      email: data.email,
+      displayName: data.display_name,
+      avatarUrl: data.avatar_url,
+      role: data.role as any,
+      isVerified: Boolean(data.is_verified),
+      isEntryVerified: data.role === 'admin' ? true : Boolean(data.entry_verified),
+      verifiedAt: data.verified_at,
+      verifiedBy: data.verified_by,
+      passCode: data.pass_code,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  } catch (err) {
+    console.warn('Failed to load user profile:', err)
+    return null
+  }
+}
+
+/**
+ * Fetch all registered attendees for the Gate Verification Roster (Volunteers/Admins only)
+ */
+export async function getRegisteredAttendees(): Promise<UserProfile[]> {
+  if (!supabase) return []
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.PROFILES)
+      .select('id, email, display_name, avatar_url, role, is_verified, entry_verified, verified_at, verified_by, pass_code, created_at, updated_at')
+      .order('created_at', { ascending: false })
+
+    if (error || !data) return []
+
+    return data.map((d: any) => ({
+      id: d.id,
+      email: d.email,
+      displayName: d.display_name,
+      avatarUrl: d.avatar_url,
+      role: d.role as any,
+      isVerified: Boolean(d.is_verified),
+      isEntryVerified: d.role === 'admin' ? true : Boolean(d.entry_verified),
+      verifiedAt: d.verified_at,
+      verifiedBy: d.verified_by,
+      passCode: d.pass_code,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at,
+    }))
+  } catch (err) {
+    console.warn('Failed to fetch registered attendees:', err)
+    return []
+  }
+}
+
+/**
+ * Verify an attendee at the event entrance (by Member volunteer or Admin)
+ */
+export async function verifyAttendeeAtGate(
+  attendeeId: string,
+  verifierId?: string
+): Promise<{ success: boolean; error?: string; attendee?: any }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+
+  try {
+    // 1. Try RPC procedure first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('verify_attendee_entry', {
+      p_attendee_id: attendeeId,
+      p_verifier_id: verifierId || null,
+    })
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true, attendee: rpcData }
+    }
+
+    // 2. Direct table fallback if RPC is not yet migrated
+    const { data: sessionData } = await supabase.auth.getSession()
+    const verifierEmail = sessionData?.session?.user?.email || 'Volunteer Staff'
+
+    const { error: updateError } = await supabase
+      .from(TABLES.PROFILES)
+      .update({
+        entry_verified: true,
+        verified_at: new Date().toISOString(),
+        verified_by: verifierEmail,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', attendeeId)
+
+    if (updateError) throw updateError
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error verifying attendee at gate:', err)
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Failed to verify attendee at gate'),
+    }
+  }
+}
+
+/**
+ * Unverify an attendee (undo gate verification)
+ */
+export async function unverifyAttendeeAtGate(
+  attendeeId: string,
+  verifierId?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('unverify_attendee_entry', {
+      p_attendee_id: attendeeId,
+      p_verifier_id: verifierId || null,
+    })
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true }
+    }
+
+    const { error: updateError } = await supabase
+      .from(TABLES.PROFILES)
+      .update({
+        entry_verified: false,
+        verified_at: null,
+        verified_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', attendeeId)
+
+    if (updateError) throw updateError
+
+    return { success: true }
+  } catch (err: any) {
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Failed to undo verification'),
+    }
+  }
+}
+
+/**
+ * Instantly credit user wallet upon successful Razorpay Standard Checkout payment
+ */
+export async function creditWalletFromRazorpayPayment(params: {
+  userId: string
+  eventId: string
+  amountRupees: number
+  points: number
+  razorpayPaymentId: string
+  razorpayOrderId?: string
+  packageLabel?: string
+}): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+
+  const {
+    userId,
+    eventId,
+    amountRupees,
+    points,
+    razorpayPaymentId,
+    razorpayOrderId,
+    packageLabel,
+  } = params
+
+  try {
+    // 1. Fetch user's current wallet
+    let wallet = await getOrCreateWallet(userId, eventId)
+    if (!wallet) throw new Error('Could not retrieve or create attendee wallet')
+
+    const newPurchased = wallet.purchasedPoints + points
+    const newTotalBalance = wallet.freePoints + newPurchased
+
+    // 2. Update wallet purchased points
+    const { error: walletError } = await supabase
+      .from(TABLES.WALLETS)
+      .update({
+        purchased_points: newPurchased,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', wallet.id)
+
+    if (walletError) throw walletError
+
+    // 3. Record transaction ledger entry
+    await supabase.from(TABLES.WALLET_LEDGER).insert({
+      id: generateId(),
+      wallet_id: wallet.id,
+      user_id: userId,
+      type: 'purchase',
+      amount: points,
+      balance_after: newTotalBalance,
+      description: `Purchased ${points} Points via Razorpay Gateway (${packageLabel || `₹${amountRupees}`}) [${razorpayPaymentId}]`,
+      reference_id: razorpayPaymentId,
+      created_at: new Date().toISOString(),
+    })
+
+    // 4. Record into payment_intents table
+    try {
+      await supabase.from(TABLES.PAYMENT_INTENTS).insert({
+        id: generateId(),
+        user_id: userId,
+        event_id: eventId,
+        amount_rupees: amountRupees,
+        points: points,
+        status: 'credited',
+        utr: razorpayPaymentId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_order_id: razorpayOrderId,
+        credited_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.warn('Payment intent insert notice:', e)
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Failed to credit wallet from Razorpay payment:', err)
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Failed to credit purchased points to wallet'),
+    }
+  }
+}
+

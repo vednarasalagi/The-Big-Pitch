@@ -57,6 +57,13 @@ export default {
         'count-up':      'countUp 0.6s ease-out',
         'shimmer':       'shimmer 1.5s infinite',
         'ticker':        'ticker 20s linear infinite',
+        'spin-slow':     'spin 22s linear infinite',
+        'spin-reverse':  'spinReverse 28s linear infinite',
+        'spotlight-left': 'spotlightLeft 7s ease-in-out infinite alternate',
+        'spotlight-right':'spotlightRight 7s ease-in-out infinite alternate',
+        'float':         'floatBob 3.5s ease-in-out infinite',
+        'gold-sheen':    'goldSheen 3.2s infinite ease-in-out',
+        'sunburst':      'sunburst 50s linear infinite',
       },
       keyframes: {
         glow: {
@@ -91,6 +98,30 @@ export default {
         ticker: {
           '0%':   { transform: 'translateX(100%)' },
           '100%': { transform: 'translateX(-100%)' },
+        },
+        spinReverse: {
+          '0%': { transform: 'rotate(360deg)' },
+          '100%': { transform: 'rotate(0deg)' },
+        },
+        spotlightLeft: {
+          '0%': { transform: 'rotate(-25deg) scale(1)' },
+          '100%': { transform: 'rotate(10deg) scale(1.15)' },
+        },
+        spotlightRight: {
+          '0%': { transform: 'rotate(25deg) scale(1)' },
+          '100%': { transform: 'rotate(-10deg) scale(1.15)' },
+        },
+        floatBob: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        goldSheen: {
+          '0%': { transform: 'translateX(-120%) rotate(30deg)' },
+          '100%': { transform: 'translateX(260%) rotate(30deg)' },
+        },
+        sunburst: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
         },
       },
       boxShadow: {

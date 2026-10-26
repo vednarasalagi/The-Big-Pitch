@@ -6,14 +6,16 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Layers, Radio, Trophy, Wallet,
-  LogOut, Shield, ChevronRight, Bell, Sparkles, ArrowRight
+  LogOut, Shield, ChevronRight, Bell, Sparkles, ArrowRight, Camera, QrCode
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuthStore, useEventStore, useNotificationStore, useWalletStore } from '@/store'
 import { Avatar, LiveIndicator, BrandLogo } from '@/components/ui'
 import { Footer } from '@/components/layout/Footer'
+import { UserProfileModal } from '@/components/profile/UserProfileModal'
+import { EntryPassModal } from '@/components/profile/EntryPassModal'
 import { formatPoints } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -33,11 +35,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { wallet } = useWalletStore()
   const { unreadCount } = useNotificationStore()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
+  const [entryPassModalOpen, setEntryPassModalOpen] = useState(false)
 
   const isLive = activeRound?.status === 'investment_open' || activeRound?.status === 'announced' || activeRound?.status === 'pitching'
   const isInvestingNow = activeRound?.status === 'investment_open'
   const currentLiveTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
   const isAdmin = user?.role === 'admin'
+  const isMember = user?.role === 'member'
+  const isStaff = isAdmin || isMember
   const totalPoints = wallet ? wallet.freePoints + wallet.purchasedPoints : 0
 
   const handleLogout = async () => {
@@ -56,9 +62,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return location.pathname.startsWith(to)
   }
 
-  // Pure fullscreen display for stage projectors and HDMI casting
-  if (location.pathname.startsWith('/cast') || location.pathname.startsWith('/projector')) {
-    return <div className="min-h-screen bg-[#FAFAFA] text-zinc-900">{children}</div>
+  // Dynamic mobile navigation dock items: Includes direct Scanner access for Staff (Member & Admin)
+  const mobileNavItems = useMemo(() => {
+    if (isStaff) {
+      return [
+        { to: '/',           icon: Layers,  label: 'Startups' },
+        { to: '/live',       icon: Radio,   label: 'Live' },
+        { to: '/verify',     icon: Camera,  label: 'Scanner', isScanner: true },
+        { to: '/scoreboard', icon: Trophy,  label: 'Awards' },
+        { to: isAdmin ? '/admin' : '/wallet', icon: isAdmin ? Shield : Wallet, label: isAdmin ? 'Admin' : 'Wallet' },
+      ]
+    }
+    return NAV_ITEMS
+  }, [isStaff, isAdmin])
+
+  // Pure fullscreen display for stage projectors, HDMI casting, and grand celebrations
+  if (
+    location.pathname.startsWith('/cast') ||
+    location.pathname.startsWith('/projector') ||
+    location.pathname.startsWith('/celebrate') ||
+    location.pathname.startsWith('/winner')
+  ) {
+    return <div className="min-h-screen bg-[#0A0A0C] text-zinc-100">{children}</div>
   }
 
   return (
@@ -115,11 +140,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Right: Actions, Balance Pill, Admin Link, Auth */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* Attendee Entry Pass & QR Button (shown for general audience attendees) */}
+          {user && !isStaff && (
+            <button
+              onClick={() => setEntryPassModalOpen(true)}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer',
+                user.isEntryVerified
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
+              )}
+              title={user.isEntryVerified ? 'Gate Verified: Click to view Entry Pass' : 'Entry Pass Unverified: Show QR at gate'}
+            >
+              <QrCode size={13} className={user.isEntryVerified ? 'text-emerald-600' : 'text-amber-600'} />
+              <span className="hidden sm:inline font-mono">{user.passCode || 'Entry Pass'}</span>
+              <span className="sm:hidden">{user.isEntryVerified ? 'Pass' : 'Verify'}</span>
+            </button>
+          )}
+
           {/* Points indicator — VISIBLE ON BOTH MOBILE & DESKTOP for instant clarity */}
           {user && !isAdmin && (
             <Link
               to="/wallet"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl skeuo-sunken transition-all text-xs font-semibold text-zinc-950"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl skeuo-sunken transition-all text-xs font-semibold text-zinc-950"
               title="Your Available Points — Click to manage wallet"
             >
               <span className="skeuo-led-bezel">
@@ -130,6 +173,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           )}
 
+          {/* Volunteer & Admin Scanner Desk shortcut */}
+          {isStaff && (
+            <Link
+              to="/verify"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs"
+              title="Gate Scanner & Attendee Verification"
+            >
+              <Camera size={13} strokeWidth={2.2} />
+              <span>Scanner</span>
+            </Link>
+          )}
+
           {/* Admin shortcut for administrators */}
           {isAdmin && (
             <Link
@@ -137,7 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl skeuo-btn-primary text-xs font-bold transition-all"
             >
               <Shield size={13} strokeWidth={2} />
-              <span className="hidden sm:inline">Admin Room</span>
+              <span className="hidden sm:inline">Admin</span>
             </Link>
           )}
 
@@ -196,13 +251,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
           <div className="fixed top-18 right-4 sm:right-6 z-50 w-72 bg-white border border-zinc-200 shadow-2xl rounded-2xl animate-slide-down overflow-hidden text-zinc-900">
             <div className="p-4 border-b border-zinc-100 bg-zinc-50/70">
-              <div className="flex items-center gap-3">
-                <Avatar name={user.displayName} src={user.avatarUrl} size="md" />
+              <button
+                type="button"
+                onClick={() => { setProfileModalOpen(true); setMenuOpen(false) }}
+                className="w-full text-left flex items-center gap-3 cursor-pointer p-1.5 -m-1.5 rounded-xl hover:bg-zinc-100 transition-colors group"
+                title="Click to edit profile photo & name"
+              >
+                <div className="relative">
+                  <Avatar name={user.displayName} src={user.avatarUrl} size="md" />
+                  <span className="absolute -bottom-1 -right-1 p-1 rounded-full bg-zinc-950 text-white text-[9px] border border-white shadow-sm group-hover:scale-110 transition-transform">
+                    <Camera size={10} />
+                  </span>
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-zinc-950 font-bold text-sm truncate">{user.displayName}</p>
+                  <p className="text-zinc-950 font-bold text-sm truncate group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                    <span>{user.displayName}</span>
+                  </p>
                   <p className="text-zinc-500 text-xs font-mono truncate">{user.email}</p>
                 </div>
-              </div>
+                <ChevronRight size={14} className="text-zinc-400 group-hover:text-zinc-700" />
+              </button>
               <div className="mt-3 pt-2.5 border-t border-zinc-200/70 flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Your Point Balance:</span>
                 <span className="font-mono font-black text-zinc-950">{formatPoints(totalPoints)}</span>
@@ -210,6 +278,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="p-2 space-y-1 text-sm font-medium">
+              <button
+                onClick={() => { setEntryPassModalOpen(true); setMenuOpen(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors text-left"
+              >
+                <QrCode size={16} className={user.isEntryVerified ? 'text-emerald-600' : 'text-amber-600'} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span>My Entry Pass & QR</span>
+                    {user.isEntryVerified ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronRight size={14} className="ml-auto text-zinc-400" />
+              </button>
+
+              <button
+                onClick={() => { setProfileModalOpen(true); setMenuOpen(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
+              >
+                <Camera size={16} className="text-zinc-500" />
+                <span>Edit Profile & Photo</span>
+                <ChevronRight size={14} className="ml-auto text-zinc-400" />
+              </button>
+
               <button
                 onClick={() => { navigate('/wallet'); setMenuOpen(false) }}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-100 text-zinc-800 transition-colors"
@@ -236,6 +335,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span>Tournament Leaderboard</span>
                 <ChevronRight size={14} className="ml-auto text-zinc-400" />
               </button>
+
+              {isStaff && (
+                <button
+                  onClick={() => { navigate('/verify'); setMenuOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-purple-50 text-purple-700 font-bold transition-colors"
+                >
+                  <Camera size={16} className="text-purple-600" />
+                  <span>Entry Scanner Desk</span>
+                  <ChevronRight size={14} className="ml-auto text-purple-400" />
+                </button>
+              )}
 
               {isAdmin && (
                 <button
@@ -276,26 +386,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Navigation Bar (Tactile Hardware Dock) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-gradient-to-b from-white to-[#F6F7F9] border-t border-zinc-200/90 shadow-[0_-6px_24px_rgba(0,0,0,0.06),inset_0_1px_0_#FFFFFF] pb-[max(0.35rem,env(safe-area-inset-bottom,0px))]">
-        <div className="flex items-center justify-around px-2 py-1.5">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
+        <div className="flex items-center justify-around px-1 py-1.5">
+          {mobileNavItems.map(({ to, icon: Icon, label, ...rest }) => {
             const active = isActive(to)
             const showLiveDot = to === '/live' && isLive
+            const isScannerTab = (rest as any).isScanner
 
             return (
               <Link
                 key={to}
                 to={to}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 py-1 px-1.5 rounded-xl min-w-0 flex-1 transition-all select-none',
-                  active ? 'text-zinc-950 font-black' : 'text-zinc-500 hover:text-zinc-800 font-semibold'
+                  'flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl min-w-0 flex-1 transition-all select-none',
+                  active
+                    ? (isScannerTab ? 'text-purple-700 font-black' : 'text-zinc-950 font-black')
+                    : (isScannerTab ? 'text-purple-600 font-bold' : 'text-zinc-500 hover:text-zinc-800 font-semibold')
                 )}
               >
                 <div className="relative flex items-center justify-center">
                   <div className={cn(
                     'p-1.5 rounded-xl transition-colors duration-150 relative',
-                    active ? 'text-white' : 'hover:bg-zinc-100 text-zinc-600'
+                    active 
+                      ? (isScannerTab ? 'bg-purple-600 text-white shadow-md' : 'text-white')
+                      : (isScannerTab ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'hover:bg-zinc-100 text-zinc-600')
                   )}>
-                    {active && (
+                    {active && !isScannerTab && (
                       <motion.div
                         layoutId="mobile-dock-active-cap"
                         className="absolute inset-0 skeuo-btn-primary rounded-xl -z-10"
@@ -307,7 +422,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         }}
                       />
                     )}
-                    <Icon size={18} strokeWidth={active ? 2.4 : 1.8} className={active ? 'text-white' : 'text-zinc-600'} />
+                    <Icon size={17} strokeWidth={active ? 2.4 : 1.8} className={active ? 'text-white' : (isScannerTab ? 'text-purple-700' : 'text-zinc-600')} />
                   </div>
                   {showLiveDot && (
                     <span className="absolute -top-1 -right-1 skeuo-led-bezel w-3.5 h-3.5 z-20">
@@ -317,13 +432,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <span className={cn(
                   'text-[10px] tracking-tight truncate leading-none mt-0.5',
-                  active && 'skeuo-text-emboss font-bold text-zinc-950'
+                  active && 'skeuo-text-emboss font-bold text-zinc-950',
+                  isScannerTab && 'text-purple-700 font-bold'
                 )}>{label}</span>
               </Link>
             )
           })}
         </div>
       </nav>
+
+      {/* User Profile & Photo Upload Modal */}
+      <UserProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+      />
+
+      {/* Event Entry Pass & QR Modal */}
+      <EntryPassModal
+        isOpen={entryPassModalOpen}
+        onClose={() => setEntryPassModalOpen(false)}
+      />
     </div>
   )
 }

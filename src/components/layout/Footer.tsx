@@ -3,7 +3,7 @@
 // Provides immediate access to Razorpay required compliance pages
 // ============================================================
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShieldCheck,
@@ -15,10 +15,19 @@ import {
   ExternalLink,
   Coins,
   ArrowUpRight,
+  Sparkles,
 } from 'lucide-react'
 import { BrandLogo } from '@/components/ui'
+import { PolicyModal, type PolicyTab } from '@/components/legal/PolicyModal'
 
 export function Footer() {
+  const [policyModalOpen, setPolicyModalOpen] = useState(false)
+  const [policyTab, setPolicyTab] = useState<PolicyTab>('privacy')
+
+  const openPolicy = (tab: PolicyTab) => {
+    setPolicyTab(tab)
+    setPolicyModalOpen(true)
+  }
   return (
     <footer className="bg-white border-t border-zinc-200/90 text-zinc-600 text-xs mt-auto pb-20 md:pb-0">
       {/* Trust & Payment Security Banner */}
@@ -60,18 +69,14 @@ export function Footer() {
             </Link>
 
             <p className="text-zinc-500 text-xs leading-relaxed max-w-sm">
-              <strong>The Big Pitch</strong> is an interactive college startup pitching competition and live audience scoring arena organized under <strong>Sphinx 2026</strong> and the <strong>Entrepreneurship Cell (E-Cell)</strong> at MNIT Jaipur.
+              <strong>THE BIG PITCH</strong> is an interactive startup pitching competition, digital resources portal, and live scoring arena.
             </p>
 
             <div className="space-y-1.5 text-[11px] text-zinc-500 pt-1">
-              <div className="flex items-start gap-2">
-                <MapPin size={13} className="text-zinc-400 flex-shrink-0 mt-0.5" />
-                <span>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</span>
-              </div>
               <div className="flex items-center gap-2">
                 <Mail size={13} className="text-zinc-400 flex-shrink-0" />
-                <a href="mailto:ecell.nitjaipur@gmail.com" className="font-mono text-zinc-800 font-semibold hover:underline">
-                  ecell.nitjaipur@gmail.com
+                <a href="mailto:thebigpitch.official@gmail.com" className="font-mono text-zinc-800 font-semibold hover:underline">
+                  thebigpitch.official@gmail.com
                 </a>
               </div>
             </div>
@@ -83,6 +88,19 @@ export function Footer() {
               Legal & Policies
             </h4>
             <ul className="space-y-2 text-xs font-medium text-zinc-600">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => openPolicy('privacy')}
+                  className="w-full text-left hover:text-zinc-950 transition-colors flex items-center justify-between group py-0.5 text-zinc-700 font-bold"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck size={13} className="text-zinc-950" />
+                    <span>Quick Policy Modal</span>
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-950 text-white font-mono uppercase">Pop-up</span>
+                </button>
+              </li>
               <li>
                 <Link to="/terms" className="hover:text-zinc-950 transition-colors flex items-center justify-between group">
                   <span>Terms & Conditions</span>
@@ -141,14 +159,21 @@ export function Footer() {
         {/* Bottom Legal Disclaimer & Copyright */}
         <div className="mt-10 pt-6 border-t border-zinc-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-zinc-400">
           <p>
-            © {new Date().getFullYear()} <strong>The Big Pitch</strong> • Sphinx 2026, E-Cell. All rights reserved.
+            © {new Date().getFullYear()} <strong>THE BIG PITCH</strong>. All rights reserved.
           </p>
 
           <p className="text-center sm:text-right max-w-md text-zinc-400">
-            Points purchased or used are digital simulation tokens solely for event participation and hold zero monetary redemption value or startup equity.
+            Digital products and resources purchased on this platform are delivered electronically upon payment confirmation. 100% secure checkout via Razorpay.
           </p>
         </div>
       </div>
+
+      {/* Unified Tabbed Policy Modal */}
+      <PolicyModal
+        isOpen={policyModalOpen}
+        onClose={() => setPolicyModalOpen(false)}
+        defaultTab={policyTab}
+      />
     </footer>
   )
 }

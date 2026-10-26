@@ -143,7 +143,7 @@ export function StaticQRCheckoutModal({
       ctx.fillStyle = '#FAFAFA'
       ctx.font = 'bold 22px system-ui, -apple-system, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText("THE BIG PITCH • SPHINX '26", cardWidth / 2, 48)
+      ctx.fillText("THE BIG PITCH", cardWidth / 2, 48)
 
       // Amount Badge / Pill
       ctx.fillStyle = '#ECFDF5'

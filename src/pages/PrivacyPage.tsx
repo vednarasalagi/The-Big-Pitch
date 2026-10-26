@@ -1,20 +1,20 @@
 // ============================================================
 // PrivacyPage.tsx — Privacy Policy
 // Compliant with IT Act 2000, SPDI Rules 2011, DPDP Act 2023 & Razorpay standards
-// Simple, professional, and transparent
+// Configured for E-Commerce Digital Products & Founder Resources
 // ============================================================
 
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { LegalLayout } from '@/components/legal/LegalLayout'
-import { ShieldCheck, Mail, Lock, CheckCircle2 } from 'lucide-react'
+import { ShieldCheck, Mail, Lock, CheckCircle2, FileText, Database } from 'lucide-react'
 
 export function PrivacyPage() {
   return (
     <LegalLayout
       title="Privacy Policy"
-      subtitle="How The Big Pitch collects, protects, processes, and safeguards attendee personal data and transaction records."
-      lastUpdated="October 19, 2026"
+      subtitle="How THE BIG PITCH collects, protects, processes, and safeguards customer personal data, transaction records, and digital product access."
+      lastUpdated="October 2026"
     >
       {/* Statutory Compliance Notice */}
       <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-600 leading-relaxed">
@@ -25,11 +25,14 @@ export function PrivacyPage() {
 
       {/* 1. Commitment to Privacy */}
       <section className="space-y-3">
-        <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
-          1. Our Commitment to Privacy
+        <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide flex items-center gap-2">
+          <span>1. Our Commitment to Privacy</span>
         </h2>
         <p>
-          <strong>THE BIG PITCH</strong> (&ldquo;We&rdquo;, &ldquo;Our&rdquo;, or &ldquo;Us&rdquo;), organized under Sphinx 2026 and the Entrepreneurship Cell (E-Cell) at <strong>Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India</strong>, is dedicated to protecting the privacy of every participant, attendee, and fest guest (&ldquo;You&rdquo;) using our platform.
+          <strong>THE BIG PITCH</strong> (&ldquo;We&rdquo;, &ldquo;Our&rdquo;, or &ldquo;Us&rdquo;) operates this digital products e-commerce platform offering premium startup resources, pitch deck masterclasses, financial operating models, and founder assets.
+        </p>
+        <p>
+          We are dedicated to safeguarding the privacy and security of every visitor, customer, and founder (&ldquo;You&rdquo;) who accesses our website and purchases our digital goods.
         </p>
       </section>
 
@@ -39,74 +42,91 @@ export function PrivacyPage() {
           2. Information We Collect
         </h2>
         <p>
-          We collect only information necessary for tournament registration and digital transactions:
+          We collect only the information strictly necessary to process your digital product orders, generate license access, and comply with Indian statutory requirements:
         </p>
-        <ul className="list-disc pl-5 space-y-1.5 text-zinc-700">
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
           <li>
-            <strong>Account Details:</strong> Your name, email address, phone number (if provided for authentication), and profile avatar.
+            <strong>Personal & Account Details:</strong> Your full name, email address, contact telephone number (collected during registration, checkout, or support requests), and profile avatar.
           </li>
           <li>
-            <strong>Transaction Records (Razorpay):</strong> Razorpay Order ID, Payment ID, package purchased, rupee amount, and timestamp.
+            <strong>Transaction & Order Records:</strong> Razorpay Order IDs, Payment IDs, purchased digital product keys and titles, payment amount in INR (₹), timestamp, and download authorization logs.
           </li>
           <li>
-            <strong>Financial Security Guarantee:</strong> We <strong>DO NOT</strong> store, collect, or have access to your bank account numbers, card numbers, CVVs, netbanking passwords, or UPI PINs. All financial payments are handled exclusively by <strong>Razorpay Software Private Limited</strong> on PCI-DSS Level 1 compliant secure servers.
+            <strong>Technical & Security Metadata:</strong> IP address, device type, operating system, and browser metadata collected automatically for fraud detection, bot prevention, and license verification.
           </li>
           <li>
-            <strong>Platform Activity:</strong> Virtual point allocation history, pitch votes, and leaderboard scores.
+            <strong>Financial Security Guarantee (No Card Storage):</strong> We <strong>DO NOT</strong> collect, store, or have access to your bank account numbers, credit or debit card numbers, CVVs, netbanking credentials, or UPI PINs. All financial payments are processed exclusively by <strong>Razorpay Software Private Limited</strong> on RBI-regulated, PCI-DSS Level 1 compliant secure servers.
           </li>
         </ul>
       </section>
 
-      {/* 3. How We Use Your Information */}
+      {/* 3. How We Use Information */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
           3. How We Use Your Information
         </h2>
-        <ul className="list-disc pl-5 space-y-1.5 text-zinc-700">
-          <li>To authenticate and manage your user account via Supabase Auth.</li>
-          <li>To deliver instant digital credits of purchased points into your live wallet.</li>
-          <li>To compile real-time tournament leaderboards and audience scoring scorecards.</li>
-          <li>To resolve transaction or billing inquiries under our <Link to="/terms#refunds" className="text-zinc-950 font-bold underline">Refund Policy</Link>.</li>
-          <li>To prevent fraudulent bot voting and maintain tournament integrity.</li>
+        <p>
+          Your information is utilized solely for legitimate operational and compliance purposes:
+        </p>
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
+          <li>To instantly provision your digital product downloads, templates, and library access links.</li>
+          <li>To create and manage your secure account via Supabase Auth and database storage.</li>
+          <li>To prevent fraudulent payments, verify billing authenticity, and perform Razorpay transaction reconciliation.</li>
+          <li>To maintain mandatory transaction audit logs under Indian financial regulations and taxation requirements.</li>
+          <li>To send transactional receipts, critical security notices, and template package updates.</li>
+          <li>To handle customer inquiries and resolve issues under our <Link to="/terms#refunds" className="text-zinc-950 font-bold underline">Cancellation & Refund Policy</Link>.</li>
         </ul>
       </section>
 
-      {/* 4. Third-Party Service Providers */}
+      {/* 4. Third-Party Disclosures & Non-Disclosure */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
           4. Sharing with Third-Party Providers
         </h2>
         <p>
-          We <strong>never sell, rent, or trade</strong> your personal information. We disclose data only to trusted technical partners essential for platform operation:
+          We <strong>never sell, rent, monetize, or trade</strong> your personal information to third-party marketers or data brokers. We share data strictly on a need-to-know basis with trusted technology partners essential for platform operations:
         </p>
-        <ul className="list-disc pl-5 space-y-1.5 text-zinc-700">
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
           <li>
-            <strong>Razorpay Software Pvt. Ltd.:</strong> Authorized payment aggregator processing e-commerce checkout and UPI/card/netbanking payments.
+            <strong>Razorpay Software Private Limited:</strong> Authorized payment aggregator processing checkout for UPI, credit/debit cards, and netbanking under PCI-DSS Level 1 compliance.
           </li>
           <li>
-            <strong>Supabase Inc.:</strong> Cloud database and authentication infrastructure providing encrypted user identity and ledger storage.
+            <strong>Supabase Inc.:</strong> Cloud database and authentication infrastructure providing encrypted user identity and order records.
+          </li>
+          <li>
+            <strong>Statutory & Legal Authorities:</strong> Disclosed only if strictly required under summons, court order, or applicable law of the Republic of India.
           </li>
         </ul>
       </section>
 
-      {/* 5. Data Security Measures */}
+      {/* 5. Data Security Safeguards */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
           5. Data Security Safeguards
         </h2>
         <p>
-          We enforce 256-bit SSL/TLS cryptographic encryption for all data in transit, strict Postgres Row Level Security (RLS) on user databases, and role-based access controls to prevent unauthorized access or disclosure.
+          We implement rigorous security practices and procedures as required by Rule 5 of the SPDI Rules:
         </p>
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
+          <li><strong>256-bit TLS/SSL Cryptography:</strong> All data transmitted between your browser and our servers is encrypted in transit.</li>
+          <li><strong>PostgreSQL Row-Level Security (RLS):</strong> User order histories and library downloads are isolated and accessible only by the verified authenticated owner.</li>
+          <li><strong>Access Controls:</strong> Administrative access to catalog management and customer orders is restricted by secure multi-layer passcodes.</li>
+        </ul>
       </section>
 
-      {/* 6. User Rights */}
+      {/* 6. Your Rights Under Indian Law */}
       <section className="space-y-3">
         <h2 className="text-base font-black text-zinc-950 uppercase tracking-wide">
-          6. Your Rights under Indian Law
+          6. Your Rights Under Indian Law
         </h2>
         <p>
-          You have the right to review your registered personal data, request corrections of inaccurate details, or request account and data deletion following event completion by contacting our grievance desk.
+          In accordance with the DPDP Act and IT Rules, you hold the following rights regarding your personal information:
         </p>
+        <ul className="list-disc pl-5 space-y-2 text-zinc-700">
+          <li><strong>Right to Review:</strong> You may request a copy of the personal data we hold regarding your account.</li>
+          <li><strong>Right to Correction:</strong> You may request correction of inaccurate or incomplete personal information.</li>
+          <li><strong>Right to Erasure:</strong> You may request account deletion, subject to mandatory statutory tax and accounting retention requirements.</li>
+        </ul>
       </section>
 
       {/* 7. Statutory Grievance Redressal Officer */}
@@ -115,7 +135,7 @@ export function PrivacyPage() {
           7. Statutory Grievance Redressal Mechanism
         </h2>
         <p>
-          In accordance with the <strong>Information Technology Act, 2000</strong> and rules made thereunder, the details of our designated <strong>Grievance Officer</strong> are provided below:
+          In compliance with Section 5(9) of the <strong>Information Technology (SPDI) Rules, 2011</strong> and the <strong>Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021</strong>, the details of our designated <strong>Grievance Redressal Officer</strong> are provided below:
         </p>
 
         <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50/60 text-xs space-y-2">
@@ -123,25 +143,18 @@ export function PrivacyPage() {
             <div>
               <span className="font-bold text-zinc-400 uppercase text-[10px] block">Officer Designation</span>
               <span className="font-bold text-zinc-950">Grievance Redressal Officer</span>
-              <p className="text-zinc-600">The Big Pitch • Sphinx 2026 (E-Cell)</p>
+              <p className="text-zinc-600">THE BIG PITCH</p>
             </div>
 
             <div>
               <span className="font-bold text-zinc-400 uppercase text-[10px] block">Direct Email</span>
-              <a href="mailto:ecell.nitjaipur@gmail.com" className="font-mono text-zinc-950 font-bold underline block pt-0.5">
-                ecell.nitjaipur@gmail.com
+              <a href="mailto:thebigpitch.official@gmail.com" className="font-mono text-zinc-950 font-bold underline block pt-0.5">
+                thebigpitch.official@gmail.com
               </a>
-            </div>
-
-            <div className="sm:col-span-2">
-              <span className="font-bold text-zinc-400 uppercase text-[10px] block">Postal Address</span>
-              <p className="text-zinc-700">
-                Malaviya National Institute of Technology (MNIT), JLN Marg, Jaipur, Rajasthan — 302017, India
-              </p>
             </div>
           </div>
           <p className="text-zinc-500 text-[11px] pt-1 border-t border-zinc-200/80">
-            <strong>Response SLA:</strong> In compliance with Indian IT Rules, all grievance notices are acknowledged within <strong>48 hours</strong> and resolved within <strong>30 calendar days</strong>.
+            <strong>Response SLA:</strong> In strict compliance with Indian IT Rules, all grievance notices are acknowledged within <strong>48 hours</strong> and redressed within <strong>30 calendar days</strong> of receipt.
           </p>
         </div>
       </section>

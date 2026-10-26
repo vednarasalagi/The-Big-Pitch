@@ -47,6 +47,21 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Enforce single-account entry verification rule
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('entry_verified, role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile && profile.role !== 'admin' && !profile.entry_verified) {
+      return new Response(JSON.stringify({
+        error: 'Event entry verification required. Please have your QR pass scanned by a volunteer at the entrance.',
+      }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const { roundId, teamId, eventId, amount } = await req.json()
 
     // Validate input
@@ -144,14 +159,17 @@ Deno.serve(async (req) => {
         p_wallet_id: wallet.id,
       })
 
-    if (txError || !result) {
-      console.error('Transaction error:', txError)
-      return new Response(JSON.stringify({ error: 'Investment processing failed' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    if (txError || !result || (typeof result === 'object' && (result as any).success === false)) {
+      const errMsg = (typeof result === 'object' && (result as any)?.error) ? (result as any).error : 'Investment processing failed'
+      console.error('Transaction error:', txError || errMsg)
+      return new Response(JSON.stringify({ error: errMsg }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
-    return new Response(JSON.stringify({ success: true, investmentId: result }), {
+    const investmentId = typeof result === 'object' ? (result as any).investmentId : result
+
+    return new Response(JSON.stringify({ success: true, investmentId }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

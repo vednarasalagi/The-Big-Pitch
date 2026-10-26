@@ -4,20 +4,21 @@
 // Supports Email/Password, Email OTP Verification, and Google OAuth.
 // ============================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Zap, Shield, Gift, Users, CheckCircle2, AlertCircle,
   Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft,
-  KeyRound, RefreshCw, ShieldCheck
+  KeyRound, RefreshCw, ShieldCheck, Camera, Upload
 } from 'lucide-react'
 import { useAuthStore, useWalletStore } from '@/store'
-import { Button, Card, Badge } from '@/components/ui'
+import { Button, Card, Badge, Avatar } from '@/components/ui'
 import { BrandLogo } from '@/components/ui/BrandLogo'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { resolveUserRole } from '@/lib/adminConfig'
-import { toUserFriendlyError } from '@/lib/supabaseApi'
+import { toUserFriendlyError, uploadUserAvatar } from '@/lib/supabaseApi'
+import { processAvatarImage } from '@/lib/imageUtils'
 import { toast } from 'sonner'
 
 const BENEFITS = [
@@ -39,12 +40,30 @@ export function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const signupFileInputRef = useRef<HTMLInputElement>(null)
   const [otp, setOtp] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [resending, setResending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
+
+  // Handle device photo selection during sign-up
+  const handleSignupFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const processed = await processAvatarImage(file, 512)
+      setAvatarFile(processed.file)
+      setAvatarPreview(processed.dataUrl)
+      toast.success('Profile photo ready!')
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not process photo.')
+    }
+  }
 
   // Start cooldown timer
   const startCooldown = (seconds = 45) => {
@@ -72,18 +91,20 @@ export function AuthPage() {
   }, [user, navigate, redirectParam])
 
   // Helper to handle post-login redirection based on verified role
-  const handleSuccessfulAuth = (authEmail: string, displayName: string, userId: string) => {
+  const handleSuccessfulAuth = (authEmail: string, displayName: string, userId: string, customAvatarUrl?: string) => {
     const verifiedRole = resolveUserRole(authEmail)
+    const isEntryVerified = verifiedRole === 'admin'
 
     const profile = {
       id:          userId,
       email:       authEmail,
       displayName: displayName || (authEmail.split('@')[0] ?? 'User'),
-      avatarUrl:   undefined,
+      avatarUrl:   customAvatarUrl,
       role:        verifiedRole,
       createdAt:   new Date().toISOString(),
       updatedAt:   new Date().toISOString(),
       isVerified:  true,
+      isEntryVerified,
     }
 
     setUser(profile)
@@ -92,9 +113,12 @@ export function AuthPage() {
     if (verifiedRole === 'admin') {
       toast.success('Welcome, Administrator! Opening Admin Control Room...')
       navigate('/admin', { replace: true })
+    } else if (verifiedRole === 'member') {
+      toast.success('Welcome, Staff Member! Opening Entry Scanner Desk...')
+      navigate('/verify', { replace: true })
     } else {
       toast.success(`Welcome to The Big Pitch, ${profile.displayName}!`)
-      const target = redirectParam && redirectParam !== '/admin' ? redirectParam : '/'
+      const target = redirectParam && redirectParam !== '/admin' && redirectParam !== '/verify' ? redirectParam : '/'
       navigate(target, { replace: true })
     }
   }
@@ -153,16 +177,33 @@ export function AuthPage() {
           handleSuccessfulAuth(
             data.user.email ?? cleanEmail,
             data.user.user_metadata?.full_name ?? '',
-            data.user.id
+            data.user.id,
+            data.user.user_metadata?.avatar_url
           )
         }
       } else {
+        // Upload avatar if selected
+        let uploadedAvatarUrl: string | undefined = undefined
+        if (avatarFile) {
+          try {
+            const uploadRes = await uploadUserAvatar(avatarFile)
+            if (uploadRes.success && uploadRes.publicUrl) {
+              uploadedAvatarUrl = uploadRes.publicUrl
+            }
+          } catch (uploadErr) {
+            console.warn('Avatar pre-upload skipped:', uploadErr)
+          }
+        }
+
         // Sign Up with OTP Email Verification
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
           options: {
-            data: { full_name: fullName.trim() || cleanEmail.split('@')[0] },
+            data: {
+              full_name: fullName.trim() || cleanEmail.split('@')[0],
+              ...(uploadedAvatarUrl ? { avatar_url: uploadedAvatarUrl } : {}),
+            },
           },
         })
 
@@ -178,7 +219,8 @@ export function AuthPage() {
           handleSuccessfulAuth(
             data.user.email ?? cleanEmail,
             fullName.trim() || cleanEmail.split('@')[0],
-            data.user.id
+            data.user.id,
+            uploadedAvatarUrl || data.user.user_metadata?.avatar_url
           )
           return
         }
@@ -428,20 +470,68 @@ export function AuthPage() {
             <>
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === 'signup' && (
-                  <div className="space-y-1.5 animate-fade-in">
-                    <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
-                      <User size={13} className="text-zinc-500" />
-                      Full Name
-                    </label>
-                    <div className="relative">
+                  <div className="space-y-3 animate-fade-in">
+                    {/* Optional Profile Photo Uploader */}
+                    <div className="flex items-center gap-3 p-2.5 sm:p-3 rounded-2xl skeuo-sunken border border-zinc-200/90 bg-zinc-50/60">
+                      <button
+                        type="button"
+                        className="relative group cursor-pointer flex-shrink-0"
+                        onClick={() => signupFileInputRef.current?.click()}
+                        title="Click to choose a photo"
+                      >
+                        <Avatar
+                          name={fullName || 'User'}
+                          src={avatarPreview || undefined}
+                          size="lg"
+                          className="w-12 h-12 text-sm border-2 border-white shadow-sm"
+                        />
+                        <span className="absolute -bottom-1 -right-1 p-1 rounded-full bg-zinc-950 text-white text-[9px] border border-white shadow">
+                          <Camera size={10} />
+                        </span>
+                      </button>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-zinc-900">Profile Photo</span>
+                          <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">Optional</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 truncate mt-0.5">
+                          {avatarFile ? avatarFile.name : 'Shows on stage projector & leaderboard'}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => signupFileInputRef.current?.click()}
+                        className="skeuo-btn-secondary px-2.5 py-1 rounded-xl text-[11px] font-bold text-zinc-800 flex-shrink-0"
+                      >
+                        {avatarPreview ? 'Change' : 'Upload'}
+                      </button>
+
                       <input
-                        type="text"
-                        required
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="e.g. Alex Morgan"
-                        className="arena-input pl-3 w-full text-sm rounded-xl border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
+                        ref={signupFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                        onChange={handleSignupFileChange}
                       />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
+                        <User size={13} className="text-zinc-500" />
+                        Full Name
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="e.g. Alex Morgan"
+                          className="arena-input pl-3 w-full text-sm rounded-xl border-zinc-200 shadow-inner bg-zinc-50/50 focus:bg-white"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

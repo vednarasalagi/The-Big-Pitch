@@ -4,7 +4,7 @@
 // ============================================================
 
 import { cn } from '@/lib/utils'
-import { forwardRef, type HTMLAttributes, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
+import { forwardRef, useState, type HTMLAttributes, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
 import { Loader2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 export { BrandLogo } from './BrandLogo'
@@ -145,28 +145,49 @@ export const StatusBadge = ({ status }: { status: string }) => {
 interface AvatarProps {
   src?: string
   name: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
   className?: string
 }
 
 const sizeMap = {
+  xs: 'w-6 h-6 text-[10px]',
   sm: 'w-7 h-7 text-xs',
   md: 'w-9 h-9 text-sm',
   lg: 'w-11 h-11 text-base',
-  xl: 'w-14 h-14 text-lg'
+  xl: 'w-14 h-14 text-lg',
+  '2xl': 'w-18 h-18 text-xl',
+  '3xl': 'w-24 h-24 text-2xl',
 }
 
 export const Avatar = ({ src, name, size = 'md', className }: AvatarProps) => {
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const [imageError, setImageError] = useState(false)
+  const initials = (name || 'User')
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U'
+
   return (
     <div
       className={cn(
-        'rounded-full flex items-center justify-center font-bold bg-zinc-900 text-white flex-shrink-0 border border-zinc-200 shadow-sm',
-        sizeMap[size],
+        'rounded-full flex items-center justify-center font-bold bg-zinc-900 text-white flex-shrink-0 border border-zinc-200 shadow-sm overflow-hidden select-none',
+        sizeMap[size] || sizeMap.md,
         className
       )}
     >
-      {src ? <img src={src} alt={name} className="w-full h-full rounded-full object-cover" /> : initials}
+      {src && !imageError ? (
+        <img
+          src={src}
+          alt={name}
+          className="w-full h-full rounded-full object-cover"
+          onError={() => setImageError(true)}
+          loading="lazy"
+        />
+      ) : (
+        <span>{initials}</span>
+      )}
     </div>
   )
 }

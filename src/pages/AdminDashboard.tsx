@@ -15,7 +15,7 @@ import {
   Plus, RefreshCw, Wifi, Bell, ShieldCheck, UserPlus,
   Trash2, Mail, ExternalLink, Search, Filter, Lock,
   Tv, ArrowUp, ArrowDown, Sparkles, X, Check, Award,
-  Sliders, Database, Terminal, Trophy, Zap, LayoutGrid
+  Sliders, Database, Terminal, Trophy, Zap, LayoutGrid, Camera, QrCode
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore, useAdminStore } from '@/store'
 import {
@@ -41,15 +41,25 @@ import {
   updateTeamTimerSettings,
   saveOfficialResults,
   toUserFriendlyError,
+  uploadTeamLogo,
+  getTeamAudienceStandings,
 } from '@/lib/supabaseApi'
 import {
   getAdminAllowlist,
+  getMemberAllowlist,
   addAdminEmail,
+  addStaffEmail,
   removeAdminEmail,
   isSuperAdmin,
   syncAdminAllowlistFromSupabase,
 } from '@/lib/adminConfig'
-import { broadcastRoundUpdate, broadcastTeamsUpdate } from '@/lib/realtimeSync'
+import {
+  broadcastRoundUpdate,
+  broadcastTeamsUpdate,
+  broadcastWinnerCelebration,
+  getWinnerCelebrationState,
+  STAGE_CELEBRATION_EVENT,
+} from '@/lib/realtimeSync'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { Team, OfficialResult } from '@/types'
@@ -126,9 +136,9 @@ export const ADMIN_TABS: AdminTabItem[] = [
   {
     id: 'allowlist',
     icon: ShieldCheck,
-    label: 'Admin Access Control',
-    shortLabel: 'Admin Access',
-    description: 'Delegate admin privileges & manage authorized admin allowlist',
+    label: 'Staff & Volunteer Access',
+    shortLabel: 'Staff Access',
+    description: 'Manage authorized admins and event volunteers (entry gate scanner)',
     category: 'system',
   },
   {
@@ -309,6 +319,7 @@ function TeamModal({
   const { event, teams } = useEventStore()
   const { user: adminUser } = useAuthStore()
   const [name, setName] = useState(team?.name || '')
+  const [logoUrl, setLogoUrl] = useState(team?.logoUrl || '')
   const [pitchTitle, setPitchTitle] = useState(team?.pitchTitle || '')
   const [description, setDescription] = useState(team?.description || '')
   const [category, setCategory] = useState(team?.category || '')
@@ -322,6 +333,28 @@ function TeamModal({
   const [investmentWindowMin, setInvestmentWindowMin] = useState(Math.floor((team?.investmentWindowSeconds ?? defaultInvest) / 60))
   const [investmentWindowSec, setInvestmentWindowSec] = useState((team?.investmentWindowSeconds ?? defaultInvest) % 60)
   const [loading, setLoading] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingLogo(true)
+    try {
+      const res = await uploadTeamLogo(name || 'startup', file)
+      if (res.success && res.url) {
+        setLogoUrl(res.url)
+        toast.success('Startup logo uploaded successfully!')
+      } else {
+        toast.error(res.error || 'Failed to upload logo.')
+      }
+    } catch {
+      toast.error('Failed to process image.')
+    } finally {
+      setUploadingLogo(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -345,6 +378,7 @@ function TeamModal({
       // Edit
       const ok = await updateTeam(team.id, {
         name: name.trim(),
+        logoUrl: logoUrl.trim(),
         pitchTitle: pitchTitle.trim(),
         description: description.trim(),
         category: cleanCategory,
@@ -359,6 +393,7 @@ function TeamModal({
         const updated = {
           ...team,
           name: name.trim(),
+          logoUrl: logoUrl.trim() || undefined,
           pitchTitle: pitchTitle.trim(),
           description: description.trim(),
           category: cleanCategory,
@@ -386,6 +421,7 @@ function TeamModal({
       const created = await createTeam({
         eventId,
         name: name.trim(),
+        logoUrl: logoUrl.trim(),
         pitchTitle: pitchTitle.trim(),
         description: description.trim(),
         category: cleanCategory,
@@ -443,6 +479,74 @@ function TeamModal({
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+          {/* Startup Logo (Upload or URL) */}
+          <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-zinc-700 text-xs font-bold flex items-center gap-1.5">
+                <Camera size={13} className="text-zinc-500" />
+                <span>Startup Logo</span>
+              </label>
+              <span className="text-[10px] text-zinc-400 font-medium">PNG, JPG, SVG or URL</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Logo Preview Avatar */}
+              <div className="w-14 h-14 rounded-2xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs relative">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={name || 'Startup logo'}
+                    className="w-full h-full object-contain p-1"
+                    onError={() => {}}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-zinc-900 text-white font-mono font-black text-xl flex items-center justify-center">
+                    {(name || 'S')[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              {/* Upload & URL Controls */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <input
+                  type="file"
+                  ref={logoInputRef}
+                  onChange={handleLogoFileChange}
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={uploadingLogo}
+                    onClick={() => logoInputRef.current?.click()}
+                    className="text-xs py-1.5 px-3 bg-white hover:bg-zinc-100 border-zinc-200"
+                    icon={<Camera size={12} />}
+                  >
+                    Upload from Device
+                  </Button>
+                  {logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrl('')}
+                      className="text-[11px] font-bold text-zinc-400 hover:text-rose-600 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={logoUrl}
+                  onChange={e => setLogoUrl(e.target.value)}
+                  placeholder="Or paste direct image URL (https://...)"
+                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-zinc-200 focus:border-zinc-950 text-[11px] text-zinc-900 outline-none transition-all placeholder:text-zinc-400"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-zinc-700 text-xs font-bold block mb-1.5">Team / Startup Name *</label>
@@ -616,9 +720,124 @@ function ControlTab() {
   const [selectedTeamToPitch, setSelectedTeamToPitch] = useState<string>('')
   const [selectedNextTeam, setSelectedNextTeam] = useState<string>('')
   const [countdown, setCountdown] = useState<number>(0)
+  const [isCelebrating, setIsCelebrating] = useState<boolean>(() => {
+    return Boolean(getWinnerCelebrationState()?.active)
+  })
 
   const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
   const activeTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
+
+  // Keep celebration status in sync across all admin windows & storage
+  useEffect(() => {
+    const handleCelebrationChange = (e: any) => {
+      if (e.detail && typeof e.detail.active === 'boolean') {
+        setIsCelebrating(e.detail.active)
+      }
+    }
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pitch_arena_stage_celebration') {
+        setIsCelebrating(Boolean(getWinnerCelebrationState()?.active))
+      }
+    }
+    window.addEventListener(STAGE_CELEBRATION_EVENT, handleCelebrationChange)
+    window.addEventListener('storage', handleStorageChange)
+    return () => {
+      window.removeEventListener(STAGE_CELEBRATION_EVENT, handleCelebrationChange)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [])
+
+  const handleToggleWinnerCelebration = async () => {
+    if (isCelebrating) {
+      broadcastWinnerCelebration(false)
+      setIsCelebrating(false)
+      toast.info('Winner celebration stopped. Projector returned to normal stage screen.')
+      await logAuditEvent({
+        action: 'STOP_WINNER_CELEBRATION',
+        targetId: activeTeam?.id || eventId,
+        metadata: { description: 'Faded back stage celebration to normal projector screen' },
+        eventId,
+        adminId: user?.id,
+      })
+      return
+    }
+
+    setLoading('celebrate')
+    try {
+      let winnerData = null
+
+      // 1. Check active team audience standings
+      if (activeTeam?.id) {
+        const standings = await getTeamAudienceStandings(activeTeam.id)
+        if (standings.length > 0) {
+          const top = standings[0]
+          winnerData = {
+            userId: top.userId,
+            name: top.displayName,
+            avatarUrl: top.avatarUrl,
+            amount: top.amount,
+            rank: 1,
+            teamName: activeTeam.name,
+            startupLogoUrl: activeTeam.logoUrl,
+            timeElapsedMs: top.timeElapsedMs,
+            category: activeTeam.category,
+          }
+        }
+      }
+
+      // 2. If no standings on active team, check other teams
+      if (!winnerData) {
+        for (const t of teams) {
+          const standings = await getTeamAudienceStandings(t.id)
+          if (standings.length > 0) {
+            const top = standings[0]
+            winnerData = {
+              userId: top.userId,
+              name: top.displayName,
+              avatarUrl: top.avatarUrl,
+              amount: top.amount,
+              rank: 1,
+              teamName: t.name,
+              startupLogoUrl: t.logoUrl,
+              timeElapsedMs: top.timeElapsedMs,
+              category: t.category,
+            }
+            break
+          }
+        }
+      }
+
+      // 3. Fallback to active startup or top team
+      if (!winnerData) {
+        const sorted = [...teams].sort((a, b) => b.totalInvestment - a.totalInvestment)
+        const topTeam = sorted[0] || activeTeam
+        winnerData = {
+          name: topTeam ? topTeam.name : 'The Big Pitch Champion',
+          avatarUrl: topTeam?.logoUrl,
+          amount: topTeam?.totalInvestment || 1000,
+          rank: 1,
+          teamName: topTeam?.pitchTitle || 'Grand Pitch Champion',
+          startupLogoUrl: topTeam?.logoUrl,
+          category: topTeam?.category,
+        }
+      }
+
+      broadcastWinnerCelebration(true, winnerData)
+      setIsCelebrating(true)
+      toast.success(`🎉 Winner celebration launched on stage projector screen for ${winnerData.name}!`)
+      await logAuditEvent({
+        action: 'TRIGGER_WINNER_CELEBRATION',
+        targetId: winnerData.userId || activeTeam?.id || eventId,
+        metadata: { winner: winnerData, description: `Triggered winner celebration on screen for ${winnerData.name}` },
+        eventId,
+        adminId: user?.id,
+      })
+    } catch (err: any) {
+      toast.error('Could not trigger celebration: ' + err.message)
+    } finally {
+      setLoading(null)
+    }
+  }
 
   // Live timer tick for active round
   useEffect(() => {
@@ -713,6 +932,8 @@ function ControlTab() {
           adminId: user?.id,
         })
         toast.success(`Audience investment window is now OPEN! (${Math.floor(windowSec / 60)}m ${windowSec % 60}s)`)
+      } else {
+        toast.error('Could not open investment window. Please check connection and try again.')
       }
     } catch (err: any) {
       toast.error(toUserFriendlyError(err, 'Failed to open investments.'))
@@ -728,7 +949,7 @@ function ControlTab() {
     try {
       const ok = await closeInvestmentWindow(activeRound.id)
       if (ok) {
-        const closedRound = { ...activeRound, status: 'investment_closed' as const }
+        const closedRound = { ...activeRound, status: 'investment_closed' as const, updatedAt: new Date().toISOString() }
         setActiveRound(closedRound)
         broadcastRoundUpdate(closedRound)
         await logAuditEvent({
@@ -743,6 +964,8 @@ function ControlTab() {
           adminId: user?.id,
         })
         toast.info('Investment window closed. Audience can no longer invest.')
+      } else {
+        toast.error('Could not close investment window. Please try again.')
       }
     } catch (err: any) {
       toast.error(toUserFriendlyError(err, 'Failed to close investment window.'))
@@ -885,6 +1108,70 @@ function ControlTab() {
         subtitle="Manage live stages, separate presentation and investment phases, and sync authoritative timers."
       />
 
+      {/* ── STAGE PROJECTOR WINNER CELEBRATION CONTROLLER ── */}
+      <div className={`p-5 rounded-2xl border transition-all ${
+        isCelebrating
+          ? 'bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border-amber-300 shadow-md ring-2 ring-amber-400/40'
+          : 'bg-white border-zinc-200/90 shadow-sm'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+              isCelebrating
+                ? 'bg-amber-500 text-zinc-950 animate-bounce'
+                : 'bg-zinc-100 text-zinc-900 border border-zinc-200'
+            }`}>
+              <Trophy size={22} className={isCelebrating ? 'fill-zinc-950' : ''} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-zinc-950 font-black text-sm sm:text-base">
+                  Stage Projector Winner Celebration
+                </h3>
+                {isCelebrating && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-amber-400 text-zinc-950 animate-pulse border border-amber-500">
+                    ON-AIR CELEBRATION ACTIVE
+                  </span>
+                )}
+              </div>
+              <p className="text-zinc-500 text-xs mt-0.5">
+                {isCelebrating
+                  ? 'Projector screen is now celebrating the winner with their profile photo in the center. Click below to fade back to original screen.'
+                  : 'Triggers a grand animated celebration on the projector screen featuring the winner’s profile photo in the center with golden rays & confetti.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              to="/celebrate"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-950 border border-amber-400/30 hover:bg-amber-500/20 transition-colors"
+              title="Open full-screen grand celebration page on projector"
+            >
+              <Trophy size={13} className="text-amber-600" />
+              <span>Projector Celebration Screen</span>
+              <ExternalLink size={12} className="text-zinc-500" />
+            </Link>
+
+            <Button
+              size="md"
+              loading={loading === 'celebrate'}
+              onClick={handleToggleWinnerCelebration}
+              className={`font-black text-xs sm:text-sm py-2.5 px-5 whitespace-nowrap shadow-md transition-all ${
+                isCelebrating
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-400'
+                  : 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-zinc-950 border border-amber-400/60'
+              }`}
+              icon={isCelebrating ? <X size={15} /> : <Sparkles size={15} />}
+            >
+              {isCelebrating ? 'Stop Celebration (Fade Back)' : 'Trigger Winner Celebration'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* 1. Active Pitch Management Card */}
       <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-5">
         <div className="flex items-center justify-between">
@@ -959,7 +1246,7 @@ function ControlTab() {
               )}
 
               {/* Action Bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1002,6 +1289,21 @@ function ControlTab() {
                 )}
 
                 <Button
+                  variant="secondary"
+                  size="sm"
+                  className={`justify-center font-bold text-xs ${
+                    isCelebrating
+                      ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                      : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                  }`}
+                  icon={<Trophy size={13} />}
+                  loading={loading === 'celebrate'}
+                  onClick={handleToggleWinnerCelebration}
+                >
+                  {isCelebrating ? 'Fade Back' : 'Celebrate'}
+                </Button>
+
+                <Button
                   variant="danger"
                   size="sm"
                   className="justify-center bg-zinc-950 hover:bg-zinc-800 text-white font-bold"
@@ -1009,7 +1311,7 @@ function ControlTab() {
                   loading={loading === 'stop'}
                   onClick={handleStopPitch}
                 >
-                  End Pitch Round
+                  End Round
                 </Button>
               </div>
             </div>
@@ -1680,21 +1982,24 @@ function CastAdminTab() {
   )
 }
 
-// ── 4. Admin Email Allowlist Tab (Single Super Admin + Managed Admins) ───
+// ── 4. Staff & Volunteer Allowlist Tab (Admins + Volunteers/Members) ───
 function AllowlistTab() {
   const { user } = useAuthStore()
-  const [allowlist, setAllowlist] = useState<string[]>(() => getAdminAllowlist())
+  const [adminList, setAdminList] = useState<string[]>(() => getAdminAllowlist())
+  const [memberList, setMemberList] = useState<string[]>(() => getMemberAllowlist())
   const [newEmail, setNewEmail] = useState('')
+  const [roleToAssign, setRoleToAssign] = useState<'member' | 'admin'>('member')
   const [loading, setLoading] = useState(false)
 
   // Sync latest allowlist from Supabase backend on mount
   useEffect(() => {
-    syncAdminAllowlistFromSupabase().then((list) => {
-      setAllowlist(list)
+    syncAdminAllowlistFromSupabase().then(() => {
+      setAdminList(getAdminAllowlist())
+      setMemberList(getMemberAllowlist())
     })
   }, [])
 
-  const handleAddEmail = async (e: React.FormEvent) => {
+  const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault()
     const clean = newEmail.trim().toLowerCase()
     if (!clean || !clean.includes('@')) {
@@ -1702,31 +2007,37 @@ function AllowlistTab() {
       return
     }
 
-    if (allowlist.includes(clean)) {
-      toast.warning('This email is already an authorized administrator.')
+    if (adminList.includes(clean) || memberList.includes(clean)) {
+      toast.warning('This email is already an authorized staff member.')
       return
     }
 
     setLoading(true)
-    const success = await addAdminEmail(clean, user?.email)
+    const success = await addStaffEmail(clean, roleToAssign, user?.email)
     setLoading(false)
 
     if (success) {
-      const updated = getAdminAllowlist()
-      setAllowlist(updated)
+      setAdminList(getAdminAllowlist())
+      setMemberList(getMemberAllowlist())
       setNewEmail('')
       await logAuditEvent({
-        action: 'AUTHORIZE_ADMIN',
-        metadata: { email: clean, description: `Authorized ${clean} as administrator` },
+        action: roleToAssign === 'admin' ? 'AUTHORIZE_ADMIN' : 'AUTHORIZE_VOLUNTEER',
+        metadata: {
+          email: clean,
+          role: roleToAssign,
+          description: `Authorized ${clean} as ${roleToAssign === 'admin' ? 'Administrator' : 'Volunteer (Scanner Desk)'}`,
+        },
         adminId: user?.id,
       })
-      toast.success(`Authorized ${clean} as an event administrator!`)
+      toast.success(
+        `Authorized ${clean} as ${roleToAssign === 'admin' ? 'an Administrator' : 'a Volunteer Member (Scanner Desk)'}!`
+      )
     } else {
-      toast.error('Failed to add email to administrator list.')
+      toast.error('Failed to add email to staff list.')
     }
   }
 
-  const handleRemoveEmail = async (emailToRemove: string) => {
+  const handleRemoveStaff = async (emailToRemove: string, role: 'admin' | 'member') => {
     if (isSuperAdmin(emailToRemove)) {
       toast.error('The primary Super Admin account cannot be removed.')
       return
@@ -1738,78 +2049,191 @@ function AllowlistTab() {
 
     const res = await removeAdminEmail(emailToRemove)
     if (res.success) {
-      setAllowlist(getAdminAllowlist())
+      setAdminList(getAdminAllowlist())
+      setMemberList(getMemberAllowlist())
       await logAuditEvent({
-        action: 'REVOKE_ADMIN',
-        metadata: { email: emailToRemove, description: `Revoked admin privileges for ${emailToRemove}` },
+        action: 'REVOKE_STAFF',
+        metadata: { email: emailToRemove, role, description: `Revoked ${role} access for ${emailToRemove}` },
         adminId: user?.id,
       })
-      toast.info(`Revoked admin access for ${emailToRemove}.`)
+      toast.info(`Revoked ${role} access for ${emailToRemove}.`)
     } else {
-      toast.error(res.message || 'Failed to remove admin.')
+      toast.error(res.message || 'Failed to remove staff member.')
     }
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <SectionHeader
-        title="Admin Email Allowlist"
-        subtitle="Manage authorized administrator accounts. The Super Admin can grant or revoke admin access for other users."
+        title="Staff & Volunteer Access Control"
+        subtitle="Manage event administrators and volunteers. Volunteers have restricted access exclusively to the Entry Gate Scanner Desk."
       />
 
-      {/* Security Architecture Card */}
-      <div className="p-5 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-2">
-        <div className="flex items-center gap-2 text-zinc-950 text-xs font-bold">
-          <ShieldCheck size={16} />
-          <span>Server-Enforced Role Resolution</span>
+      {/* Gate Scanner Quick Access Banner */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent border border-purple-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-purple-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Camera size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-zinc-950 font-black text-sm sm:text-base">Event Entry Scanner Desk</h3>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">
+                Live Gate Tool
+              </span>
+            </div>
+            <p className="text-zinc-600 text-xs mt-0.5 max-w-xl leading-relaxed">
+              Open the camera QR scanner desk to verify attendee passes at the auditorium entrance. Single-account verification allows users to score pitching startups.
+            </p>
+          </div>
         </div>
-        <p className="text-zinc-600 text-xs leading-relaxed">
-          The Super Admin has permanent master access configured via <code className="text-zinc-900 bg-zinc-200/80 px-1 py-0.5 rounded font-mono">VITE_SUPER_ADMIN_EMAIL</code>.
-          Any email added below will automatically be granted the <strong className="text-zinc-950">Admin</strong> role upon sign-in and stored in Supabase.
-        </p>
+
+        <Link
+          to="/verify"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 transition-all self-start sm:self-auto shadow-sm"
+        >
+          <Camera size={14} />
+          <span>Launch Scanner Desk</span>
+          <ExternalLink size={12} className="opacity-70" />
+        </Link>
       </div>
 
-      {/* Add New Admin Form */}
+      {/* Role Distinction Explainer Card */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200 space-y-1.5">
+          <div className="flex items-center gap-2 text-zinc-950 text-xs font-bold">
+            <Shield size={14} className="text-zinc-950" />
+            <span>Role: Administrator (Admin)</span>
+          </div>
+          <p className="text-zinc-600 text-xs leading-snug">
+            Full control room privileges: start/pause pitches, call teams, set timers, judge scorecards, adjust settings, and view all audit telemetry.
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200 space-y-1.5">
+          <div className="flex items-center gap-2 text-purple-900 text-xs font-bold">
+            <Camera size={14} className="text-purple-700" />
+            <span>Role: Volunteer (Member)</span>
+          </div>
+          <p className="text-purple-800 text-xs leading-snug">
+            Restricted access: Can <strong className="font-semibold">ONLY</strong> access the Camera Scanner Desk and attendee roster (<code className="font-mono">/verify</code>). Blocked from this Admin Control Room.
+          </p>
+        </div>
+      </div>
+
+      {/* Add New Staff Form */}
       <div className="p-6 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-4">
         <h3 className="text-zinc-950 font-bold text-sm flex items-center gap-2">
           <UserPlus size={15} className="text-zinc-950" />
-          Authorize New Administrator
+          Authorize New Staff or Volunteer
         </h3>
-        <form onSubmit={handleAddEmail} className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Mail size={14} className="text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="email"
-              required
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="e.g. colleague@college.edu"
-              className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
-            />
+        <form onSubmit={handleAddStaff} className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Mail size={14} className="text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                required
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="e.g. volunteer@college.edu or team@thebigpitch.in"
+                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white border border-zinc-200 focus:border-zinc-950 text-xs text-zinc-900 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={roleToAssign}
+                onChange={(e) => setRoleToAssign(e.target.value as 'member' | 'admin')}
+                className="px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs font-bold text-zinc-900 outline-none cursor-pointer"
+              >
+                <option value="member">Role: Volunteer (Scanner Desk Only)</option>
+                <option value="admin">Role: Event Administrator (Full Room)</option>
+              </select>
+
+              <Button
+                type="submit"
+                size="sm"
+                loading={loading}
+                icon={<Plus size={14} />}
+                className="justify-center whitespace-nowrap bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm py-2.5"
+              >
+                Authorize Email
+              </Button>
+            </div>
           </div>
-          <Button
-            type="submit"
-            size="sm"
-            loading={loading}
-            icon={<Plus size={14} />}
-            className="justify-center whitespace-nowrap bg-zinc-950 text-white hover:bg-zinc-800 shadow-sm"
-          >
-            Add Admin Email
-          </Button>
         </form>
       </div>
 
-      {/* Current Allowlist List */}
+      {/* Volunteer Members Roster */}
       <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
-          <span className="text-xs font-bold text-zinc-800">
-            Authorized Email Addresses ({allowlist.length})
-          </span>
-          <span className="text-[11px] text-zinc-400 font-mono">Status: Active</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-purple-500" />
+            <span className="text-xs font-bold text-zinc-900">
+              Entry Gate Volunteers / Members ({memberList.length})
+            </span>
+          </div>
+          <span className="text-[11px] text-zinc-400 font-mono">Scanner Desk Access Only</span>
+        </div>
+
+        {memberList.length === 0 ? (
+          <p className="text-zinc-400 text-xs py-3 text-center">
+            No volunteer members assigned yet. Add volunteer emails above to grant door scanner access.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {memberList.map((memberEmail) => (
+              <div
+                key={memberEmail}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-purple-50/40 border border-purple-100 hover:border-purple-200 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <Camera size={14} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-zinc-950 font-mono text-xs font-semibold">{memberEmail}</p>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-200 text-purple-800 font-mono">
+                        Volunteer Member
+                      </span>
+                    </div>
+                    <p className="text-zinc-500 text-[10px]">
+                      Authorized to operate the Entry Scanner Desk (/verify) and verify attendee QR passes.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleRemoveStaff(memberEmail, 'member')}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Revoke volunteer scanner access"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Administrators Roster */}
+      <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-zinc-950" />
+            <span className="text-xs font-bold text-zinc-900">
+              Event Administrators ({adminList.length})
+            </span>
+          </div>
+          <span className="text-[11px] text-zinc-400 font-mono">Full Control Room Access</span>
         </div>
 
         <div className="space-y-2">
-          {allowlist.map((adminEmail) => {
+          {adminList.map((adminEmail) => {
             const isCurrentUser = adminEmail.toLowerCase() === user?.email.toLowerCase()
             const isThisSuperAdmin = isSuperAdmin(adminEmail)
 
@@ -1819,19 +2243,25 @@ function AllowlistTab() {
                 className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    isThisSuperAdmin ? 'bg-zinc-950 text-white' : 'bg-zinc-200 text-zinc-800'
-                  }`}>
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      isThisSuperAdmin ? 'bg-zinc-950 text-white' : 'bg-zinc-200 text-zinc-800'
+                    }`}
+                  >
                     {isThisSuperAdmin ? <ShieldCheck size={15} /> : <Shield size={14} />}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-zinc-950 font-mono text-xs font-semibold">{adminEmail}</p>
                       {isThisSuperAdmin && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-950 text-white font-mono">Super Admin (Protected)</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-950 text-white font-mono">
+                          Super Admin (Protected)
+                        </span>
                       )}
                       {isCurrentUser && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-200 text-zinc-800 font-mono">You (Current)</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-200 text-zinc-800 font-mono">
+                          You (Current)
+                        </span>
                       )}
                     </div>
                     <p className="text-zinc-500 text-[10px]">
@@ -1844,7 +2274,7 @@ function AllowlistTab() {
 
                 {!isCurrentUser && !isThisSuperAdmin && (
                   <button
-                    onClick={() => handleRemoveEmail(adminEmail)}
+                    onClick={() => handleRemoveStaff(adminEmail, 'admin')}
                     className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Revoke admin authorization"
                   >
@@ -2941,6 +3371,16 @@ export function AdminDashboard() {
 
         {/* Quick Launch Buttons */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Link
+            to="/verify"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors"
+            title="Open Gate Scanner & Verification Desk in new tab"
+          >
+            <Camera size={13} />
+            Scanner Desk
+          </Link>
           <Link
             to="/cast"
             target="_blank"

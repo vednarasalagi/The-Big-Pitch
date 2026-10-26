@@ -17,7 +17,10 @@ import { CastScreenPage } from '@/pages/CastScreenPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { TermsPage } from '@/pages/TermsPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
+import { CelebrationPage } from '@/pages/CelebrationPage'
+import { VerificationDeskPage } from '@/pages/VerificationDeskPage'
 import { AdminGuard }     from '@/components/auth/AdminGuard'
+import { StaffGuard }     from '@/components/auth/StaffGuard'
 import { useAuthStore, useEventStore, useWalletStore } from '@/store'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -29,8 +32,9 @@ import {
   getUserInvestments,
   getWalletLedger,
   getUserRewards,
+  getUserProfile,
 } from '@/lib/supabaseApi'
-import { resolveUserRole } from '@/lib/adminConfig'
+import { resolveUserRole, verifyStaffRole, syncAdminAllowlistFromSupabase } from '@/lib/adminConfig'
 import { toast } from 'sonner'
 
 // ── Auth Callback Handler ──────────────────────────────────
@@ -40,26 +44,61 @@ function AuthCallback() {
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    syncAdminAllowlistFromSupabase().catch(() => {})
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         const email = user.email ?? ''
-        const verifiedRole = resolveUserRole(email)
-        setUser({
-          id:          user.id,
-          email,
-          displayName: user.user_metadata?.full_name ?? user.email ?? 'User',
-          avatarUrl:   user.user_metadata?.avatar_url,
-          role:        verifiedRole,
-          createdAt:   user.created_at,
-          updatedAt:   new Date().toISOString(),
-          isVerified:  !!user.email_confirmed_at,
-        })
-        if (verifiedRole === 'admin') {
-          toast.success('Signed in as Administrator. Welcome to Admin Control Room!')
-          setTarget('/admin')
-        } else {
-          toast.success('Welcome to THE BIG PITCH!')
-          setTarget('/')
+        try {
+          const [profile, staffCheck] = await Promise.all([
+            getUserProfile(user.id),
+            verifyStaffRole({ id: user.id, email })
+          ])
+          const baseRole = resolveUserRole(email)
+          const finalRole = staffCheck.isStaff
+            ? staffCheck.role
+            : (profile?.role === 'admin' || baseRole === 'admin'
+              ? 'admin'
+              : (profile?.role === 'member' || baseRole === 'member' ? 'member' : 'audience'))
+
+          setUser({
+            id:          user.id,
+            email,
+            displayName: (profile?.displayName || user.user_metadata?.full_name) ?? user.email ?? 'User',
+            avatarUrl:   profile?.avatarUrl || user.user_metadata?.avatar_url,
+            role:        finalRole,
+            createdAt:   user.created_at,
+            updatedAt:   new Date().toISOString(),
+            isVerified:  !!user.email_confirmed_at,
+            isEntryVerified: finalRole === 'admin' ? true : Boolean(profile?.isEntryVerified),
+            verifiedAt:  profile?.verifiedAt,
+            verifiedBy:  profile?.verifiedBy,
+            passCode:    profile?.passCode,
+          })
+
+          if (finalRole === 'admin') {
+            toast.success('Signed in as Administrator. Welcome to Admin Control Room!')
+            setTarget('/admin')
+          } else if (finalRole === 'member') {
+            toast.success('Signed in as Event Volunteer / Member. Welcome to Entry Verification Desk!')
+            setTarget('/verify')
+          } else {
+            toast.success('Welcome to THE BIG PITCH!')
+            setTarget('/')
+          }
+        } catch {
+          const baseRole = resolveUserRole(email)
+          setUser({
+            id:          user.id,
+            email,
+            displayName: user.user_metadata?.full_name ?? user.email ?? 'User',
+            avatarUrl:   user.user_metadata?.avatar_url,
+            role:        baseRole,
+            createdAt:   user.created_at,
+            updatedAt:   new Date().toISOString(),
+            isVerified:  !!user.email_confirmed_at,
+            isEntryVerified: baseRole === 'admin',
+          })
+          setTarget(baseRole === 'admin' ? '/admin' : (baseRole === 'member' ? '/verify' : '/'))
         }
       } else {
         setTarget('/auth')
@@ -83,9 +122,13 @@ import {
   getRealtimeChannel,
   syncLiveState,
   invalidateStandings,
+  PITCH_ROUND_UPDATE_EVENT,
+  PITCH_TEAMS_UPDATE_EVENT,
+  PITCH_ACTIVE_ROUND_STORAGE_KEY,
+  PITCH_TEAMS_STORAGE_KEY,
 } from '@/lib/realtimeSync'
 
-// ── Realtime Sync Engine (Supabase Broadcast + CDC + Heartbeat) ──
+// ── Realtime Sync Engine (Supabase Broadcast + Cross-Tab + CDC + Heartbeat) ──
 function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { setTeams, setActiveRound } = useEventStore()
   const { user } = useAuthStore()
@@ -93,9 +136,63 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { setWallet } = useWalletStore()
 
   useEffect(() => {
-    if (!supabase) return
+    // 0. Cross-Tab & Same-Origin Event Listeners (0ms latency without websocket roundtrip)
+    const handleLocalRoundUpdate = (e: any) => {
+      if (e.detail?.round !== undefined) {
+        setActiveRound(e.detail.round)
+      }
+    }
 
-    // 1. Singleton Broadcast Channel (0ms peer-to-peer stage push)
+    const handleLocalTeamsUpdate = (e: any) => {
+      if (e.detail?.teams) {
+        setTeams(e.detail.teams)
+      }
+    }
+
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === PITCH_ACTIVE_ROUND_STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          setActiveRound(parsed.round ?? parsed)
+        } catch {}
+      }
+      if (e.key === PITCH_TEAMS_STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          setTeams(parsed.teams ?? parsed)
+        } catch {}
+      }
+    }
+
+    window.addEventListener(PITCH_ROUND_UPDATE_EVENT, handleLocalRoundUpdate)
+    window.addEventListener(PITCH_TEAMS_UPDATE_EVENT, handleLocalTeamsUpdate)
+    window.addEventListener('storage', handleStorageEvent)
+
+    // HTML5 BroadcastChannel for cross-tab communication
+    let crossTabBc: BroadcastChannel | null = null
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        crossTabBc = new BroadcastChannel('pitch_arena_cross_tab')
+        crossTabBc.onmessage = (ev) => {
+          if (ev.data?.type === 'ROUND_UPDATE' && ev.data.round !== undefined) {
+            setActiveRound(ev.data.round)
+          } else if (ev.data?.type === 'TEAMS_UPDATE' && ev.data.teams) {
+            setTeams(ev.data.teams)
+          }
+        }
+      } catch {}
+    }
+
+    if (!supabase) {
+      return () => {
+        window.removeEventListener(PITCH_ROUND_UPDATE_EVENT, handleLocalRoundUpdate)
+        window.removeEventListener(PITCH_TEAMS_UPDATE_EVENT, handleLocalTeamsUpdate)
+        window.removeEventListener('storage', handleStorageEvent)
+        crossTabBc?.close()
+      }
+    }
+
+    // 1. Singleton Broadcast Channel (0ms peer-to-peer stage push across network devices)
     const broadcastChannel = getRealtimeChannel()
     if (broadcastChannel) {
       broadcastChannel
@@ -117,6 +214,14 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
               payload.uniqueBackers ?? 0
             )
             invalidateStandings(payload.teamId)
+          }
+        })
+        .on('broadcast', { event: 'CELEBRATE_WINNER' }, ({ payload }) => {
+          if (payload && typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('pitch_arena_stage_celebration', JSON.stringify(payload))
+            } catch {}
+            window.dispatchEvent(new CustomEvent('pitch-stage-celebration', { detail: payload }))
           }
         })
         .subscribe()
@@ -184,6 +289,11 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('online', handleVisibilityOrFocus)
 
     return () => {
+      window.removeEventListener(PITCH_ROUND_UPDATE_EVENT, handleLocalRoundUpdate)
+      window.removeEventListener(PITCH_TEAMS_UPDATE_EVENT, handleLocalTeamsUpdate)
+      window.removeEventListener('storage', handleStorageEvent)
+      crossTabBc?.close()
+
       clearInterval(heartbeatTimer)
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
       window.removeEventListener('focus', handleVisibilityOrFocus)
@@ -209,18 +319,35 @@ export default function App() {
     if (!supabase) return
 
     setLoading(true)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    syncAdminAllowlistFromSupabase().catch(() => {})
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const email = session.user.email ?? ''
+        const [profile, staffCheck] = await Promise.all([
+          getUserProfile(session.user.id),
+          verifyStaffRole({ id: session.user.id, email })
+        ])
+        const baseRole = resolveUserRole(email)
+        const finalRole = staffCheck.isStaff
+          ? staffCheck.role
+          : (profile?.role === 'admin' || baseRole === 'admin'
+            ? 'admin'
+            : (profile?.role === 'member' || baseRole === 'member' ? 'member' : 'audience'))
+
         setUser({
           id:          session.user.id,
           email,
-          displayName: session.user.user_metadata?.full_name ?? 'User',
-          avatarUrl:   session.user.user_metadata?.avatar_url,
-          role:        resolveUserRole(email),
+          displayName: (profile?.displayName || session.user.user_metadata?.full_name) ?? 'User',
+          avatarUrl:   profile?.avatarUrl || session.user.user_metadata?.avatar_url,
+          role:        finalRole,
           createdAt:   session.user.created_at,
           updatedAt:   new Date().toISOString(),
           isVerified:  !!session.user.email_confirmed_at,
+          isEntryVerified: finalRole === 'admin' ? true : Boolean(profile?.isEntryVerified),
+          verifiedAt:  profile?.verifiedAt,
+          verifiedBy:  profile?.verifiedBy,
+          passCode:    profile?.passCode,
         })
       } else {
         setUser(null)
@@ -228,18 +355,33 @@ export default function App() {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         const email = session.user.email ?? ''
+        const [profile, staffCheck] = await Promise.all([
+          getUserProfile(session.user.id),
+          verifyStaffRole({ id: session.user.id, email })
+        ])
+        const baseRole = resolveUserRole(email)
+        const finalRole = staffCheck.isStaff
+          ? staffCheck.role
+          : (profile?.role === 'admin' || baseRole === 'admin'
+            ? 'admin'
+            : (profile?.role === 'member' || baseRole === 'member' ? 'member' : 'audience'))
+
         setUser({
           id:          session.user.id,
           email,
-          displayName: session.user.user_metadata?.full_name ?? 'User',
-          avatarUrl:   session.user.user_metadata?.avatar_url,
-          role:        resolveUserRole(email),
+          displayName: (profile?.displayName || session.user.user_metadata?.full_name) ?? 'User',
+          avatarUrl:   profile?.avatarUrl || session.user.user_metadata?.avatar_url,
+          role:        finalRole,
           createdAt:   session.user.created_at,
           updatedAt:   new Date().toISOString(),
           isVerified:  !!session.user.email_confirmed_at,
+          isEntryVerified: finalRole === 'admin' ? true : Boolean(profile?.isEntryVerified),
+          verifiedAt:  profile?.verifiedAt,
+          verifiedBy:  profile?.verifiedBy,
+          passCode:    profile?.passCode,
         })
       } else {
         setUser(null)
@@ -329,6 +471,17 @@ export default function App() {
                   <AdminDashboard />
                 </AdminGuard>
               } />
+              {/* Event Entry Gate Verification Scanner Desk (Volunteers & Admins) */}
+              <Route path="/verify" element={
+                <StaffGuard>
+                  <VerificationDeskPage />
+                </StaffGuard>
+              } />
+              <Route path="/scan" element={
+                <StaffGuard>
+                  <VerificationDeskPage />
+                </StaffGuard>
+              } />
               {/* Legal Compliance Routes — Consolidated into Terms and Privacy */}
               <Route path="/terms"                 element={<TermsPage />} />
               <Route path="/terms-and-conditions"  element={<TermsPage />} />
@@ -344,6 +497,8 @@ export default function App() {
 
               <Route path="/cast"          element={<CastScreenPage />} />
               <Route path="/projector"     element={<CastScreenPage />} />
+              <Route path="/celebrate"     element={<CelebrationPage />} />
+              <Route path="/winner"        element={<CelebrationPage />} />
               <Route path="*"              element={<NotFoundPage />} />
             </Routes>
           </motion.div>
