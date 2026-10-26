@@ -63,6 +63,16 @@ import {
   setStoredCelebrationAudioUrl,
   STAGE_CELEBRATION_EVENT,
 } from '@/lib/realtimeSync'
+import {
+  resolvePlayableAudioUrl,
+  saveTrackToIndexedDB,
+  getTrackFromIndexedDB,
+  clearTrackFromIndexedDB,
+  createOrReuseBlobUrl,
+  dataUrlToBlob,
+  getStoredCelebrationTrackName,
+  setStoredCelebrationTrackName,
+} from '@/lib/celebrationAudioStorage'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { Team, OfficialResult } from '@/types'
@@ -730,10 +740,77 @@ function ControlTab() {
   const [celebrationAudioUrl, setCelebrationAudioUrl] = useState<string>(() => {
     return getStoredCelebrationAudioUrl() || ''
   })
+  const [celebrationTrackName, setCelebrationTrackName] = useState<string>(() => {
+    return getStoredCelebrationTrackName() || ''
+  })
   const [uploadingAudio, setUploadingAudio] = useState(false)
   const [isPlayingAudioPreview, setIsPlayingAudioPreview] = useState(false)
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null)
   const audioFileInputRef = useRef<HTMLInputElement>(null)
+
+  // Initialize and migrate legacy audio data URLs or load from IndexedDB
+  useEffect(() => {
+    let isCancelled = false
+
+    async function initAudio() {
+      const stored = getStoredCelebrationAudioUrl()
+      const storedTrackName = getStoredCelebrationTrackName()
+      if (storedTrackName && !isCancelled) {
+        setCelebrationTrackName(storedTrackName)
+      }
+
+      if (stored) {
+        if (stored.startsWith('data:')) {
+          try {
+            const blob = dataUrlToBlob(stored)
+            const name = storedTrackName || 'celebration_music.mp3'
+            await saveTrackToIndexedDB(blob, name, blob.type)
+            const blobUrl = createOrReuseBlobUrl(blob)
+            if (!isCancelled) {
+              setCelebrationAudioUrl(blobUrl)
+              setCelebrationTrackName(name)
+              setStoredCelebrationAudioUrl('indexeddb:celebration_track')
+            }
+          } catch (e) {
+            console.warn('Could not migrate legacy audio data URL:', e)
+          }
+        } else if (stored.startsWith('indexeddb:')) {
+          const playable = await resolvePlayableAudioUrl(stored)
+          if (!isCancelled && playable) {
+            setCelebrationAudioUrl(playable)
+          }
+        } else if (stored.startsWith('http://') || stored.startsWith('https://')) {
+          if (!isCancelled) {
+            setCelebrationAudioUrl(stored)
+            if (!storedTrackName) {
+              const guessedName = decodeURIComponent(stored.split('/').pop()?.replace(/^celebration_\d+_/, '') || '')
+              if (guessedName) {
+                setCelebrationTrackName(guessedName)
+                setStoredCelebrationTrackName(guessedName)
+              }
+            }
+          }
+        }
+      } else {
+        const track = await getTrackFromIndexedDB()
+        if (track && !isCancelled) {
+          const blobUrl = createOrReuseBlobUrl(track.blob)
+          setCelebrationAudioUrl(blobUrl)
+          setStoredCelebrationAudioUrl('indexeddb:celebration_track')
+          if (track.fileName) {
+            setCelebrationTrackName(track.fileName)
+            setStoredCelebrationTrackName(track.fileName)
+          }
+        }
+      }
+    }
+
+    initAudio()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -744,19 +821,25 @@ function ControlTab() {
       if (res.success && res.url) {
         setCelebrationAudioUrl(res.url)
         setStoredCelebrationAudioUrl(res.url)
-        toast.success(`Celebration music "${file.name}" uploaded successfully!`)
+        setCelebrationTrackName(file.name)
+        setStoredCelebrationTrackName(file.name)
+        toast.success(`Celebration music "${file.name}" uploaded to Supabase Storage!`)
       } else {
-        toast.error(res.error || 'Failed to upload audio file')
+        toast.error(res.error || 'Failed to upload audio file to Supabase Storage')
+        if (res.url) {
+          setCelebrationAudioUrl(res.url)
+          setCelebrationTrackName(file.name)
+        }
       }
-    } catch {
-      toast.error('Failed to process audio file')
+    } catch (err: any) {
+      toast.error('Failed to process audio file: ' + (err?.message || 'Unknown error'))
     } finally {
       setUploadingAudio(false)
       if (audioFileInputRef.current) audioFileInputRef.current.value = ''
     }
   }
 
-  const handleToggleAudioPreview = () => {
+  const handleToggleAudioPreview = async () => {
     if (!celebrationAudioUrl) return
     if (isPlayingAudioPreview) {
       if (audioPreviewRef.current) {
@@ -764,30 +847,56 @@ function ControlTab() {
         audioPreviewRef.current.currentTime = 0
       }
       setIsPlayingAudioPreview(false)
-    } else {
-      if (!audioPreviewRef.current) {
-        audioPreviewRef.current = new Audio(celebrationAudioUrl)
-        audioPreviewRef.current.onended = () => setIsPlayingAudioPreview(false)
-      } else {
-        audioPreviewRef.current.src = celebrationAudioUrl
+      return
+    }
+
+    try {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause()
+        audioPreviewRef.current.currentTime = 0
+        audioPreviewRef.current = null
       }
-      audioPreviewRef.current.play().then(() => {
-        setIsPlayingAudioPreview(true)
-      }).catch(err => {
-        toast.error('Unable to play audio: ' + err.message)
+
+      const playable = await resolvePlayableAudioUrl(celebrationAudioUrl)
+      if (!playable) {
+        toast.error('Audio file not found or corrupted. Please click "Change Audio File" to re-upload.')
+        return
+      }
+
+      const audio = new Audio(playable)
+      audioPreviewRef.current = audio
+
+      audio.onended = () => {
         setIsPlayingAudioPreview(false)
-      })
+      }
+      audio.onerror = () => {
+        console.error('Audio preview error:', audio.error)
+        toast.error('Unable to play audio: The file format is not supported or the source is unavailable. Please try an MP3 or WAV file.')
+        setIsPlayingAudioPreview(false)
+      }
+
+      await audio.play()
+      setIsPlayingAudioPreview(true)
+    } catch (err: any) {
+      console.error('Test play exception:', err)
+      toast.error('Unable to play audio: ' + (err?.message || 'Unsupported format or playback error'))
+      setIsPlayingAudioPreview(false)
     }
   }
 
-  const handleRemoveAudio = () => {
+  const handleRemoveAudio = async () => {
     if (audioPreviewRef.current) {
       audioPreviewRef.current.pause()
       audioPreviewRef.current.currentTime = 0
+      audioPreviewRef.current.src = ''
+      audioPreviewRef.current = null
     }
     setIsPlayingAudioPreview(false)
     setCelebrationAudioUrl('')
     setStoredCelebrationAudioUrl(null)
+    setCelebrationTrackName('')
+    setStoredCelebrationTrackName(null)
+    await clearTrackFromIndexedDB()
     toast.info('Custom celebration music removed. Default fanfare will play.')
   }
 
@@ -1245,23 +1354,47 @@ function ControlTab() {
         {/* Custom Celebration Music Controller */}
         <div className="mt-4 pt-4 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-50/80 -mx-5 -mb-5 p-4 rounded-b-2xl">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center flex-shrink-0">
-              <Music size={15} />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+              celebrationAudioUrl
+                ? 'bg-emerald-500/15 border border-emerald-400/30 text-emerald-700'
+                : 'bg-amber-500/15 border border-amber-400/30 text-amber-700'
+            }`}>
+              <Music size={16} className={isPlayingAudioPreview ? 'animate-bounce' : ''} />
             </div>
             <div className="min-w-0">
-              <p className="text-zinc-900 text-xs font-bold flex items-center gap-2">
-                <span>Celebration Music Track</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-zinc-900 text-xs font-bold">Celebration Music Track</span>
                 {celebrationAudioUrl ? (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">Custom Track Active</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">
+                    Custom Track Active
+                  </span>
                 ) : (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-600 font-medium">Built-in Fanfare</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-600 font-medium">
+                    Built-in Fanfare
+                  </span>
                 )}
-              </p>
-              <p className="text-zinc-500 text-[11px] truncate">
-                {celebrationAudioUrl
-                  ? 'Plays automatically on the projector celebration screen.'
-                  : 'Upload an MP3, WAV or M4A track to play during winner coronation.'}
-              </p>
+              </div>
+
+              {celebrationAudioUrl ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white border border-zinc-200 shadow-2xs max-w-[280px] sm:max-w-[360px]">
+                    <Music size={11} className="text-emerald-600 flex-shrink-0" />
+                    <span className="text-zinc-800 font-semibold text-xs truncate" title={celebrationTrackName || 'Celebration Track'}>
+                      {celebrationTrackName || 'celebration_track.mp3'}
+                    </span>
+                  </div>
+                  {isPlayingAudioPreview && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      Previewing...
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-[11px] mt-0.5 truncate">
+                  Upload an MP3, WAV or M4A track to play during winner coronation.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1270,7 +1403,7 @@ function ControlTab() {
               type="file"
               ref={audioFileInputRef}
               onChange={handleAudioUpload}
-              accept="audio/mp3,audio/mpeg,audio/wav,audio/m4a,audio/ogg"
+              accept="audio/mp3,audio/mpeg,audio/wav,audio/m4a,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
               className="hidden"
             />
 
@@ -1291,7 +1424,11 @@ function ControlTab() {
                   size="sm"
                   variant="secondary"
                   onClick={handleToggleAudioPreview}
-                  className="text-xs py-1.5 px-2.5 bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-800"
+                  className={`text-xs py-1.5 px-2.5 border transition-colors ${
+                    isPlayingAudioPreview
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-800'
+                  }`}
                   icon={isPlayingAudioPreview ? <Pause size={12} /> : <Play size={12} />}
                 >
                   {isPlayingAudioPreview ? 'Pause' : 'Test Play'}

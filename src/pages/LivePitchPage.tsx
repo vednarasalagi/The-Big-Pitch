@@ -438,6 +438,43 @@ export function LivePitchPage() {
     }
   }, [activeRound?.status, activeRound?.investmentCloseTime, activeRound?.pitchStartTime, activeRound?.createdAt, isPaused, isInvestmentOpen, isPitchPhase])
 
+  // ── UNAUTHENTICATED GATE ──
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in">
+        <div className="w-20 h-20 rounded-3xl skeuo-surface shadow-[0_8px_30px_-6px_rgba(0,0,0,0.12),inset_0_1px_0_#FFF] flex items-center justify-center mx-auto">
+          <Radio size={36} className="text-zinc-400" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-zinc-950 skeuo-text-emboss tracking-tight">
+            Sign In to Watch Live
+          </h2>
+          <p className="text-zinc-500 text-sm leading-relaxed max-w-xs mx-auto">
+            You need to be signed in to access the Live Pitch stage, back startups, and compete on the leaderboard.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+          <Link to="/auth" className="flex-1">
+            <Button className="w-full justify-center skeuo-btn-primary text-sm font-bold py-3">
+              Sign In
+            </Button>
+          </Link>
+          <Link to="/auth?tab=signup" className="flex-1">
+            <Button variant="secondary" className="w-full justify-center text-sm font-bold py-3">
+              Create Account
+            </Button>
+          </Link>
+        </div>
+        <p className="text-zinc-400 text-xs">
+          Already have a pass?{' '}
+          <Link to="/auth" className="text-zinc-700 font-bold underline underline-offset-2">
+            Sign in here →
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
   if (!activeRound || !team) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 animate-fade-in text-zinc-900">
@@ -527,20 +564,19 @@ export function LivePitchPage() {
   const isExpired = isInvestmentOpen && timeLeft === 0
 
   return (
-    <div className="max-w-md mx-auto px-3 sm:px-4 py-2 sm:py-3 min-h-[calc(100dvh-4.25rem)] flex flex-col justify-between gap-2 animate-fade-in text-zinc-900 overflow-hidden">
-      {/* ── 1. COMPACT TOP HEADER: STARTUP LOGO & NAME + LIVE STATUS ── */}
-      <div className="skeuo-surface p-2.5 sm:p-3 rounded-2xl flex items-center justify-between gap-2.5 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF] flex-shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {/* Startup Logo (Upload/Display) */}
-          <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs">
+    <div className="w-full max-w-5xl mx-auto px-3 sm:px-5 lg:px-6 py-3 sm:py-4 min-h-[calc(100dvh-4.25rem)] flex flex-col gap-3 animate-fade-in text-zinc-900">
+
+      {/* ── 1. STARTUP HEADER ── */}
+      <div className="skeuo-surface p-3 sm:p-4 rounded-2xl flex items-center justify-between gap-3 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF] flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Startup Logo */}
+          <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
             {team.logoUrl ? (
               <img
                 src={team.logoUrl}
                 alt={team.name}
                 className="w-full h-full object-contain p-0.5"
-                onError={(e) => {
-                  ;(e.target as HTMLElement).style.display = 'none'
-                }}
+                onError={(e) => { ;(e.target as HTMLElement).style.display = 'none' }}
               />
             ) : (
               <div className="w-full h-full bg-zinc-950 text-white font-mono font-black text-sm flex items-center justify-center">
@@ -550,230 +586,238 @@ export function LivePitchPage() {
           </div>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 truncate">
-              <h1 className="text-base font-black text-zinc-950 truncate tracking-tight skeuo-text-emboss">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base sm:text-lg md:text-xl font-black text-zinc-950 tracking-tight skeuo-text-emboss truncate">
                 {team.name}
               </h1>
               {team.category && (
-                <span className="px-1.5 py-0.2 rounded-md bg-zinc-100 text-[9px] font-bold text-zinc-600 border border-zinc-200 flex-shrink-0">
+                <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-[10px] sm:text-xs font-bold text-zinc-600 border border-zinc-200 flex-shrink-0">
                   {team.category}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               {isPitchPhase ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded-full">
+                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
                   Pitching
                 </span>
               ) : isInvestmentOpen ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full">
+                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Scoring Open
                 </span>
               ) : isPaused ? (
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded-full">
-                  Paused
-                </span>
+                <span className="text-[11px] sm:text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Paused</span>
               ) : (
-                <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-1.5 py-0.2 rounded-full">
-                  Closed
-                </span>
+                <span className="text-[11px] sm:text-xs font-bold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">Closed</span>
               )}
-              <span className="text-[10px] text-zinc-400 font-mono font-bold">#{team.pitchOrder}</span>
+              <span className="text-[10px] sm:text-xs text-zinc-400 font-mono font-bold">#{team.pitchOrder}</span>
             </div>
           </div>
         </div>
 
         {/* Live Countdown Clock */}
         {(isPitchPhase || isInvestmentOpen) && (
-          <div className="skeuo-sunken px-2.5 py-1 rounded-xl text-right flex-shrink-0 border border-zinc-200/60">
-            <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-zinc-500 justify-end">
+          <div className="skeuo-sunken px-3 py-1.5 rounded-xl text-right flex-shrink-0 border border-zinc-200/60">
+            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] uppercase tracking-wider font-bold text-zinc-500 justify-end">
               <Clock size={10} className={isUrgent ? 'text-rose-500 animate-pulse' : 'text-zinc-400'} />
               <span>{isPitchPhase ? 'Pitch' : 'Time'}</span>
             </div>
-            <p className={`font-mono font-black text-sm leading-tight mt-0.5 ${isUrgent ? 'text-rose-600 animate-pulse' : 'text-zinc-950'}`}>
+            <p className={`font-mono font-black text-base sm:text-lg leading-tight mt-0.5 ${isUrgent ? 'text-rose-600 animate-pulse' : 'text-zinc-950'}`}>
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </p>
           </div>
         )}
       </div>
 
-      {/* Gate Verification Required Bar (if user not verified) */}
+      {/* Gate Verification Bar */}
       {user && !isGateVerified && (
-        <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-950 flex items-center justify-between gap-2 shadow-xs flex-shrink-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <QrCode size={14} className="text-amber-800 flex-shrink-0" />
-            <p className="text-[10px] sm:text-[11px] font-bold truncate">Gate verification required before scoring</p>
+        <div className="p-2.5 sm:p-3 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-950 flex items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <QrCode size={15} className="text-amber-800 flex-shrink-0" />
+            <p className="text-xs sm:text-sm font-bold truncate">Gate verification required before scoring</p>
           </div>
           <Button
             size="sm"
             onClick={() => setPassModalOpen(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] py-0.5 px-2.5 flex-shrink-0 h-7"
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-1 px-3 flex-shrink-0"
           >
             Show QR
           </Button>
         </div>
       )}
 
-      {/* ── 2. TOP 3 INVESTORS IN A SINGLE LINE (PROJECTOR FORMAT, NO POSITIONS 4 & 5) ── */}
-      <div className="skeuo-surface p-2.5 rounded-2xl shadow-[0_4px_16px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF] flex-shrink-0 space-y-1">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1">
-            <Crown size={12} className="text-amber-500" />
-            <h2 className="text-[10px] font-black text-zinc-950 uppercase tracking-wider skeuo-text-emboss">
-              Top 3 Investors
-            </h2>
+      {/* ── MAIN CONTENT: responsive 1-col mobile / 2-col desktop ── */}
+      <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
+
+        {/* LEFT COLUMN: Top 3 + User Position */}
+        <div className="flex flex-col gap-3 lg:flex-1">
+
+          {/* ── 2. TOP 3 INVESTORS ── */}
+          <div className="skeuo-surface p-3 sm:p-4 rounded-2xl shadow-[0_4px_16px_-4px_rgba(0,0,0,0.06),inset_0_1px_0_#FFF] space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <Crown size={13} className="text-amber-500" />
+                <h2 className="text-xs sm:text-sm font-black text-zinc-950 uppercase tracking-wider skeuo-text-emboss">
+                  Top 3 Investors
+                </h2>
+              </div>
+              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-zinc-400">Podium · Single Line</span>
+            </div>
+
+            {(() => {
+              const rank1 = teamStandings[0]
+              const rank2 = teamStandings[1]
+              const rank3 = teamStandings[2]
+
+              return (
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 items-start text-center pt-1">
+                  {/* #1 GOLD */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative mb-1.5">
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
+                        <Crown size={14} className="text-amber-400 fill-amber-400 drop-shadow-[0_1px_3px_rgba(251,191,36,0.9)] animate-pulse" />
+                      </div>
+                      <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-amber-500 shadow-[0_3px_10px_rgba(245,158,11,0.35)]">
+                        <Avatar
+                          name={rank1?.displayName || 'Leader'}
+                          src={rank1?.avatarUrl}
+                          size="md"
+                          className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-xs sm:text-sm font-black border-2 border-white shadow-inner bg-zinc-900 text-white"
+                        />
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full skeuo-token-gold font-mono font-black text-[9px] sm:text-[10px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
+                        1
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-black text-zinc-950 truncate w-full leading-tight px-1">
+                      {rank1 ? rank1.displayName : 'Awaiting #1'}
+                    </p>
+                    <span className="mt-0.5 px-2 py-0.5 rounded-full skeuo-token-gold font-mono font-black text-[9px] sm:text-[10px] text-zinc-950">
+                      {rank1 ? formatPoints(rank1.amount) : '0'} pts
+                    </span>
+                  </div>
+
+                  {/* #2 SILVER */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative mb-1.5">
+                      <div className="p-0.5 rounded-full bg-gradient-to-tr from-zinc-400 via-zinc-200 to-zinc-400 shadow-sm">
+                        <Avatar
+                          name={rank2?.displayName || 'Runner Up'}
+                          src={rank2?.avatarUrl}
+                          size="sm"
+                          className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 text-[11px] sm:text-xs font-black border-2 border-white shadow-inner bg-zinc-800 text-white"
+                        />
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full skeuo-token-silver font-mono font-black text-[8px] sm:text-[9px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
+                        2
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-zinc-950 truncate w-full leading-tight px-1">
+                      {rank2 ? rank2.displayName : 'Awaiting #2'}
+                    </p>
+                    <span className="mt-0.5 px-2 py-0.5 rounded-full skeuo-token-silver font-mono font-black text-[9px] sm:text-[10px] text-zinc-900">
+                      {rank2 ? formatPoints(rank2.amount) : '0'} pts
+                    </span>
+                  </div>
+
+                  {/* #3 BRONZE */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative mb-1.5">
+                      <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-700 via-amber-400 to-amber-700 shadow-sm">
+                        <Avatar
+                          name={rank3?.displayName || 'Contender'}
+                          src={rank3?.avatarUrl}
+                          size="sm"
+                          className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 text-[11px] sm:text-xs font-black border-2 border-white shadow-inner bg-zinc-800 text-white"
+                        />
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full skeuo-token-bronze font-mono font-black text-[8px] sm:text-[9px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
+                        3
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-zinc-950 truncate w-full leading-tight px-1">
+                      {rank3 ? rank3.displayName : 'Awaiting #3'}
+                    </p>
+                    <span className="mt-0.5 px-2 py-0.5 rounded-full skeuo-token-bronze font-mono font-black text-[9px] sm:text-[10px] text-amber-950">
+                      {rank3 ? formatPoints(rank3.amount) : '0'} pts
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
-          <span className="text-[9px] font-mono font-bold text-zinc-400">Podium · Single Line</span>
+
+          {/* ── 3. USER'S POSITION ── */}
+          {(() => {
+            const myStanding = teamStandings.find(s => s.userId === user?.id)
+            if (myStanding) {
+              return (
+                <div className="p-3 sm:p-4 rounded-xl bg-zinc-950 text-white flex items-center justify-between gap-3 shadow-sm border border-zinc-900 flex-shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md skeuo-token-gold text-zinc-950 font-mono font-black text-xs sm:text-sm flex items-center justify-center flex-shrink-0">
+                      #{myStanding.rank}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-bold truncate">
+                        {myStanding.rank === 1 ? '🏆 You are the #1 Leader!' : 'Your Live Ranking Position'}
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-zinc-400 truncate">
+                        Rank #{myStanding.rank} of {teamStandings.length} backers
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 font-mono">
+                    <p className="text-sm sm:text-base font-black text-amber-400">{formatPoints(myStanding.amount)} pts</p>
+                    <p className="text-[10px] sm:text-xs text-zinc-400">{formatExactMs(myStanding.timeElapsedMs)}</p>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div className="p-3 sm:p-3.5 rounded-xl skeuo-sunken flex items-center justify-between gap-2 text-xs text-zinc-600 flex-shrink-0 border border-zinc-200/80">
+                <div className="flex items-center gap-2 truncate">
+                  <Trophy size={14} className="text-zinc-400 flex-shrink-0" />
+                  <span className="truncate text-xs sm:text-sm font-medium">
+                    Your Position: <strong className="text-zinc-900">Not Backed Yet</strong>
+                  </span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 flex-shrink-0">Deploy below to enter</span>
+              </div>
+            )
+          })()}
         </div>
 
-        {(() => {
-          const rank1 = teamStandings[0]
-          const rank2 = teamStandings[1]
-          const rank3 = teamStandings[2]
-
-          return (
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 items-start text-center pt-1">
-              {/* #1 GOLD CHAMPION */}
-              <div className="flex flex-col items-center">
-                <div className="relative mb-1">
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                    <Crown size={13} className="text-amber-400 fill-amber-400 drop-shadow-[0_1px_3px_rgba(251,191,36,0.9)] animate-pulse" />
-                  </div>
-                  <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-amber-200 to-amber-500 shadow-[0_3px_10px_rgba(245,158,11,0.35)]">
-                    <Avatar
-                      name={rank1?.displayName || 'Leader'}
-                      src={rank1?.avatarUrl}
-                      size="md"
-                      className="w-11 h-11 text-xs font-black border-2 border-white shadow-inner bg-zinc-900 text-white"
-                    />
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full skeuo-token-gold font-mono font-black text-[9px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
-                    1
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-[11px] font-black text-zinc-950 truncate max-w-[95px] leading-tight">
-                  {rank1 ? rank1.displayName : 'Awaiting #1'}
-                </p>
-                <span className="mt-0.5 px-2 py-0.2 rounded-full skeuo-token-gold font-mono font-black text-[9px] text-zinc-950">
-                  {rank1 ? formatPoints(rank1.amount) : '0'} pts
-                </span>
+        {/* RIGHT COLUMN (or bottom on mobile): Investment Panel */}
+        <div className="lg:w-80 xl:w-96 flex-shrink-0 flex flex-col justify-end">
+          {isInvestmentOpen && !isExpired ? (
+            <InvestmentPanel teamId={team.id} roundId={activeRound.id} />
+          ) : isPitchPhase ? (
+            <div className="p-4 sm:p-5 rounded-2xl skeuo-sunken text-center space-y-2">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl skeuo-surface flex items-center justify-center mx-auto text-blue-500 shadow-sm">
+                <Radio size={22} />
               </div>
-
-              {/* #2 SILVER RUNNER UP */}
-              <div className="flex flex-col items-center">
-                <div className="relative mb-1">
-                  <div className="p-0.5 rounded-full bg-gradient-to-tr from-zinc-400 via-zinc-200 to-zinc-400 shadow-xs">
-                    <Avatar
-                      name={rank2?.displayName || 'Runner Up'}
-                      src={rank2?.avatarUrl}
-                      size="sm"
-                      className="w-10 h-10 text-[11px] font-black border-2 border-white shadow-inner bg-zinc-800 text-white"
-                    />
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full skeuo-token-silver font-mono font-black text-[8px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
-                    2
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-[11px] font-bold text-zinc-950 truncate max-w-[95px] leading-tight">
-                  {rank2 ? rank2.displayName : 'Awaiting #2'}
-                </p>
-                <span className="mt-0.5 px-2 py-0.2 rounded-full skeuo-token-silver font-mono font-black text-[9px] text-zinc-900">
-                  {rank2 ? formatPoints(rank2.amount) : '0'} pts
-                </span>
-              </div>
-
-              {/* #3 BRONZE RUNNER UP */}
-              <div className="flex flex-col items-center">
-                <div className="relative mb-1">
-                  <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-700 via-amber-400 to-amber-700 shadow-xs">
-                    <Avatar
-                      name={rank3?.displayName || 'Contender'}
-                      src={rank3?.avatarUrl}
-                      size="sm"
-                      className="w-10 h-10 text-[11px] font-black border-2 border-white shadow-inner bg-zinc-800 text-white"
-                    />
-                  </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full skeuo-token-bronze font-mono font-black text-[8px] flex items-center justify-center shadow-xs border border-white text-zinc-950">
-                    3
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-[11px] font-bold text-zinc-950 truncate max-w-[95px] leading-tight">
-                  {rank3 ? rank3.displayName : 'Awaiting #3'}
-                </p>
-                <span className="mt-0.5 px-2 py-0.2 rounded-full skeuo-token-bronze font-mono font-black text-[9px] text-amber-950">
-                  {rank3 ? formatPoints(rank3.amount) : '0'} pts
-                </span>
-              </div>
+              <p className="text-zinc-950 font-black text-sm sm:text-base skeuo-text-emboss">
+                Presentation in Progress
+              </p>
+              <p className="text-zinc-500 text-xs sm:text-sm max-w-xs mx-auto leading-relaxed">
+                Scoring window opens as soon as the founders conclude their pitch!
+              </p>
             </div>
-          )
-        })()}
-      </div>
-
-      {/* ── 3. USER'S OWN POSITION (DIRECTLY BELOW TOP 3) ── */}
-      {(() => {
-        const myStanding = teamStandings.find(s => s.userId === user?.id)
-        if (myStanding) {
-          return (
-            <div className="p-2 rounded-xl bg-zinc-950 text-white flex items-center justify-between gap-2 shadow-xs border border-zinc-900 flex-shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-6 h-6 rounded-md skeuo-token-gold text-zinc-950 font-mono font-black text-[11px] flex items-center justify-center flex-shrink-0">
-                  #{myStanding.rank}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold truncate">
-                    {myStanding.rank === 1 ? '🏆 You are the #1 Leader!' : 'Your Live Ranking Position'}
-                  </p>
-                  <p className="text-[9px] text-zinc-400 truncate">
-                    Rank #{myStanding.rank} of {teamStandings.length} backers
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right flex-shrink-0 font-mono">
-                <p className="text-xs font-black text-amber-400">{formatPoints(myStanding.amount)} pts</p>
-                <p className="text-[9px] text-zinc-400">{formatExactMs(myStanding.timeElapsedMs)}</p>
-              </div>
+          ) : isPaused ? (
+            <div className="p-4 sm:p-5 rounded-2xl skeuo-sunken border border-amber-300 bg-amber-50/40 text-center">
+              <p className="text-amber-900 font-bold text-sm sm:text-base">⏸️ Scoring Temporarily Paused</p>
+              <p className="text-amber-700 text-xs sm:text-sm mt-1">Stage control will resume shortly.</p>
             </div>
-          )
-        }
-
-        return (
-          <div className="p-2 rounded-xl skeuo-sunken flex items-center justify-between gap-2 text-xs text-zinc-600 flex-shrink-0 border border-zinc-200/80">
-            <div className="flex items-center gap-1.5 truncate">
-              <Trophy size={13} className="text-zinc-400 flex-shrink-0" />
-              <span className="truncate text-[10px] sm:text-[11px] font-medium">
-                Your Position: <strong className="text-zinc-900">Not Backed Yet</strong>
-              </span>
+          ) : (
+            <div className="p-4 sm:p-5 rounded-2xl skeuo-sunken text-center">
+              <p className="text-zinc-700 font-bold text-sm sm:text-base skeuo-text-emboss">Scoring Window Closed for this Round</p>
             </div>
-            <span className="text-[9px] sm:text-[10px] font-bold text-zinc-400 flex-shrink-0">Deploy below to enter</span>
-          </div>
-        )
-      })()}
+          )}
+        </div>
 
-      {/* ── 4. INVESTMENT WINDOW (BELOW USER'S POSITION) ── */}
-      <div className="flex-1 min-h-0 flex flex-col justify-end">
-        {isInvestmentOpen && !isExpired ? (
-          <InvestmentPanel teamId={team.id} roundId={activeRound.id} />
-        ) : isPitchPhase ? (
-          <div className="p-3.5 rounded-2xl skeuo-sunken text-center space-y-1 my-auto">
-            <p className="text-zinc-950 font-black text-xs sm:text-sm skeuo-text-emboss">
-              Startup Presentation in Progress
-            </p>
-            <p className="text-zinc-500 text-[11px] max-w-xs mx-auto">
-              Scoring window will open authoritatively as soon as the founders conclude their pitch!
-            </p>
-          </div>
-        ) : isPaused ? (
-          <div className="p-3.5 rounded-2xl skeuo-sunken border border-amber-300 text-center my-auto">
-            <p className="text-amber-900 font-bold text-xs">⏸️ Scoring Round Temporarily Paused by Stage Control</p>
-          </div>
-        ) : (
-          <div className="p-3.5 rounded-2xl skeuo-sunken text-center my-auto">
-            <p className="text-zinc-700 font-bold text-xs skeuo-text-emboss">Scoring Window Closed for this Round</p>
-          </div>
-        )}
       </div>
 
       <EntryPassModal isOpen={passModalOpen} onClose={() => setPassModalOpen(false)} />

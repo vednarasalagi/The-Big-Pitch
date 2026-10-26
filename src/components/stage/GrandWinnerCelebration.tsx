@@ -17,6 +17,7 @@ import {
   playCelebrationFanfare,
   getStoredCelebrationAudioUrl,
 } from '@/lib/realtimeSync'
+import { resolvePlayableAudioUrl } from '@/lib/celebrationAudioStorage'
 
 interface GrandWinnerCelebrationProps {
   celebration: WinnerCelebrationPayload | null
@@ -92,18 +93,29 @@ export function GrandWinnerCelebration({
 
     // Play celebration audio (Custom music uploaded from Admin Panel, or fallback fanfare)
     const customAudioUrl = celebration.audioUrl || getStoredCelebrationAudioUrl()
+    let isCancelled = false
+
     if (!muted) {
       if (customAudioUrl) {
-        try {
-          const audio = new Audio(customAudioUrl)
-          audioRef.current = audio
-          audio.play().catch(err => {
-            console.warn('Custom celebration audio playback failed, falling back to fanfare:', err)
+        resolvePlayableAudioUrl(customAudioUrl).then(playable => {
+          if (isCancelled) return
+          if (!playable) {
             playCelebrationFanfare()
-          })
-        } catch {
-          playCelebrationFanfare()
-        }
+            return
+          }
+          try {
+            const audio = new Audio(playable)
+            audioRef.current = audio
+            audio.play().catch(err => {
+              console.warn('Custom celebration audio playback failed, falling back to fanfare:', err)
+              playCelebrationFanfare()
+            })
+          } catch {
+            playCelebrationFanfare()
+          }
+        }).catch(() => {
+          if (!isCancelled) playCelebrationFanfare()
+        })
       } else {
         playCelebrationFanfare()
       }
@@ -115,6 +127,7 @@ export function GrandWinnerCelebration({
     }, 1000)
 
     return () => {
+      isCancelled = true
       clearTimeout(confettiTimer)
       if (audioRef.current) {
         audioRef.current.pause()

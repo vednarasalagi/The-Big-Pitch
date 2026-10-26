@@ -5,6 +5,12 @@
 
 import { supabase, TABLES } from './supabase'
 import { generateId } from './utils'
+import {
+  normalizeAudioMime,
+  saveTrackToIndexedDB,
+  createOrReuseBlobUrl,
+  setStoredCelebrationTrackName,
+} from './celebrationAudioStorage'
 import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo, UserProfile } from '@/types'
 
 /**
@@ -2214,14 +2220,12 @@ export async function uploadTeamLogo(
 
 /**
  * Admin: Upload custom celebration music audio file.
- * Automatically tries Supabase Storage first, then falls back to an audio Data URL
- * stored in local storage and broadcast to stage screens.
+ * Automatically saves to IndexedDB for zero-latency local playback,
+ * and syncs to Supabase Storage ('celebration-audio' or 'avatars') for stage broadcasting.
  */
 export async function uploadCelebrationAudio(
   file: File
-): Promise<{ success: boolean; url?: string; error?: string }> {
-  if (!supabase) return { success: false, error: 'Database service is unavailable' }
-
+): Promise<{ success: boolean; url?: string; fileName?: string; isLocalOnly?: boolean; error?: string }> {
   const validAudioTypes = [
     'audio/mpeg',
     'audio/mp3',
@@ -2232,54 +2236,96 @@ export async function uploadCelebrationAudio(
     'audio/x-m4a',
     'audio/aac',
     'audio/webm',
+    'audio/mp4',
+    'audio/flac',
   ]
-  const isValidType = validAudioTypes.includes(file.type) || /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(file.name)
+  const isValidType = validAudioTypes.includes(file.type) || /\.(mp3|wav|ogg|m4a|aac|webm|flac)$/i.test(file.name)
   if (!isValidType) {
-    return { success: false, error: 'Please choose a valid audio file (MP3, WAV, M4A, or OGG).' }
+    return { success: false, error: 'Please choose a valid audio file (MP3, WAV, M4A, AAC, or OGG).' }
   }
 
-  // Max 25MB for audio
-  if (file.size > 25 * 1024 * 1024) {
-    return { success: false, error: 'Audio file exceeds 25MB limit. Please choose a smaller track.' }
+  // Max 50MB for celebration music
+  if (file.size > 50 * 1024 * 1024) {
+    return { success: false, error: 'Audio file exceeds 50MB limit. Please choose a smaller track.' }
+  }
+
+  const mimeType = normalizeAudioMime(file.name, file.type)
+  const arrayBuffer = await file.arrayBuffer()
+  const typedBlob = new Blob([arrayBuffer], { type: mimeType })
+
+  // 1. Immediately cache in IndexedDB and create a local Blob URL
+  // This guarantees zero-latency, 100% reliable local test play in any browser
+  await saveTrackToIndexedDB(typedBlob, file.name, mimeType)
+  const localBlobUrl = createOrReuseBlobUrl(typedBlob)
+  setStoredCelebrationTrackName(file.name)
+
+  if (!supabase) {
+    return { success: true, url: localBlobUrl, fileName: file.name, isLocalOnly: true }
   }
 
   try {
     const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '')
-    const fileName = `celebration_music_${Date.now()}.${ext || 'mp3'}`
-    const filePath = `audio/${fileName}`
-    const mimeType = file.type || 'audio/mpeg'
+    const safeCleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const fileName = `celebration_${Date.now()}_${safeCleanName}`
+    const primaryPath = `tracks/${fileName}`
 
-    const arrayBuffer = await file.arrayBuffer()
-
-    // 1. Try uploading to storage
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, arrayBuffer, {
+    // 2. Try dedicated 'celebration-audio' bucket first (passing typed Blob for multipart form upload)
+    const { error: uploadErrorPrimary } = await supabase.storage
+      .from('celebration-audio')
+      .upload(primaryPath, typedBlob, {
         cacheControl: '86400',
         upsert: true,
         contentType: mimeType,
       })
 
-    if (!uploadError) {
+    if (!uploadErrorPrimary) {
       const { data: publicData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
+        .from('celebration-audio')
+        .getPublicUrl(primaryPath)
       if (publicData?.publicUrl) {
-        return { success: true, url: publicData.publicUrl }
+        return { success: true, url: publicData.publicUrl, fileName: file.name, isLocalOnly: false }
       }
-    } else {
-      console.warn('Supabase storage audio upload note:', uploadError)
     }
 
-    // 2. High reliability fallback: Data URL
-    const audioDataUrl = await fileToDataUrl(file)
-    return { success: true, url: audioDataUrl }
+    console.error('Supabase celebration-audio bucket upload error:', uploadErrorPrimary)
+
+    // 3. Try 'avatars' bucket as a fallback
+    const fallbackPath = `audio/${fileName}`
+    const { error: uploadErrorFallback } = await supabase.storage
+      .from('avatars')
+      .upload(fallbackPath, typedBlob, {
+        cacheControl: '86400',
+        upsert: true,
+        contentType: mimeType,
+      })
+
+    if (!uploadErrorFallback) {
+      const { data: publicData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fallbackPath)
+      if (publicData?.publicUrl) {
+        return { success: true, url: publicData.publicUrl, fileName: file.name, isLocalOnly: false }
+      }
+    }
+
+    console.error('Supabase avatars fallback bucket upload error:', uploadErrorFallback)
+
+    const detailedErr = uploadErrorPrimary?.message || uploadErrorFallback?.message || 'Upload rejected by storage service'
+    return {
+      success: false,
+      url: localBlobUrl,
+      fileName: file.name,
+      isLocalOnly: true,
+      error: `Could not save to Supabase Storage (${detailedErr}). Please run migration 021_celebration_audio_storage.sql in your Supabase SQL Editor.`
+    }
   } catch (err: any) {
-    try {
-      const audioDataUrl = await fileToDataUrl(file)
-      return { success: true, url: audioDataUrl }
-    } catch {
-      return { success: false, error: toUserFriendlyError(err, 'Failed to process audio file') }
+    console.error('Storage upload exception:', err)
+    return {
+      success: false,
+      url: localBlobUrl,
+      fileName: file.name,
+      isLocalOnly: true,
+      error: 'Failed to upload audio file: ' + (err?.message || 'Unknown network error')
     }
   }
 }
