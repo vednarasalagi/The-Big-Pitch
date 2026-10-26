@@ -15,7 +15,7 @@ import {
   Plus, RefreshCw, Wifi, Bell, ShieldCheck, UserPlus,
   Trash2, Mail, ExternalLink, Search, Filter, Lock,
   Tv, ArrowUp, ArrowDown, Sparkles, X, Check, Award,
-  Sliders, Database, Terminal, Trophy, Zap, LayoutGrid, Camera, QrCode
+  Sliders, Database, Terminal, Trophy, Zap, LayoutGrid, Camera, QrCode, Music
 } from 'lucide-react'
 import { useAuthStore, useEventStore, useWalletStore, useAdminStore } from '@/store'
 import {
@@ -42,6 +42,7 @@ import {
   saveOfficialResults,
   toUserFriendlyError,
   uploadTeamLogo,
+  uploadCelebrationAudio,
   getTeamAudienceStandings,
 } from '@/lib/supabaseApi'
 import {
@@ -58,6 +59,8 @@ import {
   broadcastTeamsUpdate,
   broadcastWinnerCelebration,
   getWinnerCelebrationState,
+  getStoredCelebrationAudioUrl,
+  setStoredCelebrationAudioUrl,
   STAGE_CELEBRATION_EVENT,
 } from '@/lib/realtimeSync'
 import { toast } from 'sonner'
@@ -418,7 +421,7 @@ function TeamModal({
       }
     } else {
       // Create new
-      const created = await createTeam({
+      const res = await createTeam({
         eventId,
         name: name.trim(),
         logoUrl: logoUrl.trim(),
@@ -431,7 +434,8 @@ function TeamModal({
         investmentWindowSeconds: totalInvestSec,
       })
       setLoading(false)
-      if (created) {
+      if (res.success && res.data) {
+        const created = res.data
         toast.success(`Pre-listed ${name} successfully!`)
         onSaved(created)
         broadcastTeamsUpdate([...teams, created])
@@ -444,7 +448,7 @@ function TeamModal({
         })
         onClose()
       } else {
-        toast.error('Unable to pre-list team. Please try again.')
+        toast.error(res.error || 'Unable to pre-list team. Please try again.')
       }
     }
   }
@@ -723,6 +727,69 @@ function ControlTab() {
   const [isCelebrating, setIsCelebrating] = useState<boolean>(() => {
     return Boolean(getWinnerCelebrationState()?.active)
   })
+  const [celebrationAudioUrl, setCelebrationAudioUrl] = useState<string>(() => {
+    return getStoredCelebrationAudioUrl() || ''
+  })
+  const [uploadingAudio, setUploadingAudio] = useState(false)
+  const [isPlayingAudioPreview, setIsPlayingAudioPreview] = useState(false)
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null)
+  const audioFileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAudio(true)
+    try {
+      const res = await uploadCelebrationAudio(file)
+      if (res.success && res.url) {
+        setCelebrationAudioUrl(res.url)
+        setStoredCelebrationAudioUrl(res.url)
+        toast.success(`Celebration music "${file.name}" uploaded successfully!`)
+      } else {
+        toast.error(res.error || 'Failed to upload audio file')
+      }
+    } catch {
+      toast.error('Failed to process audio file')
+    } finally {
+      setUploadingAudio(false)
+      if (audioFileInputRef.current) audioFileInputRef.current.value = ''
+    }
+  }
+
+  const handleToggleAudioPreview = () => {
+    if (!celebrationAudioUrl) return
+    if (isPlayingAudioPreview) {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause()
+        audioPreviewRef.current.currentTime = 0
+      }
+      setIsPlayingAudioPreview(false)
+    } else {
+      if (!audioPreviewRef.current) {
+        audioPreviewRef.current = new Audio(celebrationAudioUrl)
+        audioPreviewRef.current.onended = () => setIsPlayingAudioPreview(false)
+      } else {
+        audioPreviewRef.current.src = celebrationAudioUrl
+      }
+      audioPreviewRef.current.play().then(() => {
+        setIsPlayingAudioPreview(true)
+      }).catch(err => {
+        toast.error('Unable to play audio: ' + err.message)
+        setIsPlayingAudioPreview(false)
+      })
+    }
+  }
+
+  const handleRemoveAudio = () => {
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause()
+      audioPreviewRef.current.currentTime = 0
+    }
+    setIsPlayingAudioPreview(false)
+    setCelebrationAudioUrl('')
+    setStoredCelebrationAudioUrl(null)
+    toast.info('Custom celebration music removed. Default fanfare will play.')
+  }
 
   const eventId = event?.id || '11111111-0000-0000-0000-000000000001'
   const activeTeam = activeRound?.team || teams.find(t => t.id === activeRound?.teamId)
@@ -744,6 +811,10 @@ function ControlTab() {
     return () => {
       window.removeEventListener(STAGE_CELEBRATION_EVENT, handleCelebrationChange)
       window.removeEventListener('storage', handleStorageChange)
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause()
+        audioPreviewRef.current = null
+      }
     }
   }, [])
 
@@ -822,7 +893,7 @@ function ControlTab() {
         }
       }
 
-      broadcastWinnerCelebration(true, winnerData)
+      broadcastWinnerCelebration(true, winnerData, celebrationAudioUrl || undefined)
       setIsCelebrating(true)
       toast.success(`🎉 Winner celebration launched on stage projector screen for ${winnerData.name}!`)
       await logAuditEvent({
@@ -1168,6 +1239,73 @@ function ControlTab() {
             >
               {isCelebrating ? 'Stop Celebration (Fade Back)' : 'Trigger Winner Celebration'}
             </Button>
+          </div>
+        </div>
+
+        {/* Custom Celebration Music Controller */}
+        <div className="mt-4 pt-4 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-50/80 -mx-5 -mb-5 p-4 rounded-b-2xl">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center flex-shrink-0">
+              <Music size={15} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-zinc-900 text-xs font-bold flex items-center gap-2">
+                <span>Celebration Music Track</span>
+                {celebrationAudioUrl ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">Custom Track Active</span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-600 font-medium">Built-in Fanfare</span>
+                )}
+              </p>
+              <p className="text-zinc-500 text-[11px] truncate">
+                {celebrationAudioUrl
+                  ? 'Plays automatically on the projector celebration screen.'
+                  : 'Upload an MP3, WAV or M4A track to play during winner coronation.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <input
+              type="file"
+              ref={audioFileInputRef}
+              onChange={handleAudioUpload}
+              accept="audio/mp3,audio/mpeg,audio/wav,audio/m4a,audio/ogg"
+              className="hidden"
+            />
+
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={uploadingAudio}
+              onClick={() => audioFileInputRef.current?.click()}
+              className="text-xs py-1.5 px-3 bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-800"
+              icon={<Music size={13} />}
+            >
+              {celebrationAudioUrl ? 'Change Audio File' : 'Upload Music File'}
+            </Button>
+
+            {celebrationAudioUrl && (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleToggleAudioPreview}
+                  className="text-xs py-1.5 px-2.5 bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-800"
+                  icon={isPlayingAudioPreview ? <Pause size={12} /> : <Play size={12} />}
+                >
+                  {isPlayingAudioPreview ? 'Pause' : 'Test Play'}
+                </Button>
+
+                <button
+                  onClick={handleRemoveAudio}
+                  title="Remove Custom Music"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1627,11 +1765,11 @@ function TeamsTab() {
 
     const added: Team[] = []
     for (const s of samples) {
-      const created = await createTeam({
+      const res = await createTeam({
         eventId,
         ...s,
       })
-      if (created) added.push(created)
+      if (res.success && res.data) added.push(res.data)
     }
 
     if (added.length > 0) {

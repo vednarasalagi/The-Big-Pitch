@@ -265,6 +265,12 @@ CREATE POLICY "Staff can read all profiles"
   );
 
 -- 11. Protect Investment Processing: Require entry_verified OR admin role
+-- Ensure columns exist on investments table
+ALTER TABLE public.investments 
+  ADD COLUMN IF NOT EXISTS free_amount INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS paid_amount INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS time_elapsed_ms INTEGER DEFAULT 0;
+
 -- Must DROP previous function signature because return type changed from UUID (in 002_functions) to JSONB
 DROP FUNCTION IF EXISTS public.process_investment(UUID, UUID, UUID, UUID, INTEGER, UUID);
 DROP FUNCTION IF EXISTS public.process_investment(UUID, UUID, UUID, UUID, INT, UUID);

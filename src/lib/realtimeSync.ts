@@ -37,6 +37,8 @@ export function getStoredActiveRound(): PitchRound | null {
   }
 }
 
+export const CELEBRATION_AUDIO_STORAGE_KEY = 'pitch_arena_celebration_music_url'
+
 export interface WinnerCelebrationPayload {
   active: boolean
   winner?: {
@@ -50,7 +52,34 @@ export interface WinnerCelebrationPayload {
     timeElapsedMs?: number
     category?: string
   } | null
+  audioUrl?: string
   timestamp: number
+}
+
+/**
+ * Get saved celebration music audio URL from localStorage.
+ */
+export function getStoredCelebrationAudioUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return localStorage.getItem(CELEBRATION_AUDIO_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Store celebration music audio URL to localStorage.
+ */
+export function setStoredCelebrationAudioUrl(url: string | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (url) {
+      localStorage.setItem(CELEBRATION_AUDIO_STORAGE_KEY, url)
+    } else {
+      localStorage.removeItem(CELEBRATION_AUDIO_STORAGE_KEY)
+    }
+  } catch {}
 }
 
 /**
@@ -114,10 +143,16 @@ export function getWinnerCelebrationState(): WinnerCelebrationPayload | null {
 /**
  * Broadcast winner celebration trigger across all screens and projectors.
  */
-export function broadcastWinnerCelebration(active: boolean, winner?: WinnerCelebrationPayload['winner']) {
+export function broadcastWinnerCelebration(
+  active: boolean,
+  winner?: WinnerCelebrationPayload['winner'],
+  audioUrl?: string
+) {
+  const resolvedAudioUrl = audioUrl ?? getStoredCelebrationAudioUrl() ?? undefined
   const payload: WinnerCelebrationPayload = {
     active,
     winner: winner || null,
+    audioUrl: resolvedAudioUrl,
     timestamp: Date.now(),
   }
 

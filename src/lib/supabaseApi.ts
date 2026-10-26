@@ -771,36 +771,45 @@ export async function createTeam(team: {
   pitchOrder?: number
   pitchDurationSeconds?: number
   investmentWindowSeconds?: number
-}): Promise<Team | null> {
-  if (!supabase) return null
+}): Promise<{ success: boolean; data?: Team; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
 
   try {
+    const pitchDuration = Number.isFinite(team.pitchDurationSeconds) ? team.pitchDurationSeconds : 300
+    const investmentWindow = Number.isFinite(team.investmentWindowSeconds) ? team.investmentWindowSeconds : 180
+    const pitchOrder = Number.isFinite(team.pitchOrder) && (team.pitchOrder || 0) > 0 ? team.pitchOrder : 1
+
+    const insertPayload: any = {
+      event_id: team.eventId || '11111111-0000-0000-0000-000000000001',
+      name: team.name.trim(),
+      pitch_title: team.pitchTitle.trim(),
+      description: (team.description || '').trim(),
+      category: (team.category || 'General').trim(),
+      logo_url: team.logoUrl ? team.logoUrl.trim() : null,
+      presenters: Array.isArray(team.presenters) ? team.presenters : [],
+      pitch_order: pitchOrder,
+      pitch_duration_seconds: pitchDuration,
+      investment_window_seconds: investmentWindow,
+      status: 'upcoming',
+      total_investment: 0,
+      unique_backers: 0,
+    }
+
     const { data, error } = await supabase
       .from(TABLES.TEAMS)
-      .insert({
-        event_id: team.eventId,
-        name: team.name.trim(),
-        pitch_title: team.pitchTitle.trim(),
-        description: (team.description || '').trim(),
-        category: (team.category || 'General').trim(),
-        logo_url: team.logoUrl ? team.logoUrl.trim() : null,
-        presenters: team.presenters || [],
-        pitch_order: team.pitchOrder || 1,
-        pitch_duration_seconds: team.pitchDurationSeconds,
-        investment_window_seconds: team.investmentWindowSeconds,
-        status: 'upcoming',
-        total_investment: 0,
-        unique_backers: 0,
-      })
+      .insert(insertPayload)
       .select()
       .single()
 
     if (error || !data) {
       console.error('Failed to create team in Supabase:', error)
-      return null
+      return {
+        success: false,
+        error: toUserFriendlyError(error, 'Failed to pre-list startup team. Please check inputs.'),
+      }
     }
 
-    return {
+    const newTeam: Team = {
       id: data.id,
       eventId: data.event_id,
       name: data.name,
@@ -818,9 +827,14 @@ export async function createTeam(team: {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     }
-  } catch (err) {
+
+    return { success: true, data: newTeam }
+  } catch (err: any) {
     console.error('Error creating team:', err)
-    return null
+    return {
+      success: false,
+      error: toUserFriendlyError(err, 'Failed to pre-list startup team'),
+    }
   }
 }
 
@@ -2156,16 +2170,23 @@ export async function uploadTeamLogo(
   }
 
   try {
-    const fileExt = file.name.split('.').pop() || 'png'
-    const fileName = `team_${identifier}_${Date.now()}.${fileExt}`
+    const safeId = identifier.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 32) || 'startup'
+    const fileExt = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const fileName = `team_${safeId}_${Date.now()}.${fileExt || 'png'}`
     const filePath = `teams/${fileName}`
-
     const mimeType = file.type || 'image/png'
 
-    // Try 'avatars' bucket first
+    // Use ArrayBuffer for rock-solid browser storage upload
+    const arrayBuffer = await file.arrayBuffer()
+
+    // 1. Try 'avatars' bucket first
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(filePath, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
+      .upload(filePath, arrayBuffer, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: mimeType,
+      })
 
     if (!uploadError) {
       const { data: publicData } = supabase.storage
@@ -2174,23 +2195,11 @@ export async function uploadTeamLogo(
       if (publicData?.publicUrl) {
         return { success: true, url: publicData.publicUrl }
       }
+    } else {
+      console.warn('Avatars bucket team logo upload warning:', uploadError)
     }
 
-    // Try 'payment-qr-codes' bucket next
-    const { error: qrError } = await supabase.storage
-      .from('payment-qr-codes')
-      .upload(filePath, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
-
-    if (!qrError) {
-      const { data: publicData } = supabase.storage
-        .from('payment-qr-codes')
-        .getPublicUrl(filePath)
-      if (publicData?.publicUrl) {
-        return { success: true, url: publicData.publicUrl }
-      }
-    }
-
-    // High reliability fallback: Base64 Data URL
+    // 2. High reliability fallback: Base64 Data URL (compressed to prevent 413)
     const base64Url = await fileToDataUrl(file)
     return { success: true, url: base64Url }
   } catch (err: any) {
@@ -2199,6 +2208,78 @@ export async function uploadTeamLogo(
       return { success: true, url: base64Url }
     } catch {
       return { success: false, error: toUserFriendlyError(err, 'Failed to process team logo image') }
+    }
+  }
+}
+
+/**
+ * Admin: Upload custom celebration music audio file.
+ * Automatically tries Supabase Storage first, then falls back to an audio Data URL
+ * stored in local storage and broadcast to stage screens.
+ */
+export async function uploadCelebrationAudio(
+  file: File
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database service is unavailable' }
+
+  const validAudioTypes = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/ogg',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/aac',
+    'audio/webm',
+  ]
+  const isValidType = validAudioTypes.includes(file.type) || /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(file.name)
+  if (!isValidType) {
+    return { success: false, error: 'Please choose a valid audio file (MP3, WAV, M4A, or OGG).' }
+  }
+
+  // Max 25MB for audio
+  if (file.size > 25 * 1024 * 1024) {
+    return { success: false, error: 'Audio file exceeds 25MB limit. Please choose a smaller track.' }
+  }
+
+  try {
+    const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const fileName = `celebration_music_${Date.now()}.${ext || 'mp3'}`
+    const filePath = `audio/${fileName}`
+    const mimeType = file.type || 'audio/mpeg'
+
+    const arrayBuffer = await file.arrayBuffer()
+
+    // 1. Try uploading to storage
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, arrayBuffer, {
+        cacheControl: '86400',
+        upsert: true,
+        contentType: mimeType,
+      })
+
+    if (!uploadError) {
+      const { data: publicData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+      if (publicData?.publicUrl) {
+        return { success: true, url: publicData.publicUrl }
+      }
+    } else {
+      console.warn('Supabase storage audio upload note:', uploadError)
+    }
+
+    // 2. High reliability fallback: Data URL
+    const audioDataUrl = await fileToDataUrl(file)
+    return { success: true, url: audioDataUrl }
+  } catch (err: any) {
+    try {
+      const audioDataUrl = await fileToDataUrl(file)
+      return { success: true, url: audioDataUrl }
+    } catch {
+      return { success: false, error: toUserFriendlyError(err, 'Failed to process audio file') }
     }
   }
 }
