@@ -189,11 +189,13 @@ export function dataUrlToBlob(dataUrl: string, fallbackMime = 'audio/mpeg'): Blo
 /**
  * Resolves any audio string (remote HTTP URL, data URL, IndexedDB reference, or blob URL)
  * into a directly playable, browser-compatible URL for HTML5 Audio.
+ * Converts remote audio files into local object URLs to prevent browser-specific
+ * CORS streaming and media range request failures.
  */
 export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string | null> {
   if (!urlOrKey) {
     const record = await getTrackFromIndexedDB()
-    if (record?.blob) {
+    if (record?.blob && record.blob.size > 0) {
       return createOrReuseBlobUrl(record.blob)
     }
     return null
@@ -220,7 +222,7 @@ export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string 
   // 3. IndexedDB reference key
   if (urlOrKey.startsWith('indexeddb:') || urlOrKey === 'indexeddb') {
     const record = await getTrackFromIndexedDB()
-    if (record?.blob) {
+    if (record?.blob && record.blob.size > 0) {
       return createOrReuseBlobUrl(record.blob)
     }
     return null
@@ -228,16 +230,96 @@ export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string 
 
   // 4. Remote HTTP/HTTPS URL (Supabase Storage or CDN)
   if (urlOrKey.startsWith('http://') || urlOrKey.startsWith('https://')) {
+    // A. Check if this machine already has a valid local audio blob in IndexedDB (e.g. uploaded here)
+    const localRecord = await getTrackFromIndexedDB()
+    if (localRecord?.blob && localRecord.blob.size > 0) {
+      return createOrReuseBlobUrl(localRecord.blob)
+    }
+
+    // B. Fetch the remote audio into a local Blob URL
+    // This avoids cross-origin stream rejection, media range errors, and MIME sniffing issues in Chromium/WebKit.
+    try {
+      const res = await fetch(urlOrKey)
+      if (res.ok) {
+        const rawBlob = await res.blob()
+        const mime = rawBlob.type && rawBlob.type.startsWith('audio/') ? rawBlob.type : 'audio/mpeg'
+        const cleanBlob = rawBlob.type === mime ? rawBlob : new Blob([await rawBlob.arrayBuffer()], { type: mime })
+        await saveTrackToIndexedDB(cleanBlob, 'celebration_track.mp3', mime)
+        return createOrReuseBlobUrl(cleanBlob)
+      }
+    } catch (fetchErr) {
+      console.warn('Fetch remote audio to blob failed, falling back to direct URL:', fetchErr)
+    }
+
     return urlOrKey
   }
 
   // 5. Fallback check in IndexedDB
   const record = await getTrackFromIndexedDB()
-  if (record?.blob) {
+  if (record?.blob && record.blob.size > 0) {
     return createOrReuseBlobUrl(record.blob)
   }
 
   return null
+}
+
+/**
+ * Safely loads and plays an audio track across all browsers without source or race condition errors.
+ */
+export async function playAudioTrack(playableUrl: string): Promise<HTMLAudioElement> {
+  const audio = new Audio()
+  audio.preload = 'auto'
+  audio.crossOrigin = 'anonymous'
+
+  return new Promise((resolve, reject) => {
+    let hasResolved = false
+
+    const cleanup = () => {
+      audio.removeEventListener('canplay', onCanPlay)
+      audio.removeEventListener('error', onError)
+    }
+
+    const onCanPlay = async () => {
+      if (hasResolved) return
+      hasResolved = true
+      cleanup()
+      try {
+        await audio.play()
+        resolve(audio)
+      } catch (err) {
+        reject(err)
+      }
+    }
+
+    const onError = () => {
+      if (hasResolved) return
+      hasResolved = true
+      cleanup()
+      const msg = audio.error
+        ? `Code ${audio.error.code}: ${audio.error.message || 'Media source unplayable'}`
+        : 'Failed to load audio'
+      reject(new Error(msg))
+    }
+
+    audio.addEventListener('canplay', onCanPlay)
+    audio.addEventListener('error', onError)
+
+    audio.src = playableUrl
+
+    // If already buffered enough to play
+    if (audio.readyState >= 3) {
+      onCanPlay()
+    }
+
+    // Fallback timer: in case canplay event is delayed, attempt direct play after 1s
+    setTimeout(() => {
+      if (!hasResolved) {
+        hasResolved = true
+        cleanup()
+        audio.play().then(() => resolve(audio)).catch(reject)
+      }
+    }, 1200)
+  })
 }
 
 /**

@@ -17,7 +17,7 @@ import {
   playCelebrationFanfare,
   getStoredCelebrationAudioUrl,
 } from '@/lib/realtimeSync'
-import { resolvePlayableAudioUrl } from '@/lib/celebrationAudioStorage'
+import { resolvePlayableAudioUrl, playAudioTrack } from '@/lib/celebrationAudioStorage'
 
 interface GrandWinnerCelebrationProps {
   celebration: WinnerCelebrationPayload | null
@@ -103,16 +103,17 @@ export function GrandWinnerCelebration({
             playCelebrationFanfare()
             return
           }
-          try {
-            const audio = new Audio(playable)
+          playAudioTrack(playable).then(audio => {
+            if (isCancelled) {
+              audio.pause()
+              audio.currentTime = 0
+              return
+            }
             audioRef.current = audio
-            audio.play().catch(err => {
-              console.warn('Custom celebration audio playback failed, falling back to fanfare:', err)
-              playCelebrationFanfare()
-            })
-          } catch {
-            playCelebrationFanfare()
-          }
+          }).catch(err => {
+            console.warn('Custom celebration audio playback failed, falling back to fanfare:', err)
+            if (!isCancelled) playCelebrationFanfare()
+          })
         }).catch(() => {
           if (!isCancelled) playCelebrationFanfare()
         })

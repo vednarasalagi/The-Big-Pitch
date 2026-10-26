@@ -61,6 +61,7 @@ import {
   getWinnerCelebrationState,
   getStoredCelebrationAudioUrl,
   setStoredCelebrationAudioUrl,
+  playCelebrationFanfare,
   STAGE_CELEBRATION_EVENT,
 } from '@/lib/realtimeSync'
 import {
@@ -72,6 +73,7 @@ import {
   dataUrlToBlob,
   getStoredCelebrationTrackName,
   setStoredCelebrationTrackName,
+  playAudioTrack,
 } from '@/lib/celebrationAudioStorage'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -845,6 +847,7 @@ function ControlTab() {
       if (audioPreviewRef.current) {
         audioPreviewRef.current.pause()
         audioPreviewRef.current.currentTime = 0
+        audioPreviewRef.current = null
       }
       setIsPlayingAudioPreview(false)
       return
@@ -863,7 +866,7 @@ function ControlTab() {
         return
       }
 
-      const audio = new Audio(playable)
+      const audio = await playAudioTrack(playable)
       audioPreviewRef.current = audio
 
       audio.onended = () => {
@@ -875,7 +878,6 @@ function ControlTab() {
         setIsPlayingAudioPreview(false)
       }
 
-      await audio.play()
       setIsPlayingAudioPreview(true)
     } catch (err: any) {
       console.error('Test play exception:', err)
@@ -908,11 +910,25 @@ function ControlTab() {
     const handleCelebrationChange = (e: any) => {
       if (e.detail && typeof e.detail.active === 'boolean') {
         setIsCelebrating(e.detail.active)
+        if (!e.detail.active && audioPreviewRef.current) {
+          audioPreviewRef.current.pause()
+          audioPreviewRef.current.currentTime = 0
+          audioPreviewRef.current = null
+          setIsPlayingAudioPreview(false)
+        }
       }
     }
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'pitch_arena_stage_celebration') {
-        setIsCelebrating(Boolean(getWinnerCelebrationState()?.active))
+        const state = getWinnerCelebrationState()
+        const active = Boolean(state?.active)
+        setIsCelebrating(active)
+        if (!active && audioPreviewRef.current) {
+          audioPreviewRef.current.pause()
+          audioPreviewRef.current.currentTime = 0
+          audioPreviewRef.current = null
+          setIsPlayingAudioPreview(false)
+        }
       }
     }
     window.addEventListener(STAGE_CELEBRATION_EVENT, handleCelebrationChange)
@@ -931,6 +947,12 @@ function ControlTab() {
     if (isCelebrating) {
       broadcastWinnerCelebration(false)
       setIsCelebrating(false)
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause()
+        audioPreviewRef.current.currentTime = 0
+        audioPreviewRef.current = null
+      }
+      setIsPlayingAudioPreview(false)
       toast.info('Winner celebration stopped. Projector returned to normal stage screen.')
       await logAuditEvent({
         action: 'STOP_WINNER_CELEBRATION',
@@ -1005,6 +1027,27 @@ function ControlTab() {
       broadcastWinnerCelebration(true, winnerData, celebrationAudioUrl || undefined)
       setIsCelebrating(true)
       toast.success(`🎉 Winner celebration launched on stage projector screen for ${winnerData.name}!`)
+
+      // Automatically start playing the custom celebration music or fanfare
+      if (celebrationAudioUrl) {
+        resolvePlayableAudioUrl(celebrationAudioUrl).then(playable => {
+          if (playable) {
+            playAudioTrack(playable).then(audio => {
+              audioPreviewRef.current = audio
+              audio.onended = () => setIsPlayingAudioPreview(false)
+              setIsPlayingAudioPreview(true)
+            }).catch(err => {
+              console.warn('Auto play audio error, falling back to fanfare:', err)
+              playCelebrationFanfare()
+            })
+          } else {
+            playCelebrationFanfare()
+          }
+        }).catch(() => playCelebrationFanfare())
+      } else {
+        playCelebrationFanfare()
+      }
+
       await logAuditEvent({
         action: 'TRIGGER_WINNER_CELEBRATION',
         targetId: winnerData.userId || activeTeam?.id || eventId,
