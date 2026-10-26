@@ -2330,6 +2330,35 @@ export async function uploadCelebrationAudio(
   }
 }
 
+/**
+ * Admin: Get the latest uploaded celebration audio track from Supabase Storage.
+ */
+export async function getLatestCelebrationAudio(): Promise<{ url: string; fileName: string } | null> {
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase.storage.from('celebration-audio').list('tracks', {
+      limit: 1,
+      sortBy: { column: 'created_at', order: 'desc' },
+    })
+    if (!error && data && data.length > 0) {
+      const item = data[0]
+      const { data: pubData } = supabase.storage
+        .from('celebration-audio')
+        .getPublicUrl(`tracks/${item.name}`)
+      if (pubData?.publicUrl) {
+        const cleanName = decodeURIComponent(item.name.replace(/^celebration_\d+_/, ''))
+        return {
+          url: pubData.publicUrl,
+          fileName: cleanName,
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not list latest celebration audio:', err)
+  }
+  return null
+}
+
 
 /**
  * Admin: Fetch full list of audience users with live wallet telemetry.

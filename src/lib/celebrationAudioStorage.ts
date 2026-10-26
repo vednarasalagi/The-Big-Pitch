@@ -201,9 +201,19 @@ export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string 
     return null
   }
 
-  // 1. Direct Blob URL: Already in memory
+  // 1. Direct Blob URL: Verify it was created in this session and is still alive
   if (urlOrKey.startsWith('blob:')) {
-    return urlOrKey
+    if (_activeBlobUrls.has(urlOrKey)) {
+      return urlOrKey
+    }
+    // If it's a foreign/stale blob URL from a previous page session (e.g. from localStorage),
+    // loading it directly triggers Chromium's "Media load rejected by URL safety check".
+    // Recreate a fresh, active Blob URL from IndexedDB instead.
+    const record = await getTrackFromIndexedDB()
+    if (record?.blob && record.blob.size > 0) {
+      return createOrReuseBlobUrl(record.blob)
+    }
+    return null
   }
 
   // 2. Base64 Data URL: Convert to native Blob URL to bypass Chromium URL length & decode issues
@@ -269,7 +279,11 @@ export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string 
 export async function playAudioTrack(playableUrl: string): Promise<HTMLAudioElement> {
   const audio = new Audio()
   audio.preload = 'auto'
-  audio.crossOrigin = 'anonymous'
+
+  // NOTE: Never set audio.crossOrigin for standard <audio> playback!
+  // In Chromium/Blink, setting crossOrigin on blob: or data: URLs causes IsSafeToLoadURL to fail with:
+  // "Code 4: MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check".
+  // Standard <audio> playback does not require CORS headers.
 
   return new Promise((resolve, reject) => {
     let hasResolved = false
@@ -306,19 +320,19 @@ export async function playAudioTrack(playableUrl: string): Promise<HTMLAudioElem
 
     audio.src = playableUrl
 
-    // If already buffered enough to play
-    if (audio.readyState >= 3) {
+    // If already buffered enough to play (e.g. in-memory Blob URL)
+    if (audio.readyState >= 2) {
       onCanPlay()
     }
 
-    // Fallback timer: in case canplay event is delayed, attempt direct play after 1s
+    // Fallback timer: in case canplay event is delayed, attempt direct play after 800ms
     setTimeout(() => {
       if (!hasResolved) {
         hasResolved = true
         cleanup()
         audio.play().then(() => resolve(audio)).catch(reject)
       }
-    }, 1200)
+    }, 800)
   })
 }
 

@@ -58,11 +58,19 @@ export interface WinnerCelebrationPayload {
 
 /**
  * Get saved celebration music audio URL from localStorage.
+ * Auto-cleans any stale session-bound blob: URLs left over from previous sessions.
  */
 export function getStoredCelebrationAudioUrl(): string | null {
   if (typeof window === 'undefined') return null
   try {
-    return localStorage.getItem(CELEBRATION_AUDIO_STORAGE_KEY)
+    const stored = localStorage.getItem(CELEBRATION_AUDIO_STORAGE_KEY)
+    if (stored && stored.startsWith('blob:')) {
+      // Blob URLs are session-bound and die on page reload.
+      // Auto-migrate to 'indexeddb' so the persistent track is loaded instead of failing.
+      localStorage.setItem(CELEBRATION_AUDIO_STORAGE_KEY, 'indexeddb')
+      return 'indexeddb'
+    }
+    return stored
   } catch {
     return null
   }
@@ -70,12 +78,15 @@ export function getStoredCelebrationAudioUrl(): string | null {
 
 /**
  * Store celebration music audio URL to localStorage.
+ * Never stores raw blob: URLs which die on page reload and cause URL safety check errors.
  */
 export function setStoredCelebrationAudioUrl(url: string | null) {
   if (typeof window === 'undefined') return
   try {
     if (url) {
-      localStorage.setItem(CELEBRATION_AUDIO_STORAGE_KEY, url)
+      // Session-bound blob: URLs become invalid on page refresh. Save 'indexeddb' marker instead.
+      const safeUrl = url.startsWith('blob:') ? 'indexeddb' : url
+      localStorage.setItem(CELEBRATION_AUDIO_STORAGE_KEY, safeUrl)
     } else {
       localStorage.removeItem(CELEBRATION_AUDIO_STORAGE_KEY)
     }

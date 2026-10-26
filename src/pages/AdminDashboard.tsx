@@ -43,6 +43,7 @@ import {
   toUserFriendlyError,
   uploadTeamLogo,
   uploadCelebrationAudio,
+  getLatestCelebrationAudio,
   getTeamAudienceStandings,
 } from '@/lib/supabaseApi'
 import {
@@ -761,48 +762,32 @@ function ControlTab() {
         setCelebrationTrackName(storedTrackName)
       }
 
-      if (stored) {
-        if (stored.startsWith('data:')) {
-          try {
-            const blob = dataUrlToBlob(stored)
-            const name = storedTrackName || 'celebration_music.mp3'
-            await saveTrackToIndexedDB(blob, name, blob.type)
-            const blobUrl = createOrReuseBlobUrl(blob)
-            if (!isCancelled) {
-              setCelebrationAudioUrl(blobUrl)
-              setCelebrationTrackName(name)
-              setStoredCelebrationAudioUrl('indexeddb:celebration_track')
-            }
-          } catch (e) {
-            console.warn('Could not migrate legacy audio data URL:', e)
-          }
-        } else if (stored.startsWith('indexeddb:')) {
-          const playable = await resolvePlayableAudioUrl(stored)
-          if (!isCancelled && playable) {
-            setCelebrationAudioUrl(playable)
-          }
-        } else if (stored.startsWith('http://') || stored.startsWith('https://')) {
-          if (!isCancelled) {
-            setCelebrationAudioUrl(stored)
-            if (!storedTrackName) {
-              const guessedName = decodeURIComponent(stored.split('/').pop()?.replace(/^celebration_\d+_/, '') || '')
-              if (guessedName) {
-                setCelebrationTrackName(guessedName)
-                setStoredCelebrationTrackName(guessedName)
-              }
-            }
-          }
+      // 1. If we have a valid direct remote HTTP URL, keep it
+      if (stored && (stored.startsWith('http://') || stored.startsWith('https://'))) {
+        if (!isCancelled) {
+          setCelebrationAudioUrl(stored)
         }
-      } else {
-        const track = await getTrackFromIndexedDB()
-        if (track && !isCancelled) {
-          const blobUrl = createOrReuseBlobUrl(track.blob)
-          setCelebrationAudioUrl(blobUrl)
-          setStoredCelebrationAudioUrl('indexeddb:celebration_track')
-          if (track.fileName) {
-            setCelebrationTrackName(track.fileName)
-            setStoredCelebrationTrackName(track.fileName)
-          }
+      }
+
+      // 2. Query Supabase Storage for the latest uploaded celebration audio track
+      try {
+        const latest = await getLatestCelebrationAudio()
+        if (latest && !isCancelled) {
+          setCelebrationAudioUrl(latest.url)
+          setStoredCelebrationAudioUrl(latest.url)
+          setCelebrationTrackName(latest.fileName)
+          setStoredCelebrationTrackName(latest.fileName)
+          return
+        }
+      } catch {}
+
+      // 3. Fallback: check IndexedDB
+      const track = await getTrackFromIndexedDB()
+      if (track && !isCancelled) {
+        const blobUrl = createOrReuseBlobUrl(track.blob)
+        setCelebrationAudioUrl(blobUrl)
+        if (track.fileName) {
+          setCelebrationTrackName(track.fileName)
         }
       }
     }
