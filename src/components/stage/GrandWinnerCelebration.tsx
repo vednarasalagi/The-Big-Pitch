@@ -17,7 +17,7 @@ import {
   playCelebrationFanfare,
   getStoredCelebrationAudioUrl,
 } from '@/lib/realtimeSync'
-import { resolvePlayableAudioUrl, playAudioTrack } from '@/lib/celebrationAudioStorage'
+import { resolvePlayableAudioUrl, playAudioTrack, type PlayableAudioHandle } from '@/lib/celebrationAudioStorage'
 
 interface GrandWinnerCelebrationProps {
   celebration: WinnerCelebrationPayload | null
@@ -34,7 +34,7 @@ export function GrandWinnerCelebration({
   const [isFullscreen, setIsFullscreen] = useState(() => {
     return typeof document !== 'undefined' && !!document.fullscreenElement
   })
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef = useRef<PlayableAudioHandle | null>(null)
   const winner = celebration?.winner
 
   // Sync isFullscreen with native document.fullscreenElement

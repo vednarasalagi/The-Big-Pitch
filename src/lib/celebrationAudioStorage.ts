@@ -273,67 +273,161 @@ export async function resolvePlayableAudioUrl(urlOrKey: string): Promise<string 
   return null
 }
 
+export interface PlayableAudioHandle {
+  play: () => Promise<void>
+  pause: () => void
+  currentTime?: number
+  onended?: ((this: any, ev?: any) => any) | null
+  onerror?: ((this: any, ev?: any) => any) | null
+  error?: MediaError | null
+  src?: string
+}
+
+let _activeAudioContext: AudioContext | null = null
+let _activeSourceNode: AudioBufferSourceNode | null = null
+
+/**
+ * Fallback audio player using Web Audio API.
+ * Decodes audio bytes in memory and plays via AudioContext.
+ * Completely immune to Chromium HTMLMediaElement "URL safety check" or CSP media-src blocks!
+ */
+export async function playViaWebAudio(playableUrl: string): Promise<PlayableAudioHandle> {
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioContextClass) {
+    throw new Error('Web Audio API not supported in this browser')
+  }
+
+  // Stop any active Web Audio instance
+  if (_activeAudioContext) {
+    try {
+      _activeSourceNode?.stop()
+      _activeAudioContext.close()
+    } catch {}
+    _activeAudioContext = null
+    _activeSourceNode = null
+  }
+
+  // Get raw ArrayBuffer from IndexedDB, data URL, or network
+  let arrayBuffer: ArrayBuffer
+  const localRecord = await getTrackFromIndexedDB()
+  if (localRecord?.blob && localRecord.blob.size > 0) {
+    arrayBuffer = await localRecord.blob.arrayBuffer()
+  } else if (playableUrl.startsWith('data:')) {
+    const blob = dataUrlToBlob(playableUrl)
+    arrayBuffer = await blob.arrayBuffer()
+  } else {
+    const res = await fetch(playableUrl)
+    arrayBuffer = await res.arrayBuffer()
+  }
+
+  const ctx = new AudioContextClass()
+  _activeAudioContext = ctx
+  if (ctx.state === 'suspended') {
+    await ctx.resume()
+  }
+
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+  const source = ctx.createBufferSource()
+  source.buffer = audioBuffer
+  source.connect(ctx.destination)
+  _activeSourceNode = source
+
+  const handle: PlayableAudioHandle = {
+    currentTime: 0,
+    src: playableUrl,
+    onended: null,
+    onerror: null,
+    error: null,
+    play: async () => {
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+    },
+    pause: () => {
+      try {
+        source.stop()
+        ctx.close()
+      } catch {}
+      if (_activeAudioContext === ctx) {
+        _activeAudioContext = null
+        _activeSourceNode = null
+      }
+    },
+  }
+
+  source.onended = () => {
+    handle.onended?.()
+  }
+
+  source.start(0)
+  return handle
+}
+
 /**
  * Safely loads and plays an audio track across all browsers without source or race condition errors.
+ * Tries standard HTMLMediaElement first; if blocked by browser URL safety check or CSP,
+ * seamlessly falls back to Web Audio API in-memory decoding.
  */
-export async function playAudioTrack(playableUrl: string): Promise<HTMLAudioElement> {
-  const audio = new Audio()
-  audio.preload = 'auto'
+export async function playAudioTrack(playableUrl: string): Promise<PlayableAudioHandle> {
+  try {
+    const audio = new Audio()
+    audio.preload = 'auto'
 
-  // NOTE: Never set audio.crossOrigin for standard <audio> playback!
-  // In Chromium/Blink, setting crossOrigin on blob: or data: URLs causes IsSafeToLoadURL to fail with:
-  // "Code 4: MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check".
-  // Standard <audio> playback does not require CORS headers.
+    const audioPromise = new Promise<PlayableAudioHandle>((resolve, reject) => {
+      let hasResolved = false
 
-  return new Promise((resolve, reject) => {
-    let hasResolved = false
-
-    const cleanup = () => {
-      audio.removeEventListener('canplay', onCanPlay)
-      audio.removeEventListener('error', onError)
-    }
-
-    const onCanPlay = async () => {
-      if (hasResolved) return
-      hasResolved = true
-      cleanup()
-      try {
-        await audio.play()
-        resolve(audio)
-      } catch (err) {
-        reject(err)
+      const cleanup = () => {
+        audio.removeEventListener('canplay', onCanPlay)
+        audio.removeEventListener('error', onError)
       }
-    }
 
-    const onError = () => {
-      if (hasResolved) return
-      hasResolved = true
-      cleanup()
-      const msg = audio.error
-        ? `Code ${audio.error.code}: ${audio.error.message || 'Media source unplayable'}`
-        : 'Failed to load audio'
-      reject(new Error(msg))
-    }
-
-    audio.addEventListener('canplay', onCanPlay)
-    audio.addEventListener('error', onError)
-
-    audio.src = playableUrl
-
-    // If already buffered enough to play (e.g. in-memory Blob URL)
-    if (audio.readyState >= 2) {
-      onCanPlay()
-    }
-
-    // Fallback timer: in case canplay event is delayed, attempt direct play after 800ms
-    setTimeout(() => {
-      if (!hasResolved) {
+      const onCanPlay = async () => {
+        if (hasResolved) return
         hasResolved = true
         cleanup()
-        audio.play().then(() => resolve(audio)).catch(reject)
+        try {
+          await audio.play()
+          resolve(audio)
+        } catch (err) {
+          reject(err)
+        }
       }
-    }, 800)
-  })
+
+      const onError = () => {
+        if (hasResolved) return
+        hasResolved = true
+        cleanup()
+        const msg = audio.error
+          ? `Code ${audio.error.code}: ${audio.error.message || 'Media source unplayable'}`
+          : 'Failed to load audio'
+        reject(new Error(msg))
+      }
+
+      audio.addEventListener('canplay', onCanPlay)
+      audio.addEventListener('error', onError)
+
+      audio.src = playableUrl
+
+      // If already buffered enough to play (e.g. in-memory Blob URL)
+      if (audio.readyState >= 2) {
+        onCanPlay()
+      }
+
+      // Fallback timer: in case canplay event is delayed, attempt direct play after 800ms
+      setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true
+          cleanup()
+          audio.play().then(() => resolve(audio)).catch(reject)
+        }
+      }, 800)
+    })
+
+    return await audioPromise
+  } catch (err: any) {
+    console.warn('Standard HTMLAudioElement playback failed or blocked by URL safety check, attempting Web Audio API fallback:', err)
+    return await playViaWebAudio(playableUrl)
+  }
 }
 
 /**

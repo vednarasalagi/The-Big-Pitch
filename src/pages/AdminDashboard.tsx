@@ -75,6 +75,7 @@ import {
   getStoredCelebrationTrackName,
   setStoredCelebrationTrackName,
   playAudioTrack,
+  type PlayableAudioHandle,
 } from '@/lib/celebrationAudioStorage'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -748,7 +749,7 @@ function ControlTab() {
   })
   const [uploadingAudio, setUploadingAudio] = useState(false)
   const [isPlayingAudioPreview, setIsPlayingAudioPreview] = useState(false)
-  const audioPreviewRef = useRef<HTMLAudioElement | null>(null)
+  const audioPreviewRef = useRef<PlayableAudioHandle | null>(null)
   const audioFileInputRef = useRef<HTMLInputElement>(null)
 
   // Initialize and migrate legacy audio data URLs or load from IndexedDB
