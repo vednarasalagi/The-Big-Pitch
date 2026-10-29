@@ -230,61 +230,33 @@ Deno.serve(async (req) => {
         })
       }
 
-      // Find legacy payment order
-      const { data: order, error: orderError } = await supabaseAdmin
-        .from('payment_orders')
-        .select('*')
-        .eq('razorpay_order_id', orderId)
-        .single()
-
-      if (orderError || !order) {
-        console.warn('Payment order not found for captured payment:', orderId)
-        return new Response(JSON.stringify({ received: true, note: 'order_not_found' }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      if (order.status === 'success') {
-        console.log('Duplicate webhook — order already credited:', orderId)
-        return new Response(JSON.stringify({ received: true, skipped: 'already_processed' }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      // Update order status
-      const { error: updateError } = await supabaseAdmin
-        .from('payment_orders')
-        .update({
-          status: 'success',
-          razorpay_payment_id: paymentId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', order.id)
-        .eq('status', 'created')
-
-      if (updateError) {
-        console.error('Failed to update order status:', updateError)
-        return new Response('Update failed', { status: 500, headers: corsHeaders })
-      }
-
-      // Credit points to wallet atomically
-      const { error: creditError } = await supabaseAdmin.rpc('credit_purchased_points', {
-        p_user_id: order.user_id,
-        p_event_id: order.event_id,
-        p_points: order.points_to_credit,
-        p_rupees: order.rupee_amount,
-        p_payment_order_id: order.id,
+      // Atomically confirm the order and credit points exactly once
+      const { data: completion, error: completeError } = await supabaseAdmin.rpc('complete_payment_order', {
+        p_razorpay_order_id: orderId,
+        p_payment_id: paymentId,
+        p_signature: null,
+        p_amount_paise: payment.amount ?? null,
       })
 
-      if (creditError) {
-        console.error('Credit failed for order:', creditError)
+      if (completeError) {
+        console.error('complete_payment_order failed:', completeError)
+        await supabaseAdmin.from('webhook_events').update({
+          status: 'failed',
+          error_message: completeError.message,
+        }).eq('event_id', eventId)
+        // 500 makes Razorpay retry the webhook
         return new Response('Credit failed', { status: 500, headers: corsHeaders })
       }
 
-      console.log(`✅ Credited ${order.points_to_credit} points to user ${order.user_id} via order checkout`)
-      return new Response(JSON.stringify({ received: true, credited: order.points_to_credit }), {
+      if (!completion?.success) {
+        console.warn('Captured payment could not be applied:', orderId, completion)
+      } else {
+        console.log(`✅ Order ${orderId} confirmed via webhook (${completion.already_processed ? 'already processed' : 'credited'})`)
+      }
+
+      await supabaseAdmin.from('webhook_events').update({ status: 'processed' }).eq('event_id', eventId)
+
+      return new Response(JSON.stringify({ received: true, result: completion }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

@@ -15,11 +15,12 @@ import { useAuthStore, useWalletStore, useEventStore } from '@/store'
 import { Card, Button, StatCard, ProgressBar, Badge, SectionHeader, EmptyState } from '@/components/ui'
 import { formatPoints, formatRupees, formatRelativeTime } from '@/lib/utils'
 import { supabase, TABLES, isSupabaseConfigured } from '@/lib/supabase'
-import { toUserFriendlyError, getOrCreateWallet, getUserPaymentIntents, getPackageQRCodes, claimPaymentIntent } from '@/lib/supabaseApi'
+import { toUserFriendlyError, getOrCreateWallet, getUserPaymentIntents, getPackageQRCodes, claimPaymentIntent, getPaymentMode } from '@/lib/supabaseApi'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
-import type { LedgerType, PaymentIntent, PackageQRCode } from '@/types'
+import type { LedgerType, PaymentIntent, PackageQRCode, PaymentMode } from '@/types'
 import { RazorpayCheckoutModal } from '@/components/wallet/RazorpayCheckoutModal'
+import { StaticQRCheckoutModal } from '@/components/wallet/StaticQRCheckoutModal'
 
 export interface PurchasePackage {
   id?: string
@@ -54,7 +55,8 @@ export function WalletPage() {
   const { user } = useAuthStore()
   const { wallet, ledger, investments, setWallet } = useWalletStore()
   const { event } = useEventStore()
-  const [buyModal, setBuyModal] = useState<PurchasePackage | null>(null)
+  const [buyModal, setBuyModal] = useState<{ pkg: PurchasePackage; mode: PaymentMode } | null>(null)
+  const [paymentMode, setPaymentMode] = useState<PaymentMode | null>(null)
   const [userIntents, setUserIntents] = useState<PaymentIntent[]>([])
   const [packageQRCodes, setPackageQRCodes] = useState<PackageQRCode[]>([])
   const [inlineUtr, setInlineUtr] = useState('')
@@ -113,6 +115,23 @@ export function WalletPage() {
       getPackageQRCodes(event.id).then(setPackageQRCodes)
     }
   }, [event?.id])
+
+  // Admin-selected checkout method (QR vs Razorpay portal), kept live
+  const paymentEventId = event?.id || '11111111-0000-0000-0000-000000000001'
+  useEffect(() => {
+    const load = () => getPaymentMode(paymentEventId).then(setPaymentMode)
+    load()
+    if (!supabase) return
+    const channel = supabase
+      .channel(`payment_mode_${paymentEventId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_settings', filter: `event_id=eq.${paymentEventId}` }, load)
+      .subscribe()
+    const interval = setInterval(load, 15000)
+    return () => {
+      clearInterval(interval)
+      if (supabase) supabase.removeChannel(channel)
+    }
+  }, [paymentEventId])
 
   // Locate current active pending/verifying/mismatch intent
   const activeIntent = useMemo(() => {
@@ -408,7 +427,8 @@ export function WalletPage() {
                   rupees: activeIntent.rupeeAmount,
                   label: `₹${activeIntent.rupeeAmount} Top-up Package`,
                 }
-                setBuyModal(targetPkg)
+                // An existing claim is always resumed in the QR flow it was created in
+                setBuyModal({ pkg: targetPkg, mode: 'qr' })
               }}
               className="skeuo-btn-primary px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 self-start sm:self-auto shadow-sm"
             >
@@ -571,7 +591,7 @@ export function WalletPage() {
 
                         <Button
                           size="sm"
-                          onClick={() => setBuyModal(pkg)}
+                          onClick={async () => setBuyModal({ pkg, mode: paymentMode ?? await getPaymentMode(paymentEventId) })}
                           className={`px-4 py-2 font-black text-xs justify-center ${
                             pkg.popular
                               ? 'skeuo-btn-emerald'
@@ -739,17 +759,20 @@ export function WalletPage() {
         </div>
       </div>
 
-      {/* Checkout Modal */}
-      {buyModal && wallet && user && (
-        <RazorpayCheckoutModal
-          pkg={buyModal}
-          user={user}
-          eventId={event?.id || '11111111-0000-0000-0000-000000000001'}
-          eventName={event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH'}
-          onClose={() => setBuyModal(null)}
-          onSuccess={handlePurchaseSuccess}
-        />
-      )}
+      {/* Checkout Modal: strictly one flow, chosen by the admin-selected mode */}
+      {buyModal && wallet && user && (() => {
+        const common = {
+          pkg: buyModal.pkg,
+          user,
+          eventId: event?.id || '11111111-0000-0000-0000-000000000001',
+          eventName: event?.name && !event.name.toLowerCase().includes('pitch arena') ? event.name : 'THE BIG PITCH',
+          onClose: () => setBuyModal(null),
+          onSuccess: handlePurchaseSuccess,
+        }
+        return buyModal.mode === 'portal'
+          ? <RazorpayCheckoutModal {...common} />
+          : <StaticQRCheckoutModal {...common} />
+      })()}
     </div>
   )
 }

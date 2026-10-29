@@ -48,6 +48,8 @@ import {
   adminUpdatePackageQRCode,
   uploadPackageQRImage,
   adminDeletePaymentIntent,
+  getPaymentMode,
+  setPaymentMode as savePaymentMode,
 } from '@/lib/supabaseApi'
 import { isSuperAdmin } from '@/lib/adminConfig'
 import { formatPoints, formatRupees, formatRelativeTime } from '@/lib/utils'
@@ -57,6 +59,7 @@ import type {
   WebhookEventRecord,
   AdminUserInfo,
   PackageQRCode,
+  PaymentMode,
 } from '@/types'
 import { useAdminStore, useEventStore, useAuthStore } from '@/store'
 
@@ -66,6 +69,29 @@ export function AdminPaymentsCockpit() {
   const { user: currentUser } = useAuthStore()
   const isCurrentSuperAdmin = isSuperAdmin(currentUser?.email)
   const pointsPerRupee = Math.max(1, eventConfig?.pointsPerRupee ?? event?.config?.pointsPerRupee ?? 10)
+
+  const paymentEventId = event?.id || '11111111-0000-0000-0000-000000000001'
+  const [paymentMode, setPaymentModeState] = useState<PaymentMode | null>(null)
+  const [savingMode, setSavingMode] = useState(false)
+
+  useEffect(() => {
+    getPaymentMode(paymentEventId).then(setPaymentModeState)
+  }, [paymentEventId])
+
+  const handleSwitchMode = async (mode: PaymentMode) => {
+    if (mode === paymentMode || savingMode) return
+    const label = mode === 'portal' ? 'Razorpay Payment Portal (automatic)' : 'UPI QR (manual match)'
+    if (!window.confirm(`Switch checkout to ${label}? Attendees will see the change immediately.`)) return
+    setSavingMode(true)
+    const res = await savePaymentMode(paymentEventId, mode)
+    setSavingMode(false)
+    if (res.success) {
+      setPaymentModeState(mode)
+      toast.success(`Checkout is now ${mode === 'portal' ? 'Razorpay Portal' : 'UPI QR'}`)
+    } else {
+      toast.error(res.error || 'Could not change payment mode')
+    }
+  }
 
   const [payments, setPayments] = useState<QRPayment[]>([])
   const [intents, setIntents] = useState<PaymentIntent[]>([])
@@ -472,6 +498,37 @@ export function AdminPaymentsCockpit() {
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Syncing...' : 'Sync Now'}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Checkout Mode Switch: exactly one method is live for attendees */}
+      <div className="skeuo-surface rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-zinc-950">Attendee Checkout Method</p>
+          <p className="text-xs text-zinc-500 font-medium mt-0.5">
+            {paymentMode === 'portal'
+              ? 'Razorpay Portal is live: payments are verified and credited automatically. New QR claims are blocked.'
+              : 'UPI QR is live: payments are matched by UPI ID / UTR. The Razorpay Portal is blocked.'}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl skeuo-sunken bg-zinc-100 sm:w-80">
+          {([
+            { id: 'qr', label: 'UPI QR', Icon: QrCode },
+            { id: 'portal', label: 'Razorpay Portal', Icon: CreditCard },
+          ] as const).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              disabled={savingMode || paymentMode === null}
+              onClick={() => handleSwitchMode(id)}
+              className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 ${
+                paymentMode === id ? 'skeuo-pill-active text-white shadow-xs' : 'text-zinc-600 hover:text-zinc-950'
+              }`}
+            >
+              <Icon size={13} />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
       </div>
 

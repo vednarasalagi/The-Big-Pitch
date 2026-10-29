@@ -11,7 +11,7 @@ import {
   createOrReuseBlobUrl,
   setStoredCelebrationTrackName,
 } from './celebrationAudioStorage'
-import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo, UserProfile } from '@/types'
+import type { Event, EventConfig, Team, PitchRound, Wallet, WalletLedgerEntry, Investment, RoundStatus, Reward, OfficialResult, TeamInvestorStanding, PaymentIntent, QRPayment, WebhookEventRecord, PackageQRCode, AdminUserInfo, UserProfile, PaymentMode } from '@/types'
 
 /**
  * Fetch the active or upcoming event along with its configuration.
@@ -2801,89 +2801,76 @@ export async function unverifyAttendeeAtGate(
   }
 }
 
-/**
- * Instantly credit user wallet upon successful Razorpay Standard Checkout payment
- */
-export async function creditWalletFromRazorpayPayment(params: {
-  userId: string
-  eventId: string
-  amountRupees: number
-  points: number
-  razorpayPaymentId: string
-  razorpayOrderId?: string
-  packageLabel?: string
-}): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) return { success: false, error: 'Database client not connected' }
+// ============================================================
+// Payment mode (admin toggle) & Razorpay portal checkout
+// ============================================================
 
-  const {
-    userId,
-    eventId,
-    amountRupees,
-    points,
-    razorpayPaymentId,
-    razorpayOrderId,
-    packageLabel,
-  } = params
-
+/** Reads the active payment mode for an event. Defaults to 'qr'. */
+export async function getPaymentMode(eventId: string): Promise<PaymentMode> {
+  if (!supabase || !eventId) return 'qr'
   try {
-    // 1. Fetch user's current wallet
-    let wallet = await getOrCreateWallet(userId, eventId)
-    if (!wallet) throw new Error('Could not retrieve or create attendee wallet')
-
-    const newPurchased = wallet.purchasedPoints + points
-    const newTotalBalance = wallet.freePoints + newPurchased
-
-    // 2. Update wallet purchased points
-    const { error: walletError } = await supabase
-      .from(TABLES.WALLETS)
-      .update({
-        purchased_points: newPurchased,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', wallet.id)
-
-    if (walletError) throw walletError
-
-    // 3. Record transaction ledger entry
-    await supabase.from(TABLES.WALLET_LEDGER).insert({
-      id: generateId(),
-      wallet_id: wallet.id,
-      user_id: userId,
-      type: 'purchase',
-      amount: points,
-      balance_after: newTotalBalance,
-      description: `Purchased ${points} Points via Razorpay Gateway (${packageLabel || `₹${amountRupees}`}) [${razorpayPaymentId}]`,
-      reference_id: razorpayPaymentId,
-      created_at: new Date().toISOString(),
-    })
-
-    // 4. Record into payment_intents table
-    try {
-      await supabase.from(TABLES.PAYMENT_INTENTS).insert({
-        id: generateId(),
-        user_id: userId,
-        event_id: eventId,
-        amount_rupees: amountRupees,
-        points: points,
-        status: 'credited',
-        utr: razorpayPaymentId,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_order_id: razorpayOrderId,
-        credited_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-    } catch (e) {
-      console.warn('Payment intent insert notice:', e)
-    }
-
-    return { success: true }
-  } catch (err: any) {
-    console.error('Failed to credit wallet from Razorpay payment:', err)
-    return {
-      success: false,
-      error: toUserFriendlyError(err, 'Failed to credit purchased points to wallet'),
-    }
+    const { data, error } = await supabase.rpc('get_payment_mode', { p_event_id: eventId })
+    if (error) throw error
+    return data === 'portal' ? 'portal' : 'qr'
+  } catch (err) {
+    console.warn('Could not load payment mode, defaulting to QR:', err)
+    return 'qr'
   }
 }
 
+/** Admin only: switches the event between the UPI QR flow and the Razorpay portal. */
+export async function setPaymentMode(eventId: string, mode: PaymentMode): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+  try {
+    const { error } = await supabase.rpc('admin_set_payment_mode', { p_event_id: eventId, p_mode: mode })
+    if (error) throw error
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: toUserFriendlyError(err, 'Failed to update payment mode') }
+  }
+}
+
+async function readFunctionError(error: any, fallback: string): Promise<string> {
+  try {
+    const body = await error?.context?.json?.()
+    if (body?.error) return String(body.error)
+  } catch {}
+  return fallback
+}
+
+/** Creates a Razorpay order on the server. `requestId` must be reused when retrying the same purchase. */
+export async function createPortalOrder(params: {
+  eventId: string
+  rupeeAmount: number
+  requestId: string
+}): Promise<{ success: true; orderId: string; keyId: string } | { success: false; error: string }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+  const { data, error } = await supabase.functions.invoke('create-payment-order', {
+    body: { eventId: params.eventId, rupeeAmount: params.rupeeAmount },
+    headers: { 'Idempotency-Key': params.requestId },
+  })
+  if (error || !data?.orderId || !data?.keyId) {
+    return { success: false, error: await readFunctionError(error, 'Unable to start payment. Please try again.') }
+  }
+  return { success: true, orderId: data.orderId, keyId: data.keyId }
+}
+
+/** Sends the Razorpay checkout result to the server, which verifies the signature and credits points. */
+export async function verifyPortalPayment(params: {
+  razorpayOrderId: string
+  razorpayPaymentId: string
+  razorpaySignature: string
+}): Promise<{ success: boolean; points?: number; rupees?: number; error?: string }> {
+  if (!supabase) return { success: false, error: 'Database client not connected' }
+  const { data, error } = await supabase.functions.invoke('verify-payment', {
+    body: {
+      razorpay_order_id: params.razorpayOrderId,
+      razorpay_payment_id: params.razorpayPaymentId,
+      razorpay_signature: params.razorpaySignature,
+    },
+  })
+  if (error || !data?.success) {
+    return { success: false, error: await readFunctionError(error, 'Payment verification failed.') }
+  }
+  return { success: true, points: data.points, rupees: data.rupees }
+}

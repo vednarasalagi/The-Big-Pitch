@@ -66,6 +66,9 @@ export interface EventConfig {
   updatedAt: string;
 }
 
+/** Admin-selected checkout method: UPI static QR (manual match) or Razorpay portal (automatic). */
+export type PaymentMode = 'qr' | 'portal';
+
 // --- Team ---
 export type TeamStatus = 'upcoming' | 'active' | 'closed' | 'completed';
 

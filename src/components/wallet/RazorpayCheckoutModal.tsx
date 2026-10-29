@@ -3,7 +3,7 @@
 // Official Razorpay Gateway for Instant Points Crediting
 // ============================================================
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -14,23 +14,19 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
-  QrCode,
   AlertCircle,
   RefreshCw,
   ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { creditWalletFromRazorpayPayment } from '@/lib/supabaseApi'
+import { createPortalOrder, verifyPortalPayment } from '@/lib/supabaseApi'
 import { formatPoints, formatRupees } from '@/lib/utils'
-import { StaticQRCheckoutModal } from './StaticQRCheckoutModal'
 
 interface RazorpayCheckoutModalProps {
   pkg: {
     points: number
     rupees: number
     label: string
-    qrImageUrl?: string
-    upiVpa?: string
   }
   user: { id: string; email: string; displayName: string }
   eventId: string
@@ -53,7 +49,8 @@ export function RazorpayCheckoutModal({
   onClose,
   onSuccess,
 }: RazorpayCheckoutModalProps) {
-  const [method, setMethod] = useState<'portal' | 'static_qr'>('portal')
+  // One idempotency key per purchase attempt; a retry reuses the same server order
+  const requestIdRef = useRef(crypto.randomUUID())
   const [isProcessing, setIsProcessing] = useState(false)
   const [sdkLoaded, setSdkLoaded] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
@@ -80,33 +77,31 @@ export function RazorpayCheckoutModal({
     }
   }, [])
 
-  // If attendee switched to static QR manual mode
-  if (method === 'static_qr') {
-    return (
-      <StaticQRCheckoutModal
-        pkg={pkg}
-        user={user}
-        eventId={eventId}
-        eventName={eventName}
-        onClose={onClose}
-        onSuccess={onSuccess}
-      />
-    )
-  }
-
-  const handleLaunchRazorpay = () => {
+  const handleLaunchRazorpay = async () => {
     if (!sdkLoaded || !window.Razorpay) {
       toast.error('Payment gateway is still initializing. Please try again in a few seconds.')
       return
     }
 
-    const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TpkHrFj9W12a96'
-
     setIsProcessing(true)
 
+    // 1. Server creates the order (amount, cap and mode are enforced there)
+    const order = await createPortalOrder({
+      eventId,
+      rupeeAmount: pkg.rupees,
+      requestId: requestIdRef.current,
+    })
+
+    if (!order.success) {
+      setIsProcessing(false)
+      toast.error(order.error)
+      return
+    }
+
     const options = {
-      key: keyId,
-      amount: pkg.rupees * 100, // Amount in paise
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: pkg.rupees * 100,
       currency: 'INR',
       name: 'THE BIG PITCH',
       description: `${pkg.points} Allocation Points — ${pkg.label}`,
@@ -114,47 +109,35 @@ export function RazorpayCheckoutModal({
       prefill: {
         name: user.displayName || '',
         email: user.email || '',
-        contact: '',
-      },
-      notes: {
-        user_id: user.id,
-        event_id: eventId,
-        points: pkg.points.toString(),
-        package_label: pkg.label,
-        event_name: eventName,
       },
       theme: {
-        color: '#09090b', // Zinc-950 sleek dark theme
+        color: '#09090b',
       },
       handler: async function (response: {
         razorpay_payment_id: string
-        razorpay_order_id?: string
-        razorpay_signature?: string
+        razorpay_order_id: string
+        razorpay_signature: string
       }) {
-        try {
-          const result = await creditWalletFromRazorpayPayment({
-            userId: user.id,
-            eventId,
-            amountRupees: pkg.rupees,
-            points: pkg.points,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpayOrderId: response.razorpay_order_id,
-            packageLabel: pkg.label,
-          })
+        // 2. Server verifies the signature and credits the wallet
+        const result = await verifyPortalPayment({
+          razorpayOrderId: response.razorpay_order_id,
+          razorpayPaymentId: response.razorpay_payment_id,
+          razorpaySignature: response.razorpay_signature,
+        })
 
-          if (result.success) {
-            setLastPaymentId(response.razorpay_payment_id)
-            setPaymentSuccess(true)
-            toast.success(`Payment verified! ${pkg.points} points credited to your wallet.`)
-            onSuccess(pkg.points, pkg.rupees, response.razorpay_payment_id)
-          } else {
-            toast.error(
-              result.error || 'Payment succeeded with Razorpay, but wallet synchronization failed. Please contact event desk.'
-            )
-            setIsProcessing(false)
-          }
-        } catch (err: any) {
-          toast.error('Error recording payment: ' + (err.message || 'Please contact event staff'))
+        if (result.success) {
+          setLastPaymentId(response.razorpay_payment_id)
+          setPaymentSuccess(true)
+          toast.success(`Payment verified! ${pkg.points} points credited to your wallet.`)
+          onSuccess(pkg.points, pkg.rupees, response.razorpay_payment_id)
+        } else {
+          // Money was taken; the webhook will still credit the wallet.
+          setLastPaymentId(response.razorpay_payment_id)
+          toast.error(
+            (result.error || 'Verification failed.') +
+              ` If points do not appear shortly, contact the event desk with Payment ID ${response.razorpay_payment_id}.`,
+            { duration: 12000 }
+          )
           setIsProcessing(false)
         }
       },
@@ -175,7 +158,7 @@ export function RazorpayCheckoutModal({
     } catch (err: any) {
       setIsProcessing(false)
       console.error('Razorpay launch exception:', err)
-      toast.error('Could not open Razorpay window. Please allow popups or try the Static QR mode.')
+      toast.error('Could not open Razorpay window. Please allow popups and try again.')
     }
   }
 
@@ -209,27 +192,6 @@ export function RazorpayCheckoutModal({
           >
             <X size={18} />
           </button>
-        </div>
-
-        {/* Method Switcher Tabs */}
-        <div className="px-6 pt-4 pb-2">
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl skeuo-sunken bg-zinc-100">
-            <button
-              onClick={() => setMethod('portal')}
-              className="py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer skeuo-pill-active text-white shadow-xs"
-            >
-              <CreditCard size={13} />
-              <span>Razorpay Portal</span>
-              <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500 text-white font-mono">Fast</span>
-            </button>
-            <button
-              onClick={() => setMethod('static_qr')}
-              className="py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer text-zinc-600 hover:text-zinc-950"
-            >
-              <QrCode size={13} />
-              <span>Static UPI QR</span>
-            </button>
-          </div>
         </div>
 
         {/* Modal Body */}

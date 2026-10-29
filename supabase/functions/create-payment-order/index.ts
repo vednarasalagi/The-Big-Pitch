@@ -11,7 +11,7 @@ type Reservation = {
 };
 
 const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const APP_ENV = Deno.env.get("APP_ENV") ?? "production";
 const PAYMENT_MODE = Deno.env.get("PAYMENT_MODE") ?? "razorpay";
@@ -78,6 +78,10 @@ function getPublicError(error: {
     INVALID_PURCHASE_AMOUNT: {
       status: 400,
       message: "Enter a valid whole-rupee purchase amount.",
+    },
+    PORTAL_DISABLED: {
+      status: 409,
+      message: "Online payments are not enabled right now. Please use the UPI QR option.",
     },
     INVALID_EVENT: {
       status: 404,
