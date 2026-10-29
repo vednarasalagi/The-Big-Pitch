@@ -249,7 +249,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {menuOpen && user && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="fixed top-18 right-4 sm:right-6 z-50 w-72 bg-white border border-zinc-200 shadow-2xl rounded-2xl animate-slide-down overflow-hidden text-zinc-900">
+          <div className="fixed top-18 right-4 sm:right-6 z-50 w-[min(18rem,calc(100vw-2rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-white border border-zinc-200 shadow-2xl rounded-2xl animate-slide-down text-zinc-900">
             <div className="p-4 border-b border-zinc-100 bg-zinc-50/70">
               <button
                 type="button"

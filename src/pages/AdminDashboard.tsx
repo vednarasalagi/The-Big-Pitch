@@ -468,12 +468,12 @@ function TeamModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/65 backdrop-blur-sm animate-fade-in overflow-y-auto" onClick={onClose}>
+    <div className="modal-overlay z-[100] bg-zinc-950/65 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.98 }}
-        className="bg-white w-full max-w-lg rounded-2xl border border-zinc-200 shadow-2xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col text-zinc-900 my-auto overflow-hidden"
+        className="modal-panel bg-white max-w-lg rounded-2xl border border-zinc-200 shadow-2xl relative flex flex-col text-zinc-900 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Fixed Header */}

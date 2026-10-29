@@ -23,7 +23,7 @@ function StartupDetailModal({ team, onClose }: { team: Team; onClose: () => void
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/65 backdrop-blur-md animate-fade-in overflow-y-auto"
+      className="modal-overlay z-[100] bg-zinc-950/65 backdrop-blur-md animate-fade-in"
       onClick={onClose}
     >
       <motion.div
@@ -31,7 +31,7 @@ function StartupDetailModal({ team, onClose }: { team: Team; onClose: () => void
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="skeuo-surface w-full max-w-lg rounded-3xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col text-zinc-900 my-auto overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3),inset_0_1px_0_#FFF]"
+        className="modal-panel skeuo-surface max-w-lg rounded-3xl relative flex flex-col text-zinc-900 overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3),inset_0_1px_0_#FFF]"
         onClick={e => e.stopPropagation()}
       >
         {/* Fixed Header */}

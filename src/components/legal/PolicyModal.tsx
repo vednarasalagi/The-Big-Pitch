@@ -38,14 +38,14 @@ export function PolicyModal({ isOpen, onClose, defaultTab = 'privacy' }: PolicyM
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in">
+    <div className="modal-overlay z-[100] bg-zinc-950/70 backdrop-blur-sm animate-fade-in">
       <div
         className="fixed inset-0"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-3xl border border-zinc-200/90 shadow-2xl flex flex-col overflow-hidden text-zinc-900 z-10 animate-scale-up">
+      <div className="modal-panel relative max-w-3xl bg-white rounded-3xl border border-zinc-200/90 shadow-2xl flex flex-col overflow-hidden text-zinc-900 z-10 animate-scale-up">
         {/* Modal Header */}
         <div className="px-6 py-4.5 border-b border-zinc-200/80 flex items-center justify-between bg-zinc-50/80">
           <div className="flex items-center gap-2.5">

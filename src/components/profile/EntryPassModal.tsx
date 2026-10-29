@@ -74,10 +74,10 @@ export function EntryPassModal({ isOpen, onClose }: EntryPassModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in">
+    <div className="modal-overlay z-[100] bg-zinc-950/70 backdrop-blur-sm animate-fade-in">
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative w-full max-w-sm sm:max-w-md bg-white rounded-3xl border border-zinc-200/90 shadow-2xl overflow-hidden text-zinc-900 z-10 animate-scale-up">
+      <div className="modal-panel relative max-w-sm sm:max-w-md bg-white rounded-3xl border border-zinc-200/90 shadow-2xl overflow-y-auto text-zinc-900 z-10 animate-scale-up">
         {/* Ticket Header Bar */}
         <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white px-6 py-4 flex items-center justify-between border-b border-zinc-800">
           <div className="flex items-center gap-2">

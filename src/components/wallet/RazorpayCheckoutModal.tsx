@@ -163,12 +163,12 @@ export function RazorpayCheckoutModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/60 backdrop-blur-sm animate-fade-in">
+    <div className="modal-overlay z-[100] bg-zinc-950/60 backdrop-blur-sm animate-fade-in">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="relative w-full max-w-lg bg-white border border-zinc-200/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-zinc-900"
+        className="modal-panel relative max-w-lg bg-white border border-zinc-200/90 rounded-3xl shadow-2xl overflow-y-auto flex flex-col text-zinc-900"
       >
         {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/80">

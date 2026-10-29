@@ -2831,10 +2831,15 @@ export async function setPaymentMode(eventId: string, mode: PaymentMode): Promis
 }
 
 async function readFunctionError(error: any, fallback: string): Promise<string> {
+  console.error('Edge function error:', error)
   try {
     const body = await error?.context?.json?.()
     if (body?.error) return String(body.error)
   } catch {}
+  // FunctionsFetchError: the request never got a readable response (network, or CORS blocked by ALLOWED_ORIGINS)
+  if (error?.name === 'FunctionsFetchError') {
+    return 'Could not reach the payment server. Check your connection; if this persists, contact the event desk.'
+  }
   return fallback
 }
 

@@ -490,14 +490,14 @@ export function StaticQRCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-2.5 sm:p-4 bg-zinc-950/80 backdrop-blur-md animate-fade-in overflow-hidden"
+      className="modal-overlay z-[100] bg-zinc-950/80 backdrop-blur-md animate-fade-in"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className={`skeuo-surface rounded-3xl w-full my-auto shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),inset_0_1px_0_#FFF] border border-zinc-200/80 overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[85vh] transition-all duration-300 ${
+        className={`modal-panel skeuo-surface rounded-3xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),inset_0_1px_0_#FFF] border border-zinc-200/80 overflow-hidden flex flex-col transition-all duration-300 ${
           checkoutStep === 'scan_qr' && status !== 'credited' && status !== 'expired'
             ? 'max-w-[440px] md:max-w-[680px]'
             : 'max-w-[440px]'

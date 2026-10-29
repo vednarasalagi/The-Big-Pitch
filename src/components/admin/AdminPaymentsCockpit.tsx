@@ -1198,14 +1198,14 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: ADMIN EMERGENCY POINT ADJUSTMENT ────────────────── */}
       {adjustModalUser && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => setAdjustModalUser(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-md overflow-hidden text-zinc-900 shadow-2xl p-5 space-y-4"
+            className="modal-panel skeuo-surface rounded-3xl max-w-md overflow-y-auto text-zinc-900 shadow-2xl p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
@@ -1329,7 +1329,7 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: SUPER ADMIN DELETE USER ─────────────────────────── */}
       {deleteModalUser && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => {
             if (!deletingUser) setDeleteModalUser(null)
           }}
@@ -1338,7 +1338,7 @@ export function AdminPaymentsCockpit() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-md overflow-hidden text-zinc-900 shadow-2xl p-5 space-y-4 border border-red-500/30"
+            className="modal-panel skeuo-surface rounded-3xl max-w-md overflow-y-auto text-zinc-900 shadow-2xl p-5 space-y-4 border border-red-500/30"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
@@ -1432,14 +1432,14 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: EDIT PACKAGE QR CODE ─────────────────────────────── */}
       {editingPackage && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => setEditingPackage(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-md overflow-hidden text-zinc-900 shadow-2xl p-5 space-y-4"
+            className="modal-panel skeuo-surface rounded-3xl max-w-md overflow-y-auto text-zinc-900 shadow-2xl p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
@@ -1665,14 +1665,14 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: MANUAL MATCH & CREDIT ────────────────────────────── */}
       {matchModalPayment && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => setMatchModalPayment(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-lg overflow-hidden text-zinc-900 shadow-2xl p-5 space-y-4"
+            className="modal-panel skeuo-surface rounded-3xl max-w-lg overflow-y-auto text-zinc-900 shadow-2xl p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
@@ -1802,14 +1802,14 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: REJECT PAYMENT ───────────────────────────────────── */}
       {rejectModalPayment && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => setRejectModalPayment(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-md overflow-hidden text-zinc-900 shadow-2xl p-5 space-y-4"
+            className="modal-panel skeuo-surface rounded-3xl max-w-md overflow-y-auto text-zinc-900 shadow-2xl p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
@@ -1868,14 +1868,14 @@ export function AdminPaymentsCockpit() {
       {/* ── MODAL: RAW JSON VIEWER ──────────────────────────────────── */}
       {jsonModalData && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
+          className="modal-overlay z-[120] bg-zinc-950/70 backdrop-blur-sm animate-fade-in"
           onClick={() => setJsonModalData(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="skeuo-surface rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden text-zinc-900 shadow-2xl p-5 flex flex-col space-y-3"
+            className="modal-panel skeuo-surface rounded-3xl max-w-2xl overflow-hidden text-zinc-900 shadow-2xl p-5 flex flex-col space-y-3"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 pb-2.5">

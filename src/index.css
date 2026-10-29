@@ -534,3 +534,46 @@ body {
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ============================================================
+   Responsive modal system
+   .modal-overlay: scrollable backdrop that centres its panel and
+   falls back to top-aligned (never clipped) when taller than the screen.
+   .modal-panel: capped to the visible viewport height (dvh handles
+   mobile browser bars) and safe-area aware.
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding:
+    max(0.75rem, env(safe-area-inset-top))
+    max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+}
+
+.modal-overlay > .modal-panel {
+  margin-block: auto;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100dvh - 1.5rem);
+}
+
+@media (min-width: 640px) {
+  .modal-overlay {
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  }
+}
+
+/* Stop the page behind a popup from scrolling */
+body:has(.modal-overlay) {
+  overflow: hidden;
+}

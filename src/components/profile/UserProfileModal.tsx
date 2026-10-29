@@ -132,14 +132,14 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/75 backdrop-blur-sm animate-fade-in"
+      className="modal-overlay z-[100] bg-zinc-950/75 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="skeuo-surface rounded-3xl w-full max-w-md shadow-2xl border border-zinc-200/90 overflow-hidden flex flex-col"
+        className="modal-panel skeuo-surface rounded-3xl max-w-md shadow-2xl border border-zinc-200/90 overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
