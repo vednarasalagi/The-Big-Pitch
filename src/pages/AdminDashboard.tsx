@@ -1183,6 +1183,43 @@ function ControlTab() {
     }
   }
 
+  // Auto-advance: pitch time over -> open investments; window time over -> close investments.
+  // The round itself is only ended manually (handleStopPitch).
+  const autoActionRef = useRef({ open: handleOpenInvestments, close: handleCloseInvestments })
+  autoActionRef.current = { open: handleOpenInvestments, close: handleCloseInvestments }
+  const autoFiredRef = useRef<string>('')
+
+  useEffect(() => {
+    if (!activeRound) return
+
+    let deadline: number | null = null
+    let action: 'open' | 'close' | null = null
+
+    if ((activeRound.status === 'announced' || activeRound.status === 'pitching') && activeRound.pitchStartTime) {
+      deadline = new Date(activeRound.pitchStartTime).getTime() + (activeRound.scheduledDurationSeconds ?? 300) * 1000
+      action = 'open'
+    } else if (activeRound.status === 'investment_open' && activeRound.investmentCloseTime) {
+      deadline = new Date(activeRound.investmentCloseTime).getTime()
+      action = 'close'
+    }
+    if (deadline === null || action === null || Number.isNaN(deadline)) return
+
+    const fire = () => {
+      const key = `${activeRound.id}:${action}:${deadline}`
+      if (autoFiredRef.current === key) return
+      autoFiredRef.current = key
+      autoActionRef.current[action!]()
+    }
+
+    const delay = deadline - Date.now()
+    if (delay <= 0) {
+      fire()
+      return
+    }
+    const timeout = setTimeout(fire, delay)
+    return () => clearTimeout(timeout)
+  }, [activeRound?.id, activeRound?.status, activeRound?.pitchStartTime, activeRound?.scheduledDurationSeconds, activeRound?.investmentCloseTime])
+
   // Pause / Resume with preserved remaining time
   const handleTogglePause = async () => {
     if (!activeRound) return
@@ -2447,11 +2484,11 @@ function AllowlistTab() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
               <select
                 value={roleToAssign}
                 onChange={(e) => setRoleToAssign(e.target.value as 'member' | 'admin')}
-                className="px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs font-bold text-zinc-900 outline-none cursor-pointer"
+                className="min-w-0 flex-1 sm:flex-none max-w-full px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs font-bold text-zinc-900 outline-none cursor-pointer"
               >
                 <option value="member">Role: Volunteer (Scanner Desk Only)</option>
                 <option value="admin">Role: Event Administrator (Full Room)</option>
@@ -2473,7 +2510,7 @@ function AllowlistTab() {
 
       {/* Volunteer Members Roster */}
       <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-2 border-b border-zinc-100">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-purple-500" />
             <span className="text-xs font-bold text-zinc-900">
@@ -2492,15 +2529,15 @@ function AllowlistTab() {
             {memberList.map((memberEmail) => (
               <div
                 key={memberEmail}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-purple-50/40 border border-purple-100 hover:border-purple-200 transition-colors"
+                className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-purple-50/40 border border-purple-100 hover:border-purple-200 transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
                     <Camera size={14} />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-zinc-950 font-mono text-xs font-semibold">{memberEmail}</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="text-zinc-950 font-mono text-xs font-semibold break-all">{memberEmail}</p>
                       <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-purple-200 text-purple-800 font-mono">
                         Volunteer Member
                       </span>
@@ -2513,7 +2550,7 @@ function AllowlistTab() {
 
                 <button
                   onClick={() => handleRemoveStaff(memberEmail, 'member')}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                   title="Revoke volunteer scanner access"
                 >
                   <Trash2 size={14} />
@@ -2526,7 +2563,7 @@ function AllowlistTab() {
 
       {/* Administrators Roster */}
       <div className="p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-2 border-b border-zinc-100">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-zinc-950" />
             <span className="text-xs font-bold text-zinc-900">
@@ -2544,19 +2581,19 @@ function AllowlistTab() {
             return (
               <div
                 key={adminEmail}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-colors"
+                className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-colors"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    className={`w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center ${
                       isThisSuperAdmin ? 'bg-zinc-950 text-white' : 'bg-zinc-200 text-zinc-800'
                     }`}
                   >
                     {isThisSuperAdmin ? <ShieldCheck size={15} /> : <Shield size={14} />}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-zinc-950 font-mono text-xs font-semibold">{adminEmail}</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="text-zinc-950 font-mono text-xs font-semibold break-all">{adminEmail}</p>
                       {isThisSuperAdmin && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-zinc-950 text-white font-mono">
                           Super Admin (Protected)
@@ -2579,7 +2616,7 @@ function AllowlistTab() {
                 {!isCurrentUser && !isThisSuperAdmin && (
                   <button
                     onClick={() => handleRemoveStaff(adminEmail, 'admin')}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Revoke admin authorization"
                   >
                     <Trash2 size={14} />

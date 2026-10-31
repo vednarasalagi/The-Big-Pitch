@@ -14,7 +14,7 @@ interface BrandLogoProps {
 
 export function BrandLogo({ size = 28, showText = true, className, subtitle }: BrandLogoProps) {
   return (
-    <div className={cn('flex items-center gap-2.5 select-none', className)}>
+    <div className={cn('flex items-center gap-2.5 select-none min-w-0', className)}>
       {/* Unique Geometric Emblem */}
       <div
         className="flex items-center justify-center rounded-xl bg-zinc-950 text-white shadow-sm flex-shrink-0"
@@ -46,11 +46,11 @@ export function BrandLogo({ size = 28, showText = true, className, subtitle }: B
       </div>
 
       {showText && (
-        <div className="flex flex-col leading-none">
-          <span className="font-black text-sm tracking-tight text-zinc-900 font-sans">
+        <div className="flex flex-col leading-none min-w-0">
+          <span className="font-black text-sm tracking-tight text-zinc-900 font-sans truncate">
             THE BIG PITCH
           </span>
-          <span className="text-[10px] font-medium tracking-wide text-zinc-500 uppercase mt-0.5">
+          <span className="text-[10px] font-medium tracking-wide text-zinc-500 uppercase mt-0.5 truncate">
             {subtitle || 'Audience Edition'}
           </span>
         </div>

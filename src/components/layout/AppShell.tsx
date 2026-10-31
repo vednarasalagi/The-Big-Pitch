@@ -91,8 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Top Navbar */}
       <header className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center justify-between px-3 sm:px-6 lg:px-8 backdrop-blur-xl bg-white/90 border-b border-zinc-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         {/* Left: Unique Brand Logo */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <Link to="/" className="flex items-center">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink">
+          <Link to="/" className="flex items-center min-w-0">
             <BrandLogo size={22} subtitle="Audience Edition" />
           </Link>
         </div>
@@ -107,8 +107,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={to}
                 to={to}
+                title={label}
+                aria-label={label}
                 className={cn(
-                  'relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors duration-150 select-none z-10',
+                  'relative flex items-center gap-2 px-3 lg:px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors duration-150 select-none z-10',
                   active
                     ? 'text-white'
                     : 'text-zinc-600 hover:text-zinc-950'
@@ -127,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   />
                 )}
                 <Icon size={15} strokeWidth={active ? 2.2 : 1.75} className={active ? 'text-white' : 'text-zinc-600'} />
-                <span>{label}</span>
+                <span className="hidden lg:inline">{label}</span>
                 {showLiveBadge && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white animate-pulse shadow-xs">
                     Live
@@ -181,7 +183,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               title="Gate Scanner & Attendee Verification"
             >
               <Camera size={13} strokeWidth={2.2} />
-              <span>Scanner</span>
+              <span className="hidden min-[400px]:inline">Scanner</span>
             </Link>
           )}
 

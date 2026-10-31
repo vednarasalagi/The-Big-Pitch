@@ -2688,30 +2688,69 @@ export async function getRegisteredAttendees(): Promise<UserProfile[]> {
   if (!supabase) return []
 
   try {
-    const { data, error } = await supabase
-      .from(TABLES.PROFILES)
-      .select('id, email, display_name, avatar_url, role, is_verified, entry_verified, verified_at, verified_by, pass_code, created_at, updated_at')
-      .order('created_at', { ascending: false })
+    // Page through results: a single request is capped (1000 rows by default)
+    const pageSize = 1000
+    const rows: any[] = []
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from(TABLES.PROFILES)
+        .select(ATTENDEE_COLUMNS)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1)
 
-    if (error || !data) return []
+      if (error || !data) return rows.map(mapAttendeeRow)
+      rows.push(...data)
+      if (data.length < pageSize) break
+    }
 
-    return data.map((d: any) => ({
-      id: d.id,
-      email: d.email,
-      displayName: d.display_name,
-      avatarUrl: d.avatar_url,
-      role: d.role as any,
-      isVerified: Boolean(d.is_verified),
-      isEntryVerified: d.role === 'admin' ? true : Boolean(d.entry_verified),
-      verifiedAt: d.verified_at,
-      verifiedBy: d.verified_by,
-      passCode: d.pass_code,
-      createdAt: d.created_at,
-      updatedAt: d.updated_at,
-    }))
+    return rows.map(mapAttendeeRow)
   } catch (err) {
     console.warn('Failed to fetch registered attendees:', err)
     return []
+  }
+}
+
+const ATTENDEE_COLUMNS = 'id, email, display_name, avatar_url, role, is_verified, entry_verified, verified_at, verified_by, pass_code, created_at, updated_at'
+
+/** Map a raw `profiles` row (REST or realtime payload) to a UserProfile. */
+export function mapAttendeeRow(d: any): UserProfile {
+  return {
+    id: d.id,
+    email: d.email,
+    displayName: d.display_name,
+    avatarUrl: d.avatar_url,
+    role: d.role as any,
+    isVerified: Boolean(d.is_verified),
+    isEntryVerified: d.role === 'admin' ? true : Boolean(d.entry_verified),
+    verifiedAt: d.verified_at,
+    verifiedBy: d.verified_by,
+    passCode: d.pass_code,
+    createdAt: d.created_at,
+    updatedAt: d.updated_at,
+  }
+}
+
+const escapeLike = (v: string) => v.replace(/[\\%_]/g, c => '\\' + c)
+
+/**
+ * Fetch one attendee fresh from the server by id, pass code or email.
+ * Returns null when not found or when the lookup fails.
+ */
+export async function findAttendee(query: { id?: string | null; passCode?: string | null; email?: string | null }): Promise<UserProfile | null> {
+  if (!supabase) return null
+  try {
+    let q = supabase.from(TABLES.PROFILES).select(ATTENDEE_COLUMNS)
+    if (query.id) q = q.eq('id', query.id)
+    else if (query.passCode) q = q.ilike('pass_code', escapeLike(query.passCode.trim()))
+    else if (query.email) q = q.ilike('email', escapeLike(query.email.trim()))
+    else return null
+
+    const { data, error } = await q.limit(1).maybeSingle()
+    if (error || !data) return null
+    return mapAttendeeRow(data)
+  } catch {
+    return null
   }
 }
 
@@ -2735,7 +2774,12 @@ export async function verifyAttendeeAtGate(
       return { success: true, attendee: rpcData }
     }
 
-    // 2. Direct table fallback if RPC is not yet migrated
+    // The RPC ran and refused (e.g. unauthorized / not found): don't bypass it
+    if (!rpcError && rpcData && rpcData.success === false) {
+      return { success: false, error: rpcData.error || 'Failed to verify attendee at gate' }
+    }
+
+    // 2. Direct table fallback only if the RPC is unavailable
     const { data: sessionData } = await supabase.auth.getSession()
     const verifierEmail = sessionData?.session?.user?.email || 'Volunteer Staff'
 

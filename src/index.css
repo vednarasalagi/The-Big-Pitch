@@ -577,3 +577,45 @@ body {
 body:has(.modal-overlay) {
   overflow: hidden;
 }
+
+/* ============================================================
+   Responsive safety net — nothing may push the page wider than
+   the screen. Components still own their own layout; these rules
+   only catch long words, big media and unexpected overflow.
+   ============================================================ */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+iframe,
+svg {
+  max-width: 100%;
+}
+
+p, h1, h2, h3, h4, h5, h6, li, dd, dt, label, td, th, blockquote, a, button {
+  overflow-wrap: break-word;
+}
+
+/* Tables never stretch the page: they scroll inside their own box */
+table {
+  max-width: 100%;
+}
+
+/* iOS Safari zooms the page when a focused field is under 16px */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

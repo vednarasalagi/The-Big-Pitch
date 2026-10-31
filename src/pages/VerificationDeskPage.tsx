@@ -1,24 +1,46 @@
 // ============================================================
 // VerificationDeskPage.tsx — Event Entry Gate & Volunteer Scanner Desk
 // Accessible to: 'admin' and 'member' (volunteer) roles
-// Features: Live Camera QR Scanner (jsQR) + Searchable Attendee Registration Roster
+// Features: Live Camera QR Scanner (BarcodeDetector / jsQR) + Searchable Attendee Registration Roster
 // ============================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   QrCode, Users, Search, CheckCircle2, AlertTriangle,
   Camera, CameraOff, RefreshCw, Volume2, VolumeX, Shield,
-  UserCheck, X, Clock, ArrowLeft, Sparkles, Filter, Check, RotateCcw
+  UserCheck, X, Clock, ArrowLeft, Sparkles, Filter, Check, RotateCcw, Flashlight
 } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
 import jsQR from 'jsqr'
 import { useAuthStore } from '@/store'
 import { Avatar, StatusBadge } from '@/components/ui'
-import { getRegisteredAttendees, verifyAttendeeAtGate, unverifyAttendeeAtGate } from '@/lib/supabaseApi'
+import {
+  getRegisteredAttendees,
+  verifyAttendeeAtGate,
+  unverifyAttendeeAtGate,
+  findAttendee,
+  mapAttendeeRow,
+} from '@/lib/supabaseApi'
 import { supabase, TABLES } from '@/lib/supabase'
 import type { UserProfile } from '@/types'
 import { toast } from 'sonner'
 import { cn, formatRelativeTime } from '@/lib/utils'
+
+type BeepKind = 'success' | 'error' | 'duplicate'
+
+interface RecentScan {
+  key: string
+  name: string
+  at: number
+  outcome: 'verified' | 'duplicate' | 'unknown'
+}
+
+// Longest side of the frame handed to jsQR (full-res frames are needlessly slow)
+const SCAN_MAX_WIDTH = 640
+// Minimum gap between decode attempts (~10 fps)
+const SCAN_INTERVAL_MS = 100
+// Same code seen again within this window of its last sighting is ignored
+const SAME_CODE_COOLDOWN_MS = 4000
 
 export function VerificationDeskPage() {
   const { user } = useAuthStore()
@@ -40,29 +62,73 @@ export function VerificationDeskPage() {
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
   const [autoVerifyOnScan, setAutoVerifyOnScan] = useState(true)
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const [torchSupported, setTorchSupported] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
 
   // Last scanned attendee card modal
   const [scannedAttendee, setScannedAttendee] = useState<UserProfile | null>(null)
+  const [scanOutcome, setScanOutcome] = useState<'new' | 'duplicate' | null>(null)
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
-  const scanLockRef = useRef(false)
 
-  // Web Audio Synthesizer Beep (No external files needed)
-  const playBeep = useCallback((success = true) => {
+  // Volunteer session stats
+  const [sessionCount, setSessionCount] = useState(0)
+  const [recentScans, setRecentScans] = useState<RecentScan[]>([])
+
+  // Refs so the long-lived scan loop always sees fresh state
+  const attendeesRef = useRef<UserProfile[]>([])
+  attendeesRef.current = attendees
+  const handleCodeRef = useRef<(data: string, manual?: boolean) => Promise<void>>(async () => {})
+
+  // Scan loop control
+  const startIdRef = useRef(0)
+  const loopIdRef = useRef(0)
+  const rafRef = useRef<number | null>(null)
+  const lastFrameRef = useRef(0)
+  const busyRef = useRef(false)
+  const lastCodeRef = useRef<{ data: string; at: number }>({ data: '', at: 0 })
+  const detectorRef = useRef<any>(null)
+  const wakeLockRef = useRef<any>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
+  // Web Audio Synthesizer Beep (No external files needed). One shared AudioContext.
+  const playBeep = useCallback((kind: BeepKind = 'success') => {
     if (!soundEnabled) return
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const osc = audioCtx.createOscillator()
-      const gain = audioCtx.createGain()
-      osc.type = success ? 'sine' : 'sawtooth'
-      osc.frequency.setValueAtTime(success ? 880 : 330, audioCtx.currentTime) // A5 or E4
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15)
-      osc.connect(gain)
-      gain.connect(audioCtx.destination)
-      osc.start()
-      osc.stop(audioCtx.currentTime + 0.16)
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+      const audioCtx = audioCtxRef.current
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
+
+      const tone = (freq: number, offset: number, type: OscillatorType) => {
+        const osc = audioCtx.createOscillator()
+        const gain = audioCtx.createGain()
+        const t0 = audioCtx.currentTime + offset
+        osc.type = type
+        osc.frequency.setValueAtTime(freq, t0)
+        gain.gain.setValueAtTime(0.15, t0)
+        gain.gain.exponentialRampToValueAtTime(0.01, t0 + 0.15)
+        osc.connect(gain)
+        gain.connect(audioCtx.destination)
+        osc.start(t0)
+        osc.stop(t0 + 0.16)
+      }
+
+      if (kind === 'success') tone(880, 0, 'sine') // A5
+      else if (kind === 'error') tone(330, 0, 'sawtooth') // E4
+      else {
+        // Already entered: two low square pulses
+        tone(520, 0, 'square')
+        tone(520, 0.22, 'square')
+      }
     } catch {}
   }, [soundEnabled])
+
+  useEffect(() => {
+    return () => {
+      audioCtxRef.current?.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+  }, [])
 
   // Load attendees roster
   const loadRoster = useCallback(async () => {
@@ -83,7 +149,8 @@ export function VerificationDeskPage() {
     }
   }, [isAuthorized, loadRoster])
 
-  // Realtime subscription for gate verification sync across all volunteers
+  // Realtime subscription for gate verification sync across all volunteers.
+  // Patches the single changed row instead of reloading the whole roster.
   useEffect(() => {
     if (!supabase || !isAuthorized) return
 
@@ -92,8 +159,27 @@ export function VerificationDeskPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TABLES.PROFILES },
-        () => {
-          loadRoster()
+        (payload: any) => {
+          if (payload?.eventType === 'DELETE') {
+            const id = payload.old?.id
+            if (id) setAttendees(prev => prev.filter(a => a.id !== id))
+            return
+          }
+
+          const row = payload?.new
+          if (row && row.id && row.email !== undefined) {
+            const mapped = mapAttendeeRow(row)
+            setAttendees(prev => {
+              const idx = prev.findIndex(a => a.id === mapped.id)
+              if (idx === -1) return [mapped, ...prev]
+              const next = [...prev]
+              next[idx] = mapped
+              return next
+            })
+            setScannedAttendee(prev => (prev && prev.id === mapped.id ? mapped : prev))
+          } else {
+            loadRoster()
+          }
         }
       )
       .subscribe()
@@ -119,6 +205,15 @@ export function VerificationDeskPage() {
     }
   }, [isAuthorized, activeTab, facingMode])
 
+  // Re-acquire the screen wake lock when returning to the tab (browsers drop it on hide)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && cameraActive) requestWakeLock()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [cameraActive])
+
   const [manualCodeInput, setManualCodeInput] = useState('')
 
   // Read URL query params for tab switching (e.g. /verify?tab=roster)
@@ -130,7 +225,52 @@ export function VerificationDeskPage() {
     }
   }, [])
 
+  const requestWakeLock = async () => {
+    try {
+      const wl = (navigator as any).wakeLock
+      if (wl && !wakeLockRef.current) {
+        const lock = await wl.request('screen')
+        wakeLockRef.current = lock
+        lock.addEventListener?.('release', () => {
+          if (wakeLockRef.current === lock) wakeLockRef.current = null
+        })
+      }
+    } catch {}
+  }
+
+  const releaseWakeLock = () => {
+    try {
+      wakeLockRef.current?.release?.()
+    } catch {}
+    wakeLockRef.current = null
+  }
+
+  // Stops the media stream and scan loop without invalidating an in-flight start
+  const stopCameraStream = () => {
+    loopIdRef.current++
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    busyRef.current = false
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream
+      stream.getTracks().forEach(track => track.stop())
+      videoRef.current.srcObject = null
+    }
+    releaseWakeLock()
+    setTorchOn(false)
+    setTorchSupported(false)
+  }
+
+  const stopCamera = () => {
+    startIdRef.current++ // cancels any start still waiting on getUserMedia
+    stopCameraStream()
+    setCameraActive(false)
+  }
+
   const startCamera = async () => {
+    const startId = ++startIdRef.current
     setCameraError(null)
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -139,7 +279,7 @@ export function VerificationDeskPage() {
       }
 
       // Stop any existing stream
-      stopCamera()
+      stopCameraStream()
 
       let stream: MediaStream
       try {
@@ -156,6 +296,12 @@ export function VerificationDeskPage() {
         })
       }
 
+      // Camera was stopped / restarted while permission prompt was open
+      if (startId !== startIdRef.current) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         videoRef.current.setAttribute('playsinline', 'true')
@@ -166,10 +312,33 @@ export function VerificationDeskPage() {
         } catch (playErr) {
           console.warn('Video play notice:', playErr)
         }
+        if (startId !== startIdRef.current) return
+
+        // Flashlight support (mostly Android Chrome rear cameras)
+        try {
+          const caps: any = stream.getVideoTracks()[0]?.getCapabilities?.()
+          setTorchSupported(Boolean(caps && 'torch' in caps))
+        } catch {
+          setTorchSupported(false)
+        }
+
+        // Native QR detector where available, jsQR otherwise
+        detectorRef.current = null
+        try {
+          const BD = (window as any).BarcodeDetector
+          if (BD) detectorRef.current = new BD({ formats: ['qr_code'] })
+        } catch {
+          detectorRef.current = null
+        }
+
         setCameraActive(true)
-        requestAnimationFrame(tickScan)
+        requestWakeLock()
+        startScanLoop()
+      } else {
+        stream.getTracks().forEach(track => track.stop())
       }
     } catch (err: any) {
+      if (startId !== startIdRef.current) return
       console.warn('Camera access error:', err)
       setCameraActive(false)
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -180,100 +349,161 @@ export function VerificationDeskPage() {
     }
   }
 
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream
-      stream.getTracks().forEach(track => track.stop())
-      videoRef.current.srcObject = null
+  const toggleTorch = async () => {
+    const track = (videoRef.current?.srcObject as MediaStream | null)?.getVideoTracks()[0]
+    if (!track) return
+    const next = !torchOn
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next } as any] })
+      setTorchOn(next)
+    } catch {
+      toast.error('Flashlight is not available on this camera.')
     }
-    setCameraActive(false)
   }
 
-  // Real-time Canvas Frame QR Scanner (jsQR)
-  const tickScan = () => {
-    if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
-      if (cameraActive) requestAnimationFrame(tickScan)
-      return
+  // Decode one video frame -> raw QR text (or null)
+  const decodeFrame = async (video: HTMLVideoElement): Promise<string | null> => {
+    const detector = detectorRef.current
+    if (detector) {
+      try {
+        const results = await detector.detect(video)
+        return results?.[0]?.rawValue || null
+      } catch {
+        detectorRef.current = null // fall back to jsQR from now on
+      }
     }
 
-    const video = videoRef.current
     let canvas = canvasRef.current
     if (!canvas) {
       canvas = document.createElement('canvas')
       canvasRef.current = canvas
     }
-
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
+    if (!ctx) return null
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const scale = Math.min(1, SCAN_MAX_WIDTH / video.videoWidth)
+    const w = Math.max(1, Math.round(video.videoWidth * scale))
+    const h = Math.max(1, Math.round(video.videoHeight * scale))
+    if (canvas.width !== w) canvas.width = w
+    if (canvas.height !== h) canvas.height = h
+    ctx.drawImage(video, 0, 0, w, h)
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const imageData = ctx.getImageData(0, 0, w, h)
     const code = jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: 'dontInvert',
     })
-
-    if (code && code.data && !scanLockRef.current) {
-      handleCodeDetected(code.data)
-    }
-
-    if (cameraActive) {
-      requestAnimationFrame(tickScan)
-    }
+    return code?.data || null
   }
 
-  const handleCodeDetected = async (data: string) => {
-    scanLockRef.current = true
+  // Throttled real-time scan loop. Uses refs only, so it never reads stale state.
+  const startScanLoop = () => {
+    const loopId = ++loopIdRef.current
+
+    const tick = async (ts: number) => {
+      if (loopId !== loopIdRef.current) return
+      rafRef.current = requestAnimationFrame(tick)
+
+      if (busyRef.current || ts - lastFrameRef.current < SCAN_INTERVAL_MS) return
+      const video = videoRef.current
+      if (!video || video.readyState < video.HAVE_ENOUGH_DATA || !video.videoWidth) return
+
+      lastFrameRef.current = ts
+      busyRef.current = true
+      try {
+        const data = await decodeFrame(video)
+        if (loopId !== loopIdRef.current || !data) return
+
+        const now = Date.now()
+        const last = lastCodeRef.current
+        const isRepeat = last.data === data && now - last.at < SAME_CODE_COOLDOWN_MS
+        lastCodeRef.current = { data, at: now } // holding the pass in view keeps extending the cooldown
+        if (!isRepeat) await handleCodeRef.current(data)
+      } catch (err) {
+        console.warn('Scan tick error:', err)
+      } finally {
+        busyRef.current = false
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  const addRecentScan = (entry: Omit<RecentScan, 'key' | 'at'>) => {
+    const now = Date.now()
+    setRecentScans(prev => [{ ...entry, key: `${now}-${Math.random()}`, at: now }, ...prev].slice(0, 6))
+  }
+
+  const handleCodeDetected = async (data: string, manual = false) => {
+    const raw = data.trim()
+    if (!raw) return
+
     try {
       let attendeeId: string | null = null
       let passCode: string | null = null
+      let email: string | null = null
 
       // Detect JSON payload or plain code
+      let parsed: any = null
       try {
-        const parsed = JSON.parse(data)
-        if (parsed.id) attendeeId = parsed.id
-        if (parsed.code) passCode = parsed.code
-      } catch {
-        // Plain text format: e.g. TBP-A8F2 or raw UUID
-        if (data.startsWith('TBP-')) passCode = data.trim()
-        else if (data.length === 36) attendeeId = data.trim()
+        parsed = JSON.parse(raw)
+      } catch {}
+
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.id === 'string') attendeeId = parsed.id
+        if (typeof parsed.code === 'string') passCode = parsed.code
+      } else if (/^TBP-/i.test(raw)) {
+        passCode = raw.toUpperCase()
+      } else if (raw.length === 36) {
+        attendeeId = raw
+      } else if (raw.includes('@')) {
+        email = raw.toLowerCase()
+      } else if (manual) {
+        passCode = `TBP-${raw.toUpperCase()}` // typed without the prefix
       }
 
-      // Find attendee in roster
-      let target: UserProfile | undefined = attendees.find(
-        a => (attendeeId && a.id === attendeeId) || (passCode && a.passCode?.toUpperCase() === passCode.toUpperCase())
-      )
-
-      // Fallback reload if not in cached list
-      if (!target && (attendeeId || passCode)) {
-        const freshList = await getRegisteredAttendees()
-        setAttendees(freshList)
-        target = freshList.find(
-          a => (attendeeId && a.id === attendeeId) || (passCode && a.passCode?.toUpperCase() === passCode.toUpperCase())
+      const matchesCache = (a: UserProfile) =>
+        Boolean(
+          (attendeeId && a.id === attendeeId) ||
+          (passCode && a.passCode?.toUpperCase() === passCode.toUpperCase()) ||
+          (email && a.email?.toLowerCase() === email)
         )
+
+      // Fresh server read (so "already verified" is authoritative), cached roster as offline fallback
+      const cached = attendeesRef.current.find(matchesCache)
+      let target: UserProfile | null = null
+      if (attendeeId || passCode || email) {
+        target = await findAttendee({ id: attendeeId ?? cached?.id, passCode, email })
       }
+      if (!target) target = cached ?? null
 
       if (target) {
-        playBeep(true)
-        if (navigator.vibrate) navigator.vibrate([80, 40, 80])
-        setScannedAttendee(target)
+        const fresh = target
+        setAttendees(prev => (prev.some(a => a.id === fresh.id) ? prev.map(a => (a.id === fresh.id ? fresh : a)) : [fresh, ...prev]))
 
-        if (autoVerifyOnScan && !target.isEntryVerified && target.role !== 'admin') {
-          await executeVerification(target.id)
+        const isDuplicate = fresh.isEntryVerified && fresh.role !== 'admin'
+        playBeep(isDuplicate ? 'duplicate' : 'success')
+        if (navigator.vibrate) navigator.vibrate(isDuplicate ? [250] : [80, 40, 80])
+        setScannedAttendee(fresh)
+        setScanOutcome(isDuplicate ? 'duplicate' : 'new')
+
+        if (isDuplicate) {
+          addRecentScan({ name: fresh.displayName, outcome: 'duplicate' })
+          toast.warning(`${fresh.displayName} has already entered.`)
+        } else if (autoVerifyOnScan && !fresh.isEntryVerified && fresh.role !== 'admin') {
+          await executeVerification(fresh.id)
         }
       } else {
-        playBeep(false)
+        playBeep('error')
+        addRecentScan({ name: 'Unrecognized code', outcome: 'unknown' })
         toast.error('Scanned QR code is not recognized as a registered attendee.')
       }
-    } finally {
-      // Re-enable scan after 2.5 seconds pause
-      setTimeout(() => {
-        scanLockRef.current = false
-      }, 2500)
+    } catch (err) {
+      console.warn('Scan handling error:', err)
+      playBeep('error')
+      toast.error('Could not process this scan. Please try again.')
     }
   }
+  handleCodeRef.current = handleCodeDetected
 
   // Execute verification
   const executeVerification = async (attendeeId: string) => {
@@ -283,22 +513,16 @@ export function VerificationDeskPage() {
       const res = await verifyAttendeeAtGate(attendeeId, user.id)
       if (res.success) {
         toast.success('Attendee gate verified successfully!')
-        // Optimistic update
-        setAttendees(prev => prev.map(a => a.id === attendeeId ? {
-          ...a,
-          isEntryVerified: true,
-          verifiedAt: new Date().toISOString(),
-          verifiedBy: user.email,
-        } : a))
+        const verifiedAt = new Date().toISOString()
+        const patch = { isEntryVerified: true, verifiedAt, verifiedBy: user.email }
 
-        if (scannedAttendee?.id === attendeeId) {
-          setScannedAttendee(prev => prev ? {
-            ...prev,
-            isEntryVerified: true,
-            verifiedAt: new Date().toISOString(),
-            verifiedBy: user.email,
-          } : null)
-        }
+        // Optimistic update
+        setAttendees(prev => prev.map(a => (a.id === attendeeId ? { ...a, ...patch } : a)))
+        setScannedAttendee(prev => (prev && prev.id === attendeeId ? { ...prev, ...patch } : prev))
+
+        setSessionCount(c => c + 1)
+        const name = attendeesRef.current.find(a => a.id === attendeeId)?.displayName || 'Attendee'
+        addRecentScan({ name, outcome: 'verified' })
       } else {
         toast.error(res.error || 'Verification failed.')
       }
@@ -312,26 +536,20 @@ export function VerificationDeskPage() {
   // Undo verification
   const executeUnverify = async (attendeeId: string) => {
     if (!user) return
+    const name = attendeesRef.current.find(a => a.id === attendeeId)?.displayName || 'this attendee'
+    if (!window.confirm(`Revoke gate verification for ${name}?`)) return
+
     setVerifyingId(attendeeId)
     try {
       const res = await unverifyAttendeeAtGate(attendeeId, user.id)
       if (res.success) {
         toast.info('Attendee entry verification revoked.')
-        setAttendees(prev => prev.map(a => a.id === attendeeId ? {
-          ...a,
-          isEntryVerified: false,
-          verifiedAt: undefined,
-          verifiedBy: undefined,
-        } : a))
-
-        if (scannedAttendee?.id === attendeeId) {
-          setScannedAttendee(prev => prev ? {
-            ...prev,
-            isEntryVerified: false,
-            verifiedAt: undefined,
-            verifiedBy: undefined,
-          } : null)
-        }
+        const patch = { isEntryVerified: false, verifiedAt: undefined, verifiedBy: undefined }
+        setAttendees(prev => prev.map(a => (a.id === attendeeId ? { ...a, ...patch } : a)))
+        setScannedAttendee(prev => (prev && prev.id === attendeeId ? { ...prev, ...patch } : prev))
+        setScanOutcome(null)
+      } else {
+        toast.error(res.error || 'Could not revoke verification.')
       }
     } finally {
       setVerifyingId(null)
@@ -525,6 +743,20 @@ export function VerificationDeskPage() {
                     {soundEnabled ? <Volume2 size={13} className="text-emerald-600" /> : <VolumeX size={13} className="text-zinc-400" />}
                     <span>Sound {soundEnabled ? 'ON' : 'OFF'}</span>
                   </button>
+
+                  {torchSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleTorch}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-colors',
+                        torchOn ? 'bg-amber-400 text-black hover:bg-amber-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800'
+                      )}
+                    >
+                      <Flashlight size={13} />
+                      <span>Light {torchOn ? 'ON' : 'OFF'}</span>
+                    </button>
+                  )}
                 </div>
 
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -551,7 +783,7 @@ export function VerificationDeskPage() {
                   onSubmit={(e) => {
                     e.preventDefault()
                     if (manualCodeInput.trim()) {
-                      handleCodeDetected(manualCodeInput.trim())
+                      handleCodeDetected(manualCodeInput.trim(), true)
                       setManualCodeInput('')
                     }
                   }}
@@ -562,7 +794,7 @@ export function VerificationDeskPage() {
                     value={manualCodeInput}
                     onChange={(e) => setManualCodeInput(e.target.value)}
                     placeholder="Enter pass code (TBP-XXXX) or attendee email..."
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 focus:border-zinc-950 text-xs font-mono text-zinc-900 outline-none uppercase"
+                    className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200 focus:border-zinc-950 text-xs font-mono text-zinc-900 outline-none uppercase"
                   />
                   <button
                     type="submit"
@@ -628,6 +860,23 @@ export function VerificationDeskPage() {
                       </div>
                     </div>
 
+                    {/* Duplicate-entry warning */}
+                    {scanOutcome === 'duplicate' && scannedAttendee.isEntryVerified && scannedAttendee.role !== 'admin' && (
+                      <div className="p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-400 text-rose-950 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={16} className="text-rose-600 flex-shrink-0" />
+                          <span className="font-black text-xs uppercase tracking-wide">
+                            Already Entered
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-rose-900 leading-snug">
+                          This pass was already verified
+                          {scannedAttendee.verifiedAt ? ` ${formatRelativeTime(scannedAttendee.verifiedAt)}` : ''}
+                          {scannedAttendee.verifiedBy ? ` by ${scannedAttendee.verifiedBy}` : ''}. Check for a shared or forwarded pass.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Status Box */}
                     {scannedAttendee.role === 'admin' || scannedAttendee.isEntryVerified ? (
                       <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-1">
@@ -692,6 +941,40 @@ export function VerificationDeskPage() {
                       Point the camera at the attendee's "Event Entry Pass" QR code to view and verify them.
                     </p>
                   </div>
+                )}
+              </div>
+
+              {/* Session stats & recent scans */}
+              <div className="p-4 rounded-2xl bg-white border border-zinc-200/90 shadow-sm space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-zinc-950 tracking-wide flex items-center gap-1.5">
+                    <Clock size={14} className="text-zinc-500" />
+                    <span>Recent Scans</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    You verified: <span className="font-black text-zinc-950">{sessionCount}</span>
+                  </span>
+                </div>
+                {recentScans.length === 0 ? (
+                  <p className="text-[11px] text-zinc-400">No scans yet this session.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {recentScans.map(scan => (
+                      <li key={scan.key} className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="truncate font-semibold text-zinc-800">{scan.name}</span>
+                        <span
+                          className={cn(
+                            'flex-shrink-0 px-1.5 py-0.5 rounded font-black uppercase text-[9px]',
+                            scan.outcome === 'verified' && 'bg-emerald-100 text-emerald-800',
+                            scan.outcome === 'duplicate' && 'bg-rose-100 text-rose-800',
+                            scan.outcome === 'unknown' && 'bg-zinc-200 text-zinc-700'
+                          )}
+                        >
+                          {scan.outcome === 'verified' ? 'Verified' : scan.outcome === 'duplicate' ? 'Already in' : 'Unknown'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>
